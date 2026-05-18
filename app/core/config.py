@@ -41,5 +41,16 @@ class Settings(BaseSettings):
     ocr_pdf_render_dpi: int = 200
     ocr_second_pass_verification: bool = True
 
+    # Post-redaction verification thresholds [0.0–1.0].
+    # review  : risk >= threshold → manual_review_required = True.
+    # reject  : risk >= threshold → RedactionVerificationError raised.
+    verify_risk_threshold_review: float = 0.30
+    verify_risk_threshold_reject: float = 0.70
+    # Comma-separated layer names active per redaction mode.
+    verify_layers_strict:   str = "textual,metadata,binary"
+    verify_layers_balanced: str = "textual,metadata"
+    # OCR verification layer is opt-in — it doubles processing time.
+    verify_ocr_layer_enabled: bool = False
+
 
 settings = Settings()

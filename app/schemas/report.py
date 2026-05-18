@@ -42,6 +42,18 @@ class SecurityChecks(BaseModel):
     report_contains_pii_values: bool = False
 
 
+class VerificationSummary(BaseModel):
+    """Compact summary of post-redaction verification results included in the report."""
+
+    overall_risk_score: float
+    risk_level: Literal["none", "low", "medium", "high"]
+    layers_run: list[str] = Field(default_factory=list)
+    critical_pages: list[int] = Field(default_factory=list)
+    entities_by_layer: dict[str, int] = Field(default_factory=dict)
+    total_residual_entities: int = 0
+    passed: bool = True
+
+
 class ProcessingReport(BaseModel):
     job_id: str
 
@@ -91,3 +103,6 @@ class ProcessingReport(BaseModel):
     processing_ms: int | None = None
 
     ocr: OcrInfo = Field(default_factory=OcrInfo)
+
+    # Populated after post-redaction verification runs.
+    verification: VerificationSummary | None = None
