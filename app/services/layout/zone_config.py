@@ -1,0 +1,122 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from app.services.layout.models import ZoneType
+
+
+# ---------------------------------------------------------------------------
+# Canonical list of all entity types the system can detect.
+# Keep this in sync with the recognizers in pii/recognizers_es.py and the
+# patterns in pii/analyzer.py.
+# ---------------------------------------------------------------------------
+
+ALL_PII_TYPES: list[str] = [
+    "ES_DNI",
+    "ES_NIE",
+    "ES_CIF",
+    "EMAIL_ADDRESS",
+    "PHONE_NUMBER",
+    "IBAN_CODE",
+    "PERSON",
+    "LOCATION",
+    "ORGANIZATION",
+    "ADDRESS",
+    "PASSPORT",
+    "CREDIT_CARD",
+    "USER_ID",
+    "IP_ADDRESS",
+    "MEDICAL_ID",
+    "POLICY_NUMBER",
+    "LICENSE_PLATE",
+    "CADASTRAL_REFERENCE",
+    "CASE_NUMBER",
+    "PROFESSIONAL_LICENSE",
+    "POSTAL_CODE",
+    "URL",
+    "DATE_OF_BIRTH",
+    "CASE_TABLE_ROW",
+    "ROLE_TABLE_ROW",
+]
+
+
+# ---------------------------------------------------------------------------
+# Per-zone detection policy
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class ZoneDetectorConfig:
+    """Specifies how PII detection should be applied to a zone.
+
+    entity_types:
+        None   → skip entity detection and redact the entire zone (SIGNATURE,
+                 QR_CODE).
+        list   → run detection restricted to these entity types.
+
+    apply_layout_analysis:
+        Whether the redactor should run sub-layout analysis (label-value
+        detection, table column mapping) inside this zone.  Disabled for
+        HEADER and FOOTER where the structure is rarely form-like.
+    """
+
+    entity_types: list[str] | None
+    apply_layout_analysis: bool = True
+
+
+# Sentinel: entire zone is redacted without running any entity detector.
+_REDACT_ZONE = ZoneDetectorConfig(entity_types=None, apply_layout_analysis=False)
+
+# Cabecera: identifiers and actor names are plausible; full layout analysis
+# is not useful here because headers are rarely form-like.
+_HEADER_CONFIG = ZoneDetectorConfig(
+    entity_types=[
+        "PERSON",
+        "ES_DNI",
+        "ES_NIE",
+        "ES_CIF",
+        "CASE_NUMBER",
+        "DATE_OF_BIRTH",
+        "EMAIL_ADDRESS",
+        "PHONE_NUMBER",
+    ],
+    apply_layout_analysis=False,
+)
+
+# Pie de página: mostly case references and URLs.
+_FOOTER_CONFIG = ZoneDetectorConfig(
+    entity_types=["CASE_NUMBER", "URL"],
+    apply_layout_analysis=False,
+)
+
+# Anotaciones marginales: sparse, low-structure text.
+_MARGINALIA_CONFIG = ZoneDetectorConfig(
+    entity_types=[
+        "PERSON",
+        "ES_DNI",
+        "ES_NIE",
+        "EMAIL_ADDRESS",
+        "PHONE_NUMBER",
+    ],
+    apply_layout_analysis=False,
+)
+
+# Zones where every entity type is relevant and layout sub-analysis applies.
+_ALL_TYPES_CONFIG = ZoneDetectorConfig(entity_types=ALL_PII_TYPES)
+
+
+ZONE_DETECTOR_CONFIG: dict[ZoneType, ZoneDetectorConfig] = {
+    ZoneType.HEADER:     _HEADER_CONFIG,
+    ZoneType.FOOTER:     _FOOTER_CONFIG,
+    ZoneType.FORM:       _ALL_TYPES_CONFIG,
+    ZoneType.TABLE:      _ALL_TYPES_CONFIG,
+    ZoneType.BODY:       _ALL_TYPES_CONFIG,
+    ZoneType.SIGNATURE:  _REDACT_ZONE,
+    ZoneType.QR_CODE:    _REDACT_ZONE,
+    ZoneType.MARGINALIA: _MARGINALIA_CONFIG,
+    ZoneType.UNKNOWN:    _ALL_TYPES_CONFIG,
+}
+
+
+def get_detector_config(zone_type: ZoneType) -> ZoneDetectorConfig:
+    """Return the detection policy for the given zone type."""
+    return ZONE_DETECTOR_CONFIG.get(zone_type, _ALL_TYPES_CONFIG)
