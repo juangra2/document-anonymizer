@@ -164,6 +164,114 @@ FIELD_SPECS: tuple[FieldSpec, ...] = (
             "caso",
         ),
     ),
+    # ---------------------------------------------------------------
+    # Valenciano / Catalán
+    # ---------------------------------------------------------------
+    FieldSpec(
+        entity_type="PERSON",
+        labels=(
+            "nom",
+            "nom complet",
+            "cognoms",
+            "nom i cognoms",
+            "sollicitant",
+            "titular",
+        ),
+    ),
+    FieldSpec(
+        entity_type="ID_NUMBER",
+        labels=(
+            "dni",
+            "nif",
+            "nie",
+            "numero d'identificacio",
+            "numero d'identificacio fiscal",
+        ),
+    ),
+    FieldSpec(
+        entity_type="EMAIL_ADDRESS",
+        labels=(
+            "correu",
+            "correu electronic",
+            "correu electronico",
+            "adreca electronica",
+            "adreca electronica",
+        ),
+    ),
+    FieldSpec(
+        entity_type="PHONE_NUMBER",
+        labels=(
+            "telefon",
+            "mobil",
+            "telefon mobil",
+        ),
+    ),
+    FieldSpec(
+        entity_type="ADDRESS",
+        labels=(
+            "adreca",
+            "adreça",
+            "adreca postal",
+            "domicili",
+            "domicili fiscal",
+        ),
+    ),
+    FieldSpec(
+        entity_type="DATE_OF_BIRTH",
+        labels=(
+            "data de naixement",
+            "data naixement",
+        ),
+    ),
+    FieldSpec(
+        entity_type="IBAN_CODE",
+        labels=(
+            "compte bancari",
+            "iban",
+        ),
+    ),
+    FieldSpec(
+        entity_type="PASSPORT",
+        labels=(
+            "passaport",
+        ),
+    ),
+    FieldSpec(
+        entity_type="LICENSE_PLATE",
+        labels=(
+            "matricula",
+            "matricula del vehicle",
+        ),
+    ),
+    FieldSpec(
+        entity_type="CASE_NUMBER",
+        labels=(
+            "expedient",
+            "numero d'expedient",
+            "ref expedient",
+        ),
+    ),
+    FieldSpec(
+        entity_type="PROFESSIONAL_LICENSE",
+        labels=(
+            "numero de collegiat",
+            "num collegiat",
+            "col legiat",
+        ),
+    ),
+    FieldSpec(
+        entity_type="POSTAL_CODE",
+        labels=(
+            "codi postal",
+        ),
+    ),
+    FieldSpec(
+        entity_type="CADASTRAL_REFERENCE",
+        labels=(
+            "referencia cadastral",
+            "referencia catastral",
+        ),
+    ),
 )
 
 

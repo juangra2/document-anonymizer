@@ -109,6 +109,72 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
 ]
 
 
+# -----------------------------------------------------------------------
+# Valencian / Catalan labeled-field patterns (colon form)
+# -----------------------------------------------------------------------
+LABELED_FIELD_PATTERNS_VAL_CAT: list[tuple[str, str]] = [
+    (
+        "PERSON",
+        r"(?im)^[^\S\r\n]*(?:nom(?:[^\S\r\n]+complet|[^\S\r\n]+i[^\S\r\n]+cognoms)?|cognoms|sollicitant|titular)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
+    (
+        "DATE_OF_BIRTH",
+        r"(?im)^[^\S\r\n]*(?:data[^\S\r\n]+de[^\S\r\n]+naixement|data[^\S\r\n]+naixement)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
+    (
+        "ES_DNI",
+        r"(?im)^[^\S\r\n]*(?:dni|nif|n[uú]mero[^\S\r\n]+d'identificaci[oó](?:[^\S\r\n]+fiscal)?)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
+    (
+        "ES_NIE",
+        r"(?im)^[^\S\r\n]*(?:nie)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
+    (
+        "PASSPORT",
+        r"(?im)^[^\S\r\n]*(?:passaport)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
+    (
+        "EMAIL_ADDRESS",
+        r"(?im)^[^\S\r\n]*(?:correu(?:[^\S\r\n]+electr[oò]nic)?|adre[cç]a[^\S\r\n]+electr[oò]nica)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
+    (
+        "PHONE_NUMBER",
+        r"(?im)^[^\S\r\n]*(?:tel[eè]fon(?:[^\S\r\n]+m[oò]bil)?|m[oò]bil)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
+    (
+        "IBAN_CODE",
+        r"(?im)^[^\S\r\n]*(?:compte[^\S\r\n]+bancari|iban)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
+    (
+        "ADDRESS",
+        r"(?im)^[^\S\r\n]*(?:adre[cç]a(?:[^\S\r\n]+postal)?|domicili(?:[^\S\r\n]+fiscal)?)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
+    (
+        "CASE_NUMBER",
+        r"(?im)^[^\S\r\n]*(?:expedient(?:[^\S\r\n]+municipal)?|n[uú]mero[^\S\r\n]+d'expedient)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
+    (
+        "PROFESSIONAL_LICENSE",
+        r"(?im)^[^\S\r\n]*(?:n[uú]mero[^\S\r\n]+de[^\S\r\n]+col[·l]egiat|num[^\S\r\n]+col[·l]egiat)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
+    (
+        "LICENSE_PLATE",
+        r"(?im)^[^\S\r\n]*(?:matr[ií]cula(?:[^\S\r\n]+del[^\S\r\n]+vehicle)?)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
+    (
+        "POSTAL_CODE",
+        r"(?im)^[^\S\r\n]*(?:codi[^\S\r\n]+postal)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
+    (
+        "CADASTRAL_REFERENCE",
+        r"(?im)^[^\S\r\n]*(?:refer[eè]ncia[^\S\r\n]+cadastral)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
+]
+
+# Append Valencian/Catalan patterns to the main list
+LABELED_FIELD_PATTERNS = LABELED_FIELD_PATTERNS + LABELED_FIELD_PATTERNS_VAL_CAT  # type: ignore[name-defined]
+
+
 NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
     (
         "PERSON",
