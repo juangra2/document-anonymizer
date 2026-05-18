@@ -1,0 +1,158 @@
+from presidio_analyzer import Pattern, PatternRecognizer
+
+
+def build_spanish_pattern_recognizers() -> list[PatternRecognizer]:
+    return [
+        PatternRecognizer(
+            name="ES_DNI_RECOGNIZER",
+            supported_entity="ES_DNI",
+            supported_language="es",
+            patterns=[
+                Pattern(
+                    name="dni_pattern",
+                    regex=r"\b\d{8}[\s\-]?[A-HJ-NP-TV-Z]\b",
+                    score=0.85,
+                )
+            ],
+            context=["dni", "nif", "documento", "identidad"],
+        ),
+        PatternRecognizer(
+            name="ES_NIE_RECOGNIZER",
+            supported_entity="ES_NIE",
+            supported_language="es",
+            patterns=[
+                Pattern(
+                    name="nie_pattern",
+                    regex=r"\b[XYZ][\s\-]?\d{7}[\s\-]?[A-HJ-NP-TV-Z]\b",
+                    score=0.85,
+                )
+            ],
+            context=["nie", "extranjero", "identidad"],
+        ),
+        PatternRecognizer(
+            name="ES_CIF_RECOGNIZER",
+            supported_entity="ES_CIF",
+            supported_language="es",
+            patterns=[
+                Pattern(
+                    name="cif_pattern",
+                    regex=r"\b[A-HJNPQRSUVW][\s\-]?\d{7}[\s\-]?[0-9A-J]\b",
+                    score=0.75,
+                )
+            ],
+            context=["cif", "empresa", "sociedad", "fiscal"],
+        ),
+        PatternRecognizer(
+            name="EMAIL_RECOGNIZER_CUSTOM",
+            supported_entity="EMAIL_ADDRESS",
+            supported_language="es",
+            patterns=[
+                Pattern(
+                    name="email_pattern",
+                    regex=r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b",
+                    score=0.90,
+                )
+            ],
+        ),
+        PatternRecognizer(
+            name="SPANISH_PHONE_RECOGNIZER",
+            supported_entity="PHONE_NUMBER",
+            supported_language="es",
+            patterns=[
+                Pattern(
+                    name="spanish_phone_pattern",
+                    regex=r"(?<!\d)(?:\+34[\s\-]?)?(?:6|7|8|9)\d{2}[\s\-]?\d{3}[\s\-]?\d{3}(?!\d)",
+                    score=0.75,
+                )
+            ],
+            context=["teléfono", "telefono", "móvil", "movil", "contacto"],
+        ),
+        PatternRecognizer(
+            name="SPANISH_IBAN_RECOGNIZER",
+            supported_entity="IBAN_CODE",
+            supported_language="es",
+            patterns=[
+                Pattern(
+                    name="spanish_iban_pattern",
+                    regex=r"\bES\d{2}(?:[\s\-]?\d{4}){5}\b",
+                    score=0.90,
+                )
+            ],
+            context=["iban", "cuenta", "banco"],
+        ),
+        PatternRecognizer(
+            name="URL_RECOGNIZER_CUSTOM",
+            supported_entity="URL",
+            supported_language="es",
+            patterns=[
+                Pattern(
+                    name="url_pattern",
+                    regex=r"\bhttps?://[^\s<>()]+|\bwww\.[^\s<>()]+",
+                    score=0.75,
+                )
+            ],
+        ),
+        PatternRecognizer(
+            name="SPANISH_POSTAL_CODE_RECOGNIZER",
+            supported_entity="POSTAL_CODE",
+            supported_language="es",
+            patterns=[
+                Pattern(
+                    name="postal_code_pattern",
+                    regex=r"\b(?:0[1-9]|[1-4]\d|5[0-2])\d{3}\b",
+                    score=0.45,
+                )
+            ],
+            context=["cp", "c.p.", "código postal", "codigo postal"],
+        ),
+        PatternRecognizer(
+            name="SPANISH_LICENSE_PLATE_RECOGNIZER",
+            supported_entity="LICENSE_PLATE",
+            supported_language="es",
+            patterns=[
+                Pattern(
+                    name="plate_pattern",
+                    regex=r"\b\d{4}[\s\-]?[B-DF-HJ-NP-TV-Z]{3}\b",
+                    score=0.70,
+                )
+            ],
+            context=["matrícula", "matricula", "vehículo", "vehiculo"],
+        ),
+        PatternRecognizer(
+            name="CADASTRAL_REFERENCE_RECOGNIZER",
+            supported_entity="CADASTRAL_REFERENCE",
+            supported_language="es",
+            patterns=[
+                Pattern(
+                    name="cadastral_reference_pattern",
+                    regex=r"\b[0-9A-Z]{14,20}\b",
+                    score=0.45,
+                )
+            ],
+            context=["referencia catastral", "catastro", "parcela"],
+        ),
+        PatternRecognizer(
+            name="CASE_NUMBER_RECOGNIZER",
+            supported_entity="CASE_NUMBER",
+            supported_language="es",
+            patterns=[
+                Pattern(
+                    name="case_number_pattern",
+                    regex=r"\b(?:expediente|exp\.?|ref\.?)\s*[: nºnº.-]*\s*[A-Z0-9][A-Z0-9/\-_.]{4,}\b",
+                    score=0.70,
+                )
+            ],
+        ),
+        PatternRecognizer(
+            name="PROFESSIONAL_LICENSE_RECOGNIZER",
+            supported_entity="PROFESSIONAL_LICENSE",
+            supported_language="es",
+            patterns=[
+                Pattern(
+                    name="professional_license_pattern",
+                    regex=r"\b(?:colegiado|col\.?|n[úu]m\.?\s*colegiado)\s*[: nºnº.-]*\s*[A-Z0-9/\-]{3,}\b",
+                    score=0.70,
+                )
+            ],
+        ),
+    ]

@@ -1,0 +1,17 @@
+services:
+  anonymizer-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      TEMP_ROOT: /tmp/anonymizer
+      MAX_UPLOAD_MB: 25
+      STORE_ORIGINAL: "false"
+      STORE_REDACTED_TEMP: "true"
+      DELETE_TEMP_FILES: "true"
+      LOG_PII: "false"
+      PRESIDIO_SCORE_THRESHOLD: 0.55
+      MIN_DIGITAL_TEXT_CHARS: 30
+    tmpfs:
+      - /tmp/anonymizer:size=512m,mode=0700
+    read_only: false
