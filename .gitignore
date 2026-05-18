@@ -41,3 +41,9 @@ coverage.xml
 
 # Samples / debug output (no subir datos reales)
 samples/debug_ocr/
+
+# Model weights (large binary files — download separately)
+model/
+
+# Claude Code internal memory
+.claude/
