@@ -1,3 +1,18 @@
+"""Hybrid-secure PDF redactor.
+
+Delegates to the two specialised redactors:
+  - redact_pdf_digital  → handles digital pages (text-layer redaction)
+  - OcrPageSegmenter + pixel painting → handles scanned/hybrid pages
+
+Flow
+────
+1. Run redact_pdf_digital on the full input → intermediate redacted PDF.
+2. Build the final output PDF:
+   • Digital pages  → copy directly from the intermediate PDF.
+   • Scanned/hybrid → render page from intermediate, run OcrPageSegmenter,
+     paint redaction rects, embed as image page.
+3. Scrub metadata, save.
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,19 +22,18 @@ import fitz
 
 from app.core.config import settings
 from app.schemas.report import OcrInfo, ProcessingLimits, ProcessingReport
+from app.services.layout.segmenters import OcrPageSegmenter
 from app.services.ocr.easyocr_engine import EasyOcrEngine
-from app.services.ocr.form_layout import OcrFormLayoutAnalyzer
 from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pdf.redactor import redact_pdf_digital
 from app.services.pdf.scanned_redactor import (
     _append_image_as_pdf_page,
-    _build_text_and_spans,
-    _redact_rendered_page_image,
+    _collect_redaction_rects,
     _render_page_to_image,
 )
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services.pii.models import PiiEntity
-from app.services.ocr.table_layout import OcrTableLayoutAnalyzer
+from PIL import ImageDraw
 
 
 def redact_pdf_hybrid_secure(
@@ -29,21 +43,10 @@ def redact_pdf_hybrid_secure(
     analyzer: PiiAnalyzer,
     mode: str = "strict",
 ) -> ProcessingReport:
-    """
-    PDF híbrido seguro.
-
-    Flujo:
-    1. Redacta físicamente texto digital con PyMuPDF sobre un PDF temporal.
-    2. Las páginas digitales puras se copian desde ese PDF ya redactado.
-    3. Las páginas escaneadas o mixtas se renderizan a imagen.
-    4. Sobre esas páginas renderizadas se aplica OCR + redacción por píxel.
-    5. Se crea un PDF final nuevo y limpio.
-    """
     inspection = inspect_pdf_for_phase1(input_path)
 
     ocr_engine = EasyOcrEngine()
-    form_layout = OcrFormLayoutAnalyzer()
-    table_layout = OcrTableLayoutAnalyzer()
+    segmenter = OcrPageSegmenter()
 
     all_ocr_entities: list[PiiEntity] = []
     all_residual_entities: list[PiiEntity] = []
@@ -65,7 +68,6 @@ def redact_pdf_hybrid_secure(
             analyzer=analyzer,
             mode=mode,
         )
-
         warnings.extend(digital_report.warnings)
 
         redacted_doc = fitz.open(digital_redacted_path)
@@ -85,12 +87,7 @@ def redact_pdf_hybrid_secure(
                     continue
 
                 ocr_pages_processed += 1
-
-                image = _render_page_to_image(
-                    page=page,
-                    dpi=settings.ocr_pdf_render_dpi,
-                )
-
+                image = _render_page_to_image(page, dpi=settings.ocr_pdf_render_dpi)
                 page_image_path = tmp_dir / f"page_{page_index + 1}.png"
                 image.save(page_image_path)
 
@@ -101,43 +98,43 @@ def redact_pdf_hybrid_secure(
 
                 if ocr_page.avg_confidence is not None:
                     confidence_values.append(ocr_page.avg_confidence)
-
                     if ocr_page.avg_confidence < 0.75:
                         low_confidence_pages.append(page_index)
 
-                text, token_spans = _build_text_and_spans(ocr_page.tokens)
-                entities = analyzer.analyze(text, mode=mode)
-                all_ocr_entities.extend(entities)
-
-                page_redacted_count = _redact_rendered_page_image(
-                    image=image,
-                    ocr_text=text,
-                    entities=entities,
-                    token_spans=token_spans,
-                    form_layout=form_layout,
-                    table_layout=table_layout,
+                zoned_page = segmenter.segment(ocr_page, image=image)
+                page_rects, page_entities = _collect_redaction_rects(
+                    zoned_page=zoned_page,
+                    analyzer=analyzer,
+                    mode=mode,
                 )
 
-                ocr_redacted_count += page_redacted_count
+                all_ocr_entities.extend(page_entities)
+                ocr_redacted_count += len(page_rects)
 
-                if settings.ocr_second_pass_verification:
-                    redacted_page_path = tmp_dir / f"page_{page_index + 1}_redacted.png"
-                    image.save(redacted_page_path)
-
-                    residual_ocr_page = ocr_engine.analyze_image(
-                        image_path=redacted_page_path,
-                        page_index=page_index,
+                from PIL import ImageDraw as _ID
+                draw = _ID.Draw(image)
+                for rect in page_rects:
+                    draw.rectangle(
+                        [int(rect.x0), int(rect.y0), int(rect.x1), int(rect.y1)],
+                        fill="black",
                     )
 
-                    residual_text, _ = _build_text_and_spans(residual_ocr_page.tokens)
-                    residual_entities = analyzer.analyze(residual_text, mode=mode)
+                if settings.ocr_second_pass_verification:
+                    redacted_path = tmp_dir / f"page_{page_index + 1}_redacted.png"
+                    image.save(redacted_path)
+                    residual_ocr = ocr_engine.analyze_image(
+                        image_path=redacted_path,
+                        page_index=page_index,
+                    )
+                    residual_zoned = segmenter.segment(residual_ocr)
+                    _, residual_entities = _collect_redaction_rects(
+                        zoned_page=residual_zoned,
+                        analyzer=analyzer,
+                        mode=mode,
+                    )
                     all_residual_entities.extend(residual_entities)
 
-                _append_image_as_pdf_page(
-                    output_doc=output_doc,
-                    image=image,
-                    source_page_rect=page.rect,
-                )
+                _append_image_as_pdf_page(output_doc, image, page.rect)
 
             try:
                 output_doc.scrub(
@@ -156,11 +153,11 @@ def redact_pdf_hybrid_secure(
                 )
             except Exception:
                 warnings.append(
-                    "PDF scrub cleanup could not be fully completed. Metadata and auxiliary object cleanup may be partial."
+                    "PDF scrub cleanup could not be fully completed. "
+                    "Metadata and auxiliary object cleanup may be partial."
                 )
 
             output_doc.set_metadata({})
-
             try:
                 output_doc.del_xml_metadata()
             except Exception:
@@ -178,24 +175,19 @@ def redact_pdf_hybrid_secure(
             redacted_doc.close()
             output_doc.close()
 
-    residual_by_type = analyzer.count_by_type(all_residual_entities)
     residual_count = len(all_residual_entities)
+    residual_by_type = analyzer.count_by_type(all_residual_entities)
 
     if low_confidence_pages:
         warnings.append("Low OCR confidence detected in one or more hybrid/scanned pages.")
-
     if residual_count > 0:
         warnings.append(
             "Residual PII-like entities detected after OCR redaction. Manual review required."
         )
 
     confidence_avg = (
-        sum(confidence_values) / len(confidence_values)
-        if confidence_values
-        else None
+        sum(confidence_values) / len(confidence_values) if confidence_values else None
     )
-
-    manual_review_required = bool(low_confidence_pages) or residual_count > 0
 
     return ProcessingReport(
         job_id=job_id,
@@ -211,7 +203,7 @@ def redact_pdf_hybrid_secure(
         },
         residual_entities=residual_count,
         residual_entities_by_type=residual_by_type,
-        manual_review_required=manual_review_required,
+        manual_review_required=bool(low_confidence_pages) or residual_count > 0,
         warnings=warnings,
         redaction_strategy="hybrid_secure_pdf_redaction",
         redaction_mode=mode,

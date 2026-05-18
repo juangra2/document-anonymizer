@@ -43,6 +43,9 @@ class ZoneToken:
     text: str
     rect: fitz.Rect
     confidence: float | None = None  # None for digital-text tokens
+    # For OCR zones: start offset of this token within its zone's text.
+    # Populated by OcrPageSegmenter; None for digital-path tokens.
+    text_offset: int | None = None
 
 
 @dataclass
@@ -55,6 +58,17 @@ class PageZone:
     tokens: list[ZoneToken] = field(default_factory=list)
     confidence: float | None = None  # avg OCR confidence; None for digital
     source: Literal["digital", "ocr"] = "digital"
+
+    # Pre-computed by the segmenter from structural (form/table) analysis.
+    # Redactors apply these directly without running PII detection.
+    layout_redact_rects: list[fitz.Rect] = field(default_factory=list)
+    layout_protected_rects: list[fitz.Rect] = field(default_factory=list)
+
+    # For digital zones: start offset of zone.text within the full PageText.text.
+    # Used by the digital redactor to translate local entity offsets to absolute
+    # positions before calling rects_for_span(page_text, abs_start, abs_end).
+    # 0 for OCR zones (each OCR zone builds its own independent text).
+    page_text_offset: int = 0
 
     @property
     def is_auto_redact(self) -> bool:

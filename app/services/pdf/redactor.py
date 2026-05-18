@@ -1,15 +1,27 @@
+"""Digital-PDF redactor — layout-first architecture.
+
+Flow per page
+─────────────
+1. extract_page_text  → PageText  (word boxes + char offsets)
+2. DigitalPageSegmenter.segment → ZonedPage  (HEADER / FOOTER / FORM / BODY)
+3. Per zone:
+   • FORM  → apply zone.layout_redact_rects directly (structural detection)
+   • BODY / HEADER / FOOTER → run PII analyzer on zone.text, translate
+     local entity offsets to absolute PageText offsets, get word-level rects
+4. apply_redactions, scrub metadata, save.
+"""
+from __future__ import annotations
+
 from collections import defaultdict
 from pathlib import Path
 
 import fitz
 
-from app.schemas.report import ProcessingLimits, ProcessingReport
 from app.core.config import settings
-from app.services.pdf.digital_layout import (
-    analyze_digital_layout,
-    filter_entity_rects_for_layout,
-    free_text_segments_for_analysis,
-)
+from app.schemas.report import ProcessingLimits, ProcessingReport
+from app.services.layout.models import ZoneType
+from app.services.layout.segmenters import DigitalPageSegmenter
+from app.services.layout.zone_config import get_detector_config
 from app.services.pdf.extractor import extract_page_text, rects_for_span
 from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pii.analyzer import PiiAnalyzer
@@ -24,78 +36,35 @@ def redact_pdf_digital(
     mode: str = "strict",
 ) -> ProcessingReport:
     inspection = inspect_pdf_for_phase1(input_path)
+    segmenter = DigitalPageSegmenter()
 
     doc = fitz.open(input_path)
 
     try:
-        page_texts = [
-            extract_page_text(page, page_index)
-            for page_index, page in enumerate(doc)
-        ]
-
         all_entities: list[PiiEntity] = []
-        entities_by_page: dict[int, list[PiiEntity]] = defaultdict(list)
-        layout_by_page = {}
-
-        layout_detected_count = 0
-
-        for page_text in page_texts:
-            layout = None
-
-            if mode == "strict":
-                layout = analyze_digital_layout(page_text)
-                layout_by_page[page_text.page_index] = layout
-                layout_detected_count += len(layout.redaction_rects)
-
-            if layout is not None:
-                entities = _analyze_free_text_segments(
-                    page_text=page_text,
-                    layout=layout,
-                    analyzer=analyzer,
-                    mode=mode,
-                )
-            else:
-                entities = analyzer.analyze(page_text.text, mode=mode)
-
-            entities_by_page[page_text.page_index].extend(entities)
-            all_entities.extend(entities)
-
+        layout_rect_count = 0
         redacted_count = 0
+        warnings: list[str] = []
 
-        for page_text in page_texts:
-            page = doc[page_text.page_index]
-            layout = layout_by_page.get(page_text.page_index)
+        for page_index, page in enumerate(doc):
+            page_text = extract_page_text(page, page_index)
+            zoned_page = segmenter.segment(page_text, page.rect)
 
-            if layout is not None:
-                for rect in layout.redaction_rects:
-                    page.add_redact_annot(
-                        rect,
-                        fill=(0, 0, 0),
-                    )
-                    redacted_count += 1
+            page_rects, page_entities, page_layout_count = _collect_redaction_rects(
+                zoned_page=zoned_page,
+                page_text=page_text,
+                analyzer=analyzer,
+                mode=mode,
+            )
 
-            for entity in entities_by_page.get(page_text.page_index, []):
-                if mode == "strict" and entity.entity_type == "CASE_TABLE_ROW":
-                    continue
+            all_entities.extend(page_entities)
+            layout_rect_count += page_layout_count
+            redacted_count += len(page_rects)
 
-                rects = rects_for_span(page_text, entity.start, entity.end)
-
-                if layout is not None:
-                    rects = filter_entity_rects_for_layout(
-                        rects=rects,
-                        layout=layout,
-                    )
-
-                for rect in rects:
-                    page.add_redact_annot(
-                        rect,
-                        fill=(0, 0, 0),
-                    )
-                    redacted_count += 1
+            for rect in page_rects:
+                page.add_redact_annot(rect, fill=(0, 0, 0))
 
             page.apply_redactions()
-
-        warnings: list[str] = []
 
         try:
             doc.scrub(
@@ -114,7 +83,8 @@ def redact_pdf_digital(
             )
         except Exception:
             warnings.append(
-                "PDF scrub cleanup could not be fully completed. Metadata and auxiliary object cleanup may be partial."
+                "PDF scrub cleanup could not be fully completed. "
+                "Metadata and auxiliary object cleanup may be partial."
             )
 
         doc.set_metadata({})
@@ -137,8 +107,8 @@ def redact_pdf_digital(
 
     entities_by_type = analyzer.count_by_type(all_entities)
 
-    if layout_detected_count:
-        entities_by_type["LAYOUT_VALUE"] = layout_detected_count
+    if layout_rect_count:
+        entities_by_type["LAYOUT_VALUE"] = layout_rect_count
 
     return ProcessingReport(
         job_id=job_id,
@@ -146,7 +116,7 @@ def redact_pdf_digital(
         document_type="pdf_digital",
         pages=inspection.pages,
         selectable_text_chars=inspection.selectable_text_chars,
-        entities_detected=len(all_entities) + layout_detected_count,
+        entities_detected=len(all_entities) + layout_rect_count,
         entities_redacted=redacted_count,
         entities_by_type=entities_by_type,
         residual_entities=0,
@@ -160,34 +130,77 @@ def redact_pdf_digital(
         ),
     )
 
-def _analyze_free_text_segments(
+
+# ---------------------------------------------------------------------------
+# Per-page redaction logic
+# ---------------------------------------------------------------------------
+
+def _collect_redaction_rects(
+    zoned_page,
     page_text,
-    layout,
     analyzer: PiiAnalyzer,
     mode: str,
-) -> list[PiiEntity]:
+) -> tuple[list[fitz.Rect], list[PiiEntity], int]:
+    """Return (rects_to_redact, pii_entities_found, layout_rect_count)."""
+    rects: list[fitz.Rect] = []
     entities: list[PiiEntity] = []
+    layout_count = 0
 
-    segments = free_text_segments_for_analysis(
-        page_text=page_text,
-        layout=layout,
-    )
+    # Collect all protected rects across zones to filter entity-based rects
+    all_protected: list[fitz.Rect] = []
+    for zone in zoned_page.zones:
+        all_protected.extend(zone.layout_protected_rects)
 
-    for segment in segments:
-        local_entities = analyzer.analyze(
-            segment.text,
-            mode=mode,
-        )
+    for zone in zoned_page.zones:
+
+        # SIGNATURE / QR_CODE → full zone rect
+        if zone.is_auto_redact:
+            rects.append(zone.rect)
+            continue
+
+        # FORM / TABLE → apply pre-computed structural rects
+        if zone.zone_type in (ZoneType.FORM, ZoneType.TABLE):
+            rects.extend(zone.layout_redact_rects)
+            layout_count += len(zone.layout_redact_rects)
+            continue
+
+        # BODY / HEADER / FOOTER → PII analysis with zone-specific types
+        cfg = get_detector_config(zone.zone_type)
+        if not zone.text.strip() or cfg.entity_types is None:
+            continue
+
+        local_entities = analyzer.analyze(zone.text, mode=mode)
+
+        # Filter to types relevant for this zone
+        allowed = set(cfg.entity_types)
+        local_entities = [e for e in local_entities if e.entity_type in allowed]
 
         for entity in local_entities:
-            entities.append(
-                PiiEntity(
-                    entity_type=entity.entity_type,
-                    start=segment.start + entity.start,
-                    end=segment.start + entity.end,
-                    score=entity.score,
-                    source=entity.source,
-                )
-            )
+            abs_start = zone.page_text_offset + entity.start
+            abs_end = zone.page_text_offset + entity.end
 
-    return entities
+            entity_rects = rects_for_span(page_text, abs_start, abs_end)
+
+            for r in entity_rects:
+                if _center_in_any(r, all_protected):
+                    continue
+                rects.append(r)
+
+            entities.append(PiiEntity(
+                entity_type=entity.entity_type,
+                start=abs_start,
+                end=abs_end,
+                score=entity.score,
+                source=entity.source,
+            ))
+
+    return rects, entities, layout_count
+
+
+def _center_in_any(rect: fitz.Rect, containers: list[fitz.Rect]) -> bool:
+    cx = (rect.x0 + rect.x1) / 2
+    cy = (rect.y0 + rect.y1) / 2
+    for c in containers:
+        if c.x0 - 1.5 <= cx <= c.x1 + 1.5 and c.y0 - 1.5 <= cy <= c.y1 + 1.5:
+            return True
+    return False
