@@ -158,8 +158,10 @@ def _collect_redaction_rects(
             rects.append(zone.rect)
             continue
 
-        # FORM / TABLE → apply pre-computed structural rects
-        if zone.zone_type in (ZoneType.FORM, ZoneType.TABLE):
+        # FORM / TABLE with pre-computed structural rects (heuristic segmenter).
+        # Only skip PII analysis when rects are present; MinerU creates TABLE/FORM
+        # zones without pre-computed rects, so those must fall through to PII.
+        if zone.zone_type in (ZoneType.FORM, ZoneType.TABLE) and zone.layout_redact_rects:
             rects.extend(zone.layout_redact_rects)
             layout_count += len(zone.layout_redact_rects)
             continue

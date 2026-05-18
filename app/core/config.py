@@ -35,8 +35,14 @@ class Settings(BaseSettings):
     # Engine used when the primary (ocr_engine) is unavailable.
     ocr_fallback_engine: str = "easyocr"
 
-    # MinerU pipeline backend: "pipeline_standard", "pipeline_fast", "vlm_openai".
-    ocr_mineru_backend: str = "pipeline_standard"
+    # MinerU backend passed to MinerUClient(backend=...).
+    # "transformers" for MinerU2.5-Pro via mineru-vl-utils.
+    ocr_mineru_backend: str = "transformers"
+
+    # Local path to the downloaded MinerU2.5-Pro model weights.
+    # Download: hf download opendatalab/MinerU2.5-Pro-2604-1.2B \
+    #               --local-dir model/MinerU2.5-Pro-2604-1.2B
+    ocr_mineru_model_path: str = "model/MinerU2.5-Pro-2604-1.2B"
 
     ocr_pdf_render_dpi: int = 200
     ocr_second_pass_verification: bool = True

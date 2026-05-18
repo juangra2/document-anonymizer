@@ -1,131 +1,108 @@
-"""MinerU 2.5 document-parsing engine.
+"""MinerU 2.5-Pro document-parsing engine via mineru-vl-utils.
 
-MinerU (https://github.com/opendatalab/MinerU) is a document understanding
-framework developed by Shanghai AI Lab.  Unlike pure-OCR engines it performs
-layout analysis first, classifying each page region into semantic types
-(text, title, table, figure, header, footer, …) before extracting text.
+Uses MinerUClient.two_step_extract(PIL image) to extract ContentBlock objects
+per page, then converts them to OcrToken with zone_hint for layout-first routing.
 
-This means MinerUEngine sets provides_layout=True: the OcrPageSegmenter will
-use MinerU's region types directly as zone hints instead of running heuristic
-form/table detection.
-
-Package names by version
-------------------------
-  magic-pdf 0.7–0.9  →  import magic_pdf
-  mineru 1.x–2.x     →  import mineru
-
-Both are tried so the engine works with either installation.
-
-Expected install (MinerU 2.5 Pro)
-----------------------------------
-  pip install mineru[full]
-  # or
-  pip install magic-pdf[full]
-
-MinerU also requires model weights.  Download them with:
-  mineru-models-download -m pipeline
-  # or
-  magic-pdf-models-download
-
-Environment
+Integration
 -----------
-  MINERU_BACKEND   pipeline_standard | pipeline_fast | vlm_openai  (default: pipeline_standard)
-  CUDA_VISIBLE_DEVICES  set to control GPU selection
+  pip install "mineru-vl-utils[transformers]"
+  hf download opendatalab/MinerU2.5-Pro-2604-1.2B \\
+      --local-dir model/MinerU2.5-Pro-2604-1.2B
+  # In .env:
+  OCR_ENGINE=mineru
+  OCR_MINERU_BACKEND=transformers
+  OCR_MINERU_MODEL_PATH=model/MinerU2.5-Pro-2604-1.2B
+
+ContentBlock type → zone_hint mapping
+--------------------------------------
+  text      → body
+  table     → table
+  equation  → body
+  image     → body   (image regions carry no text content to redact)
 """
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Any
 
 import fitz
+from PIL import Image
 
 from app.services.ocr.base import OcrEngine
 from app.services.ocr.models import OcrPage, OcrToken
 
 logger = logging.getLogger(__name__)
 
+
+def _settings_model_path() -> str:
+    from app.core.config import settings
+    return settings.ocr_mineru_model_path
+
+
 # ---------------------------------------------------------------------------
-# Optional import — engine is disabled gracefully if MinerU is not installed
+# Optional import — disabled gracefully when package not installed
 # ---------------------------------------------------------------------------
 
 _AVAILABLE = False
-_VERSION: str | None = None
+_MinerUClient: Any = None
 
 try:
-    import mineru as _mineru_pkg
-    from mineru.model.doc_analyze_by_custom_model import doc_analyze as _doc_analyze
-    from mineru.data.data_reader_writer import FileBasedDataWriter as _Writer
-    try:
-        from mineru.pipe.pdf_pipe import UnicodeDetectPipe as _UniPipe
-        from mineru.pipe.pdf_pipe import OCRPipe as _OcrPipe
-    except ImportError:
-        from mineru.pipe.UnicodeDetectPipe import UnicodeDetectPipe as _UniPipe  # type: ignore[no-redef]
-        from mineru.pipe.OCRPipe import OCRPipe as _OcrPipe  # type: ignore[no-redef]
+    from mineru_vl_utils import MinerUClient as _MinerUClient  # type: ignore[no-redef]
     _AVAILABLE = True
-    _VERSION = getattr(_mineru_pkg, "__version__", "unknown")
-    logger.info("MinerU %s loaded (package: mineru)", _VERSION)
+    logger.info("mineru-vl-utils loaded successfully")
 except ImportError:
-    try:
-        import magic_pdf as _magic_pdf_pkg  # type: ignore[import]
-        from magic_pdf.model.doc_analyze_by_custom_model import doc_analyze as _doc_analyze  # type: ignore[no-redef]
-        from magic_pdf.data.data_reader_writer import FileBasedDataWriter as _Writer  # type: ignore[no-redef]
-        try:
-            from magic_pdf.pipe.pdf_pipe import UnicodeDetectPipe as _UniPipe  # type: ignore[no-redef]
-            from magic_pdf.pipe.pdf_pipe import OCRPipe as _OcrPipe  # type: ignore[no-redef]
-        except ImportError:
-            from magic_pdf.pipe.UnicodeDetectPipe import UnicodeDetectPipe as _UniPipe  # type: ignore[no-redef]
-            from magic_pdf.pipe.OCRPipe import OCRPipe as _OcrPipe  # type: ignore[no-redef]
-        _AVAILABLE = True
-        _VERSION = getattr(_magic_pdf_pkg, "__version__", "unknown")
-        logger.info("MinerU %s loaded (package: magic_pdf)", _VERSION)
-    except ImportError:
-        pass
-
+    logger.warning(
+        "mineru-vl-utils is not installed — MinerU2.5-Pro unavailable. "
+        "Install with: pip install 'mineru-vl-utils[transformers]'"
+    )
 
 # ---------------------------------------------------------------------------
-# Block-type → zone-hint mapping
+# ContentBlock.type → zone_hint
 # ---------------------------------------------------------------------------
 
-# MinerU region types → our zone hint strings (matching ZoneType values)
 _BLOCK_TYPE_TO_HINT: dict[str, str] = {
-    "text":                "body",
-    "title":               "header",
-    "table":               "table",
-    "table_caption":       "body",
-    "table_footnote":      "body",
-    "figure":              "body",
-    "figure_caption":      "body",
-    "header":              "header",
-    "footer":              "footer",
-    "footnote":            "footer",
-    "interline_equation":  "body",
-    "abandon":             "body",   # low-confidence regions
+    "text":     "body",
+    "table":    "table",
+    "equation": "body",
+    "image":    "body",
 }
 
 
-class MinerUEngine(OcrEngine):
-    """Document-understanding engine backed by MinerU 2.5.
+# ---------------------------------------------------------------------------
+# Engine
+# ---------------------------------------------------------------------------
 
-    Raises RuntimeError on any call if MinerU is not installed.
-    Use the factory (ocr/factory.py) so that EasyOCR is used as fallback.
+class MinerUEngine(OcrEngine):
+    """MinerU 2.5-Pro VLM engine.
+
+    Capabilities
+    ------------
+    provides_layout = True   — ContentBlock.type sets zone_hint on every token.
+    supports_pdf_input = False — two_step_extract() takes a PIL Image;
+                                  pages are rendered externally by the redactor.
+
+    The MinerUClient is initialised lazily on the first call to analyze_image()
+    (loading a 1.2B-parameter model takes 10–30 s and uses ~4–8 GB VRAM/RAM).
+    The factory's singleton ensures this happens only once per process.
     """
 
-    def __init__(self, use_gpu: bool = True, backend: str = "pipeline_standard") -> None:
+    def __init__(
+        self,
+        use_gpu: bool = True,
+        backend: str = "transformers",
+        model_path: str | None = None,
+    ) -> None:
         self._use_gpu = use_gpu
         self._backend = backend
+        self._model_path = model_path  # None → read from settings on first use
+        self._client: Any = None       # lazy — loaded on first analyze_image()
 
         if not _AVAILABLE:
             logger.warning(
-                "MinerU is not installed. "
-                "Install with: pip install mineru[full] or pip install magic-pdf[full]"
+                "mineru-vl-utils not installed. "
+                "Install: pip install 'mineru-vl-utils[transformers]'"
             )
-
-        # Propagate backend preference via env var that MinerU reads
-        if backend and "MINERU_BACKEND" not in os.environ:
-            os.environ["MINERU_BACKEND"] = backend
 
     # ------------------------------------------------------------------
     # OcrEngine interface
@@ -141,166 +118,163 @@ class MinerUEngine(OcrEngine):
 
     @property
     def supports_pdf_input(self) -> bool:
-        return True
+        # two_step_extract() operates on PIL images — rasterisation is external.
+        return False
+
+    @staticmethod
+    def is_available() -> bool:
+        return _AVAILABLE
+
+    def model_is_ready(self) -> bool:
+        """True when the package is installed AND the model weights directory exists.
+
+        The factory calls this before returning a MinerUEngine so that a missing
+        model causes an early fallback to EasyOCR instead of a crash at inference.
+        """
+        if not _AVAILABLE:
+            return False
+        path = self._resolve_model_path()
+        return path.exists() and path.is_dir()
 
     def analyze_image(
         self,
         image_path: Path,
         page_index: int = 0,
     ) -> OcrPage:
-        """Process a single image by wrapping it in a temporary PDF."""
+        """Extract structured content from a rendered page image."""
         self._require_available()
 
-        with TemporaryDirectory(prefix="mineru_img_") as tmp:
-            tmp_pdf = Path(tmp) / "page.pdf"
-            _image_to_single_page_pdf(image_path, tmp_pdf)
-            pages = self.analyze_pdf(tmp_pdf)
+        image = Image.open(image_path).convert("RGB")
+        width, height = image.size
 
-        if not pages:
-            return OcrPage(page_index=page_index, width=0, height=0, tokens=[])
+        client = self._get_client()
 
-        page = pages[0]
+        try:
+            blocks = client.two_step_extract(image)
+        except Exception as exc:
+            logger.error(
+                "MinerU two_step_extract failed on page %d: %s — returning empty page",
+                page_index, exc,
+            )
+            return OcrPage(page_index=page_index, width=width, height=height, tokens=[])
+
+        tokens = _blocks_to_tokens(blocks, width, height)
+
         return OcrPage(
             page_index=page_index,
-            width=page.width,
-            height=page.height,
-            tokens=page.tokens,
+            width=width,
+            height=height,
+            tokens=tokens,
         )
-
-    def analyze_pdf(
-        self,
-        pdf_path: Path,
-        dpi: int = 200,  # ignored — MinerU uses PDF coordinates natively
-    ) -> list[OcrPage]:
-        """Process a full PDF file and return one OcrPage per page."""
-        self._require_available()
-
-        pdf_bytes = pdf_path.read_bytes()
-
-        with TemporaryDirectory(prefix="mineru_pdf_") as tmp:
-            writer = _Writer(tmp)
-
-            try:
-                model_list = _doc_analyze(pdf_bytes, ocr=True)
-                pipe = _OcrPipe(pdf_bytes, model_list, writer)
-            except Exception as exc:
-                logger.warning(
-                    "MinerU OCRPipe init failed (%s); retrying with UnicodeDetectPipe", exc
-                )
-                model_list = _doc_analyze(pdf_bytes, ocr=False)
-                pipe = _UniPipe(pdf_bytes, model_list, writer)
-
-            pipe.pipe_classify()
-            pipe.pipe_analyze()
-            pipe.pipe_parse()
-
-            pdf_mid_data: dict[str, Any] = pipe.pdf_mid_data
-
-        return _extract_pages(pdf_mid_data)
 
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
 
+    def _get_client(self) -> Any:
+        """Lazily initialise and cache the MinerUClient."""
+        if self._client is not None:
+            return self._client
+
+        model_path = self._resolve_model_path()
+        device = "cuda" if self._use_gpu else "cpu"
+
+        logger.info(
+            "Loading MinerU2.5-Pro model from '%s' (backend=%s, device=%s)...",
+            model_path, self._backend, device,
+        )
+
+        # Always use forward slashes — MinerUClient may validate the path as a
+        # HuggingFace repo_id internally if the model needs downloading, and
+        # Windows backslashes fail that validation.
+        posix_path = model_path.as_posix()
+
+        # Try with explicit device kwarg; fall back silently if unsupported.
+        try:
+            self._client = _MinerUClient(
+                model_path=posix_path,
+                backend=self._backend,
+                device=device,
+            )
+        except TypeError:
+            self._client = _MinerUClient(
+                model_path=posix_path,
+                backend=self._backend,
+            )
+
+        logger.info("MinerU2.5-Pro model loaded.")
+        return self._client
+
+    def _resolve_model_path(self) -> Path:
+        raw = self._model_path or _settings_model_path()
+        return Path(raw).resolve()
+
     def _require_available(self) -> None:
         if not _AVAILABLE:
             raise RuntimeError(
-                "MinerU is not installed. "
-                "Install with: pip install mineru[full]  "
-                "or: pip install magic-pdf[full]"
+                "mineru-vl-utils is not installed. "
+                "Install: pip install 'mineru-vl-utils[transformers]'"
             )
 
-    @staticmethod
-    def is_available() -> bool:
-        return _AVAILABLE
-
 
 # ---------------------------------------------------------------------------
-# Data extraction helpers
+# Conversion helpers
 # ---------------------------------------------------------------------------
 
-def _extract_pages(pdf_mid_data: dict[str, Any]) -> list[OcrPage]:
-    """Convert MinerU's pdf_mid_data dict into a list of OcrPage."""
-    pages: list[OcrPage] = []
+def _blocks_to_tokens(
+    blocks: list[Any],
+    page_width: int,
+    page_height: int,
+) -> list[OcrToken]:
+    """Convert ContentBlock list → OcrToken list with zone_hint.
 
-    pdf_info_list: list[dict] = pdf_mid_data.get("pdf_info", [])
-
-    for page_data in pdf_info_list:
-        page_idx: int = page_data.get("page_idx", len(pages))
-        page_size: list[float] = page_data.get("page_size", [595.0, 842.0])
-        page_width = float(page_size[0]) if len(page_size) > 0 else 595.0
-        page_height = float(page_size[1]) if len(page_size) > 1 else 842.0
-
-        # MinerU stores layout blocks under different keys across versions
-        blocks: list[dict] = (
-            page_data.get("preproc_blocks")
-            or page_data.get("para_blocks")
-            or page_data.get("blocks")
-            or []
-        )
-
-        tokens = _tokens_from_blocks(blocks)
-
-        pages.append(OcrPage(
-            page_index=page_idx,
-            width=int(page_width),
-            height=int(page_height),
-            tokens=tokens,
-        ))
-
-    return pages
-
-
-def _tokens_from_blocks(blocks: list[dict]) -> list[OcrToken]:
+    Normalised bbox [x0, y0, x1, y1] ∈ [0, 1] → absolute pixel coordinates.
+    """
     tokens: list[OcrToken] = []
 
     for block in blocks:
-        block_type: str = block.get("type", "text")
+        content: str = (getattr(block, "content", "") or "").strip()
+        if not content:
+            continue
+
+        block_type: str = (getattr(block, "type", "text") or "text").lower()
         zone_hint = _BLOCK_TYPE_TO_HINT.get(block_type, "body")
-        block_bbox: list[float] = block.get("bbox", [0, 0, 0, 0])
 
-        for line in block.get("lines", []):
-            for span in line.get("spans", []):
-                content: str = span.get("content", span.get("text", "")).strip()
-                if not content:
-                    continue
+        bbox_norm: list[float] = getattr(block, "bbox", None) or [0.0, 0.0, 1.0, 1.0]
+        rect = _norm_bbox_to_rect(bbox_norm, page_width, page_height)
 
-                span_bbox: list[float] = span.get("bbox", block_bbox)
-
-                if len(span_bbox) < 4:
-                    span_bbox = block_bbox
-
-                rect = fitz.Rect(
-                    float(span_bbox[0]),
-                    float(span_bbox[1]),
-                    float(span_bbox[2]),
-                    float(span_bbox[3]),
-                )
-
-                tokens.append(OcrToken(
-                    text=content,
-                    confidence=1.0,  # MinerU does not produce token-level confidence
-                    rect=rect,
-                    zone_hint=zone_hint,
-                ))
+        tokens.append(OcrToken(
+            text=content,
+            confidence=1.0,  # MinerU VLM does not produce per-token confidence
+            rect=rect,
+            zone_hint=zone_hint,
+        ))
 
     return tokens
 
 
-def _image_to_single_page_pdf(image_path: Path, output_pdf: Path) -> None:
-    """Wrap a single image in a PDF page (for analyze_image compatibility)."""
-    from PIL import Image as _Image
+def _norm_bbox_to_rect(
+    bbox: list[float],
+    width: int,
+    height: int,
+) -> fitz.Rect:
+    """Normalised [x0, y0, x1, y1] ∈ [0,1] → absolute pixel fitz.Rect."""
+    if len(bbox) < 4:
+        return fitz.Rect(0, 0, float(width), float(height))
 
-    img = _Image.open(image_path).convert("RGB")
-    w, h = img.size
+    x0 = _clamp(float(bbox[0]) * width,  0.0, float(width))
+    y0 = _clamp(float(bbox[1]) * height, 0.0, float(height))
+    x1 = _clamp(float(bbox[2]) * width,  0.0, float(width))
+    y1 = _clamp(float(bbox[3]) * height, 0.0, float(height))
 
-    doc = fitz.open()
-    page = doc.new_page(width=w, height=h)
+    # Guard against degenerate boxes (x0 > x1 or y0 > y1)
+    if x1 <= x0:
+        x1 = x0 + 1.0
+    if y1 <= y0:
+        y1 = y0 + 1.0
 
-    from io import BytesIO
-    buf = BytesIO()
-    img.save(buf, format="PNG")
-    page.insert_image(fitz.Rect(0, 0, w, h), stream=buf.getvalue())
+    return fitz.Rect(x0, y0, x1, y1)
 
-    doc.save(output_pdf)
-    doc.close()
+
+def _clamp(value: float, lo: float, hi: float) -> float:
+    return max(lo, min(value, hi))

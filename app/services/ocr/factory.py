@@ -44,7 +44,7 @@ def create_ocr_engine(
     engine_name: str,
     use_gpu: bool = True,
     fallback_name: str = "easyocr",
-    mineru_backend: str = "pipeline_standard",
+    mineru_backend: str = "transformers",
 ) -> OcrEngine:
     """Instantiate an OCR engine by name.
 
@@ -52,8 +52,7 @@ def create_ocr_engine(
         engine_name:     "mineru", "easyocr", or "auto".
         use_gpu:         Whether to request GPU acceleration.
         fallback_name:   Engine to use if the primary is unavailable.
-        mineru_backend:  MinerU pipeline backend
-                         ("pipeline_standard", "pipeline_fast", "vlm_openai").
+        mineru_backend:  MinerUClient backend ("transformers" for MinerU2.5-Pro).
     """
     name = engine_name.lower().strip()
 
@@ -83,12 +82,22 @@ def _auto_detect(
 ) -> OcrEngine:
     from app.services.ocr.mineru_engine import MinerUEngine
 
-    if MinerUEngine.is_available():
-        logger.info("OCR engine: auto → mineru (MinerU available)")
-        return MinerUEngine(use_gpu=use_gpu, backend=mineru_backend)
+    if not MinerUEngine.is_available():
+        logger.info("OCR engine: auto → %s (mineru-vl-utils not installed)", fallback_name)
+        return create_ocr_engine(fallback_name, use_gpu, "easyocr", mineru_backend)
 
-    logger.info("OCR engine: auto → %s (MinerU not available)", fallback_name)
-    return create_ocr_engine(fallback_name, use_gpu, "easyocr", mineru_backend)
+    engine = MinerUEngine(use_gpu=use_gpu, backend=mineru_backend)
+    if not engine.model_is_ready():
+        logger.warning(
+            "OCR engine: auto → %s (MinerU model not found at '%s'). "
+            "Download: hf download opendatalab/MinerU2.5-Pro-2604-1.2B "
+            "--local-dir model/MinerU2.5-Pro-2604-1.2B",
+            fallback_name, engine._resolve_model_path(),
+        )
+        return create_ocr_engine(fallback_name, use_gpu, "easyocr", mineru_backend)
+
+    logger.info("OCR engine: auto → mineru (model ready at %s)", engine._resolve_model_path())
+    return engine
 
 
 def _try_mineru(
@@ -98,16 +107,26 @@ def _try_mineru(
 ) -> OcrEngine:
     from app.services.ocr.mineru_engine import MinerUEngine
 
-    if MinerUEngine.is_available():
-        logger.info("OCR engine: mineru")
-        return MinerUEngine(use_gpu=use_gpu, backend=mineru_backend)
+    if not MinerUEngine.is_available():
+        logger.warning(
+            "MinerU requested but mineru-vl-utils not installed — falling back to %r. "
+            "Install: pip install 'mineru-vl-utils[transformers]'",
+            fallback_name,
+        )
+        return create_ocr_engine(fallback_name, use_gpu, "easyocr", mineru_backend)
 
-    logger.warning(
-        "MinerU requested but not installed — falling back to %r. "
-        "Install with: pip install mineru[full]",
-        fallback_name,
-    )
-    return create_ocr_engine(fallback_name, use_gpu, "easyocr", mineru_backend)
+    engine = MinerUEngine(use_gpu=use_gpu, backend=mineru_backend)
+    if not engine.model_is_ready():
+        logger.warning(
+            "MinerU requested but model not found at '%s' — falling back to %r. "
+            "Download: hf download opendatalab/MinerU2.5-Pro-2604-1.2B "
+            "--local-dir model/MinerU2.5-Pro-2604-1.2B",
+            engine._resolve_model_path(), fallback_name,
+        )
+        return create_ocr_engine(fallback_name, use_gpu, "easyocr", mineru_backend)
+
+    logger.info("OCR engine: mineru (model ready at %s)", engine._resolve_model_path())
+    return engine
 
 
 def _make_easyocr(use_gpu: bool) -> OcrEngine:
