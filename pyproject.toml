@@ -24,6 +24,15 @@ test = [
     "httpx>=0.27",
     "reportlab>=4.0",
 ]
+# MinerU 2.5 document-understanding engine (primary OCR backend).
+# Install weights after: mineru-models-download -m pipeline
+mineru = [
+    "mineru[full]>=1.0",
+]
+# Older magic-pdf package name (MinerU <1.0)
+magic-pdf = [
+    "magic-pdf[full]>=0.9",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

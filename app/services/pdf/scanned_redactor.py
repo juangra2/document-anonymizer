@@ -28,7 +28,9 @@ from app.schemas.report import OcrInfo, ProcessingLimits, ProcessingReport
 from app.services.layout.models import PageZone, ZoneToken, ZoneType
 from app.services.layout.segmenters import OcrPageSegmenter
 from app.services.layout.zone_config import get_detector_config
-from app.services.ocr.easyocr_engine import EasyOcrEngine
+from app.services.ocr.base import OcrEngine
+from app.services.ocr.factory import get_ocr_engine
+from app.services.ocr.models import OcrPage
 from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services.pii.models import PiiEntity
@@ -44,7 +46,7 @@ def redact_pdf_scanned(
 ) -> ProcessingReport:
     inspection = inspect_pdf_for_phase1(input_path)
 
-    ocr_engine = EasyOcrEngine()
+    ocr_engine = get_ocr_engine()
     segmenter = OcrPageSegmenter()
 
     source_doc = fitz.open(input_path)
@@ -61,15 +63,30 @@ def redact_pdf_scanned(
         with TemporaryDirectory(prefix="pdf_ocr_") as tmp_dir_name:
             tmp_dir = Path(tmp_dir_name)
 
+            # Engines that process the full PDF natively (MinerU) do one pass here.
+            # Raster-based engines (EasyOCR) process page-by-page below.
+            native_ocr_pages: list[OcrPage] | None = None
+            if ocr_engine.supports_pdf_input:
+                try:
+                    native_ocr_pages = ocr_engine.analyze_pdf(input_path)
+                except Exception as exc:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        "Native PDF analysis failed (%s); falling back to raster OCR", exc
+                    )
+
             for page_index, page in enumerate(source_doc):
                 image = _render_page_to_image(page, dpi=settings.ocr_pdf_render_dpi)
-                page_image_path = tmp_dir / f"page_{page_index + 1}.png"
-                image.save(page_image_path)
 
-                ocr_page = ocr_engine.analyze_image(
-                    image_path=page_image_path,
-                    page_index=page_index,
-                )
+                if native_ocr_pages is not None and page_index < len(native_ocr_pages):
+                    ocr_page = native_ocr_pages[page_index]
+                else:
+                    page_image_path = tmp_dir / f"page_{page_index + 1}.png"
+                    image.save(page_image_path)
+                    ocr_page = ocr_engine.analyze_image(
+                        image_path=page_image_path,
+                        page_index=page_index,
+                    )
 
                 if ocr_page.avg_confidence is not None:
                     confidence_values.append(ocr_page.avg_confidence)
@@ -165,7 +182,7 @@ def redact_pdf_scanned(
         ),
         ocr=OcrInfo(
             enabled=True,
-            engine="easyocr",
+            engine=ocr_engine.engine_name,
             pages_ocr_processed=inspection.pages,
             images_processed=0,
             ocr_confidence_avg=confidence_avg,

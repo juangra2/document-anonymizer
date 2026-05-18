@@ -39,7 +39,7 @@ from app.services.ocr.form_layout import OcrFormLayoutAnalyzer, padded_rect
 from app.services.ocr.models import OcrPage, OcrToken
 from app.services.ocr.signature_detector import detect_signature_rect
 from app.services.ocr.table_layout import OcrTableLayoutAnalyzer
-from app.services.pdf.digital_layout import (
+from app.services.layout._digital_analysis import (
     DigitalLayoutAnalysis,
     analyze_digital_layout,
 )
@@ -205,7 +205,28 @@ class DigitalPageSegmenter:
 # ---------------------------------------------------------------------------
 
 class OcrPageSegmenter:
-    """Segments an OCR-processed page into typed zones."""
+    """Segments an OCR-processed page into typed zones.
+
+    Two segmentation paths:
+
+    1. Layout-hint path (engines with provides_layout=True, e.g. MinerU):
+       Tokens carry a ``zone_hint`` string.  Zones are built directly from
+       those hints without running heuristic form/table detection.
+
+    2. Heuristic path (EasyOCR and any engine without zone hints):
+       Existing OcrFormLayoutAnalyzer + OcrTableLayoutAnalyzer detection.
+
+    Regardless of path, SIGNATURE and QR_CODE zones are added via visual
+    detection whenever an image is provided.
+    """
+
+    _HINT_TO_ZONE: dict[str, ZoneType] = {
+        "header": ZoneType.HEADER,
+        "footer": ZoneType.FOOTER,
+        "table":  ZoneType.TABLE,
+        "form":   ZoneType.FORM,
+        "body":   ZoneType.BODY,
+    }
 
     def __init__(self) -> None:
         self._form_analyzer = OcrFormLayoutAnalyzer()
@@ -217,8 +238,71 @@ class OcrPageSegmenter:
         image: Image.Image | None = None,
     ) -> ZonedPage:
         tokens = ocr_page.tokens
+
+        # Choose segmentation strategy based on whether the engine provided hints
+        has_hints = any(t.zone_hint is not None for t in tokens)
+
+        if has_hints:
+            base_zones = self._segment_from_hints(ocr_page)
+        else:
+            base_zones = self._segment_heuristic(ocr_page)
+
+        # Visual zones (engine-agnostic — always require image)
+        visual_zones: list[PageZone] = []
+        if image is not None:
+            sig_rect = detect_signature_rect(image=image, tokens=tokens)
+            if sig_rect is not None:
+                visual_zones.append(PageZone(
+                    zone_type=ZoneType.SIGNATURE,
+                    rect=sig_rect,
+                    text="",
+                    source="ocr",
+                ))
+            for qr_rect in detect_visual_code_rects(image):
+                visual_zones.append(PageZone(
+                    zone_type=ZoneType.QR_CODE,
+                    rect=qr_rect,
+                    text="",
+                    source="ocr",
+                ))
+
+        all_zones = base_zones + visual_zones
+        all_zones.sort(key=lambda z: z.rect.y0)
+
+        return ZonedPage(
+            page_index=ocr_page.page_index,
+            width=float(ocr_page.width),
+            height=float(ocr_page.height),
+            zones=all_zones,
+        )
+
+    # ------------------------------------------------------------------
+    # Path 1: engine-provided zone hints (MinerU)
+    # ------------------------------------------------------------------
+
+    def _segment_from_hints(self, ocr_page: OcrPage) -> list[PageZone]:
+        """Build zones directly from token.zone_hint values."""
+        from collections import defaultdict
+
+        groups: dict[str, list[OcrToken]] = defaultdict(list)
+        for token in ocr_page.tokens:
+            hint = token.zone_hint or "body"
+            groups[hint].append(token)
+
+        zones: list[PageZone] = []
+        for hint, hint_tokens in groups.items():
+            zone_type = self._HINT_TO_ZONE.get(hint, ZoneType.BODY)
+            zones.append(self._tokens_to_zone(zone_type, hint_tokens))
+
+        return zones
+
+    # ------------------------------------------------------------------
+    # Path 2: heuristic detection (EasyOCR)
+    # ------------------------------------------------------------------
+
+    def _segment_heuristic(self, ocr_page: OcrPage) -> list[PageZone]:
+        tokens = ocr_page.tokens
         height = float(ocr_page.height)
-        width = float(ocr_page.width)
 
         header_y = height * _HEADER_RATIO
         footer_y = height * _FOOTER_RATIO
@@ -240,46 +324,15 @@ class OcrPageSegmenter:
 
         zones: list[PageZone] = []
 
-        # Header
         if header_tokens:
             zones.append(self._tokens_to_zone(ZoneType.HEADER, header_tokens))
 
-        # Middle: structural detection first
         zones.extend(self._build_middle_zones(middle_tokens))
 
-        # Footer
         if footer_tokens:
             zones.append(self._tokens_to_zone(ZoneType.FOOTER, footer_tokens))
 
-        # SIGNATURE — requires image
-        if image is not None:
-            sig_rect = detect_signature_rect(image=image, tokens=tokens)
-            if sig_rect is not None:
-                zones.append(PageZone(
-                    zone_type=ZoneType.SIGNATURE,
-                    rect=sig_rect,
-                    text="",
-                    source="ocr",
-                ))
-
-        # QR / visual codes — requires image
-        if image is not None:
-            for qr_rect in detect_visual_code_rects(image):
-                zones.append(PageZone(
-                    zone_type=ZoneType.QR_CODE,
-                    rect=qr_rect,
-                    text="",
-                    source="ocr",
-                ))
-
-        zones.sort(key=lambda z: z.rect.y0)
-
-        return ZonedPage(
-            page_index=ocr_page.page_index,
-            width=width,
-            height=height,
-            zones=zones,
-        )
+        return zones
 
     # ------------------------------------------------------------------
     # Internals

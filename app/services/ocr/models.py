@@ -8,6 +8,10 @@ class OcrToken:
     text: str
     confidence: float
     rect: fitz.Rect
+    # Optional layout hint emitted by engines that provide pre-classification
+    # (e.g. MinerU).  Values: "body", "header", "footer", "table", "form".
+    # None means the token's zone will be inferred heuristically.
+    zone_hint: str | None = None
 
 
 @dataclass
@@ -25,5 +29,4 @@ class OcrPage:
     def avg_confidence(self) -> float | None:
         if not self.tokens:
             return None
-
         return sum(token.confidence for token in self.tokens) / len(self.tokens)

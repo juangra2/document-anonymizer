@@ -5,16 +5,19 @@ import fitz
 import numpy as np
 from PIL import Image
 
-from app.core.config import settings
+from app.services.ocr.base import OcrEngine
 from app.services.ocr.models import OcrPage, OcrToken
 
 
-class EasyOcrEngine:
-    def __init__(self) -> None:
-        self._reader = easyocr.Reader(
-            ["es", "en"],
-            gpu=settings.ocr_use_gpu,
-        )
+class EasyOcrEngine(OcrEngine):
+    """Token-level OCR via EasyOCR.  Fallback engine when MinerU is unavailable."""
+
+    def __init__(self, use_gpu: bool = True) -> None:
+        self._reader = easyocr.Reader(["es", "en"], gpu=use_gpu)
+
+    @property
+    def engine_name(self) -> str:
+        return "easyocr"
 
     def analyze_image(
         self,
@@ -24,10 +27,8 @@ class EasyOcrEngine:
         image = Image.open(image_path).convert("RGB")
         width, height = image.size
 
-        image_array = np.array(image)
-
         results = self._reader.readtext(
-            image_array,
+            np.array(image),
             detail=1,
             paragraph=False,
         )
@@ -41,20 +42,11 @@ class EasyOcrEngine:
             xs = [point[0] for point in bbox]
             ys = [point[1] for point in bbox]
 
-            rect = fitz.Rect(
-                min(xs),
-                min(ys),
-                max(xs),
-                max(ys),
-            )
-
-            tokens.append(
-                OcrToken(
-                    text=str(text),
-                    confidence=float(confidence),
-                    rect=rect,
-                )
-            )
+            tokens.append(OcrToken(
+                text=str(text),
+                confidence=float(confidence),
+                rect=fitz.Rect(min(xs), min(ys), max(xs), max(ys)),
+            ))
 
         return OcrPage(
             page_index=page_index,

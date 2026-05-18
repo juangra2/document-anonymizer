@@ -23,7 +23,7 @@ import fitz
 from app.core.config import settings
 from app.schemas.report import OcrInfo, ProcessingLimits, ProcessingReport
 from app.services.layout.segmenters import OcrPageSegmenter
-from app.services.ocr.easyocr_engine import EasyOcrEngine
+from app.services.ocr.factory import get_ocr_engine
 from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pdf.redactor import redact_pdf_digital
 from app.services.pdf.scanned_redactor import (
@@ -45,7 +45,7 @@ def redact_pdf_hybrid_secure(
 ) -> ProcessingReport:
     inspection = inspect_pdf_for_phase1(input_path)
 
-    ocr_engine = EasyOcrEngine()
+    ocr_engine = get_ocr_engine()
     segmenter = OcrPageSegmenter()
 
     all_ocr_entities: list[PiiEntity] = []
@@ -214,7 +214,7 @@ def redact_pdf_hybrid_secure(
         ),
         ocr=OcrInfo(
             enabled=ocr_pages_processed > 0,
-            engine="easyocr",
+            engine=ocr_engine.engine_name,
             pages_ocr_processed=ocr_pages_processed,
             images_processed=0,
             ocr_confidence_avg=confidence_avg,

@@ -27,8 +27,16 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env")
 
-    ocr_engine: str = "easyocr"
+    # "auto" tries MinerU first and falls back to easyocr.
+    # Explicit values: "mineru", "easyocr".
+    ocr_engine: str = "auto"
     ocr_use_gpu: bool = True
+
+    # Engine used when the primary (ocr_engine) is unavailable.
+    ocr_fallback_engine: str = "easyocr"
+
+    # MinerU pipeline backend: "pipeline_standard", "pipeline_fast", "vlm_openai".
+    ocr_mineru_backend: str = "pipeline_standard"
 
     ocr_pdf_render_dpi: int = 200
     ocr_second_pass_verification: bool = True

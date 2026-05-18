@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw
 from app.core.config import settings
 from app.schemas.report import OcrInfo, ProcessingLimits, ProcessingReport
 from app.services.layout.segmenters import OcrPageSegmenter
-from app.services.ocr.easyocr_engine import EasyOcrEngine
+from app.services.ocr.factory import get_ocr_engine
 from app.services.pdf.scanned_redactor import _collect_redaction_rects
 from app.services.pii.analyzer import PiiAnalyzer
 
@@ -18,7 +18,7 @@ from app.services.pii.analyzer import PiiAnalyzer
 class ImageAnonymizationPipeline:
     def __init__(self) -> None:
         self._analyzer = PiiAnalyzer()
-        self._ocr_engine = EasyOcrEngine()
+        self._ocr_engine = get_ocr_engine()
         self._segmenter = OcrPageSegmenter()
 
     def process(
@@ -86,7 +86,7 @@ class ImageAnonymizationPipeline:
             ),
             ocr=OcrInfo(
                 enabled=True,
-                engine="easyocr",
+                engine=self._ocr_engine.engine_name,
                 pages_ocr_processed=0,
                 images_processed=1,
                 ocr_confidence_avg=confidence_avg,
