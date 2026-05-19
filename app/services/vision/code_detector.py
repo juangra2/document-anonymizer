@@ -88,7 +88,33 @@ def detect_visual_code_rects(
         except Exception:
             pass
 
-    return _dedupe_rects(rects)
+    return _dedupe_rects([r for r in rects if _is_plausible_qr_rect(r)])
+
+
+def _is_plausible_qr_rect(rect: fitz.Rect) -> bool:
+    """Return True when *rect* could plausibly be a QR code.
+
+    Sanity checks applied after the detector returns a bounding box:
+
+    Aspect ratio
+        QR codes are always (nearly) square — even when skewed by perspective,
+        their axis-aligned bounding box remains approximately square.
+        Threshold: shorter side ≥ 80 % of longer side.
+        The false-positive case (text column, dense grid) produces significantly
+        non-square boxes (e.g. 381 × 485 px → ratio 0.786).
+
+    Minimum size
+        A decodable QR code requires at least ~20 × 20 pixels at detection DPI.
+        Anything smaller is almost certainly detector noise.
+    """
+    w = rect.x1 - rect.x0
+    h = rect.y1 - rect.y0
+    if w <= 0 or h <= 0:
+        return False
+    if min(w, h) < 20:
+        return False
+    aspect = min(w, h) / max(w, h)
+    return aspect >= 0.80
 
 
 def _rect_from_points(
