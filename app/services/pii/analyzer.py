@@ -51,7 +51,7 @@ RedactionMode = Literal["strict", "balanced"]
 LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
     (
         "PERSON",
-        r"(?im)^[^\S\r\n]*(?:solicitante|interesado|titular|promotor(?:a)?|propietario(?:a)?|representante|arquitecto(?:a)?|t[eé]cnico(?:a)?|nombre(?:[^\S\r\n]+completo)?|nombre(?:[^\S\r\n]+y[^\S\r\n]+apellidos)?|apellidos|persona)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:solicitante|interesado|titular|promotor(?:a)?|propietario(?:a)?|representante|arquitecto(?:a)?|t[eé]cnico(?:a)?|m[eé]dico[^\S\r\n]+responsable|doctor(?:a)?|nombre(?:[^\S\r\n]+completo)?|nombre(?:[^\S\r\n]+y[^\S\r\n]+apellidos)?|apellidos|persona)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
         "DATE_OF_BIRTH",
@@ -119,7 +119,7 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "IP_ADDRESS",
-        r"(?im)^[^\S\r\n]*(?:ip(?:[^\S\r\n]+de[^\S\r\n]+[uú]ltima[^\S\r\n]+conexi[oó]n)?|ip[^\S\r\n]+reservada(?:[^\S\r\n]+para[^\S\r\n]+documentaci[oó]n)?)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:ip(?:[^\S\r\n]+(?:de[^\S\r\n]+)?[uú]ltima[^\S\r\n]+conexi[oó]n)?|ip[^\S\r\n]+reservada(?:[^\S\r\n]+para[^\S\r\n]+documentaci[oó]n)?)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
         "MEDICAL_ID",
@@ -256,7 +256,7 @@ NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "IP_ADDRESS",
-        r"(?im)^[^\S\r\n]*(?:ip(?:[^\S\r\n]+de[^\S\r\n]+[uú]ltima[^\S\r\n]+conexi[oó]n)?|ip[^\S\r\n]+reservada(?:[^\S\r\n]+para[^\S\r\n]+documentaci[oó]n)?)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:ip(?:[^\S\r\n]+(?:de[^\S\r\n]+)?[uú]ltima[^\S\r\n]+conexi[oó]n)?|ip[^\S\r\n]+reservada(?:[^\S\r\n]+para[^\S\r\n]+documentaci[oó]n)?)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
         "MEDICAL_ID",
@@ -691,7 +691,15 @@ class PiiAnalyzer:
         text: str,
         zone_type: str | None = None,
     ) -> list[PiiEntity]:
-        # Zone-aware NER threshold.
+        # Zone-aware NER behaviour.
+        # For FORM zones (structured label:value rows), NER adds false positives
+        # with no benefit: labeled_field + direct regex cover all relevant entity
+        # types with better precision. NER is skipped entirely.
+        # LEARNABLE: a domain-adapted NER model could re-enable NER for forms once
+        # precision on form text is measured on a labelled corpus.
+        if zone_type == "form":
+            return []
+
         # Heuristic: spaCy es_core_news_md was trained on news text and produces
         # many false positives on dense legal prose, especially in Valencian.
         # Raising the score threshold in BODY zones reduces FP rate.

@@ -434,6 +434,7 @@ def _build_ocr_zone_text_and_tokens(
             rect=token.rect,
             confidence=token.confidence,
             text_offset=text_offset,
+            value_start=getattr(token, "value_offset", None),
         ))
 
     return "".join(parts), zone_tokens

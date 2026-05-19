@@ -46,6 +46,11 @@ class ZoneToken:
     # For OCR zones: start offset of this token within its zone's text.
     # Populated by OcrPageSegmenter; None for digital-path tokens.
     text_offset: int | None = None
+    # For MinerU form-row tokens: offset within token.text where the value
+    # portion begins (the label ends before this).  When set, entity positions
+    # ≥ value_start are mapped to the full token rect instead of the linear
+    # character-proportion estimate (which systematically overshoots for long labels).
+    value_start: int | None = None
 
 
 @dataclass

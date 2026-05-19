@@ -23,6 +23,8 @@ ContentBlock type → zone_hint mapping
 from __future__ import annotations
 
 import logging
+import re
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
@@ -229,6 +231,11 @@ def _blocks_to_tokens(
     """Convert ContentBlock list → OcrToken list with zone_hint.
 
     Normalised bbox [x0, y0, x1, y1] ∈ [0, 1] → absolute pixel coordinates.
+
+    HTML table blocks are split into per-row tokens so that character-position
+    mapping within each token gives approximately correct redaction coordinates.
+    Without splitting, a single token covering the whole form produces
+    full-height vertical redaction bars (character offset ÷ HTML length × form width).
     """
     tokens: list[OcrToken] = []
 
@@ -243,6 +250,16 @@ def _blocks_to_tokens(
         bbox_norm: list[float] = getattr(block, "bbox", None) or [0.0, 0.0, 1.0, 1.0]
         rect = _norm_bbox_to_rect(bbox_norm, page_width, page_height)
 
+        # MinerU returns table blocks as HTML. A single token spanning the whole
+        # table rect maps character positions to pixel coordinates linearly,
+        # generating full-height vertical bars. Parse into per-row tokens instead.
+        if block_type == "table" and content.lstrip().startswith("<"):
+            row_tokens = _parse_html_table_tokens(content, rect)
+            if row_tokens:
+                tokens.extend(row_tokens)
+                continue
+            # Fall through: parsing yielded nothing, use content as plain text
+
         tokens.append(OcrToken(
             text=content,
             confidence=1.0,  # MinerU VLM does not produce per-token confidence
@@ -251,6 +268,124 @@ def _blocks_to_tokens(
         ))
 
     return tokens
+
+
+def _parse_html_table_tokens(
+    html_content: str,
+    table_rect: fitz.Rect,
+) -> list[OcrToken]:
+    """Parse a MinerU HTML table into per-row OcrTokens with estimated bboxes.
+
+    MinerU returns table blocks as HTML (e.g. "<table><tr><td>Label:</td>
+    <td>Value</td></tr>…</table>"). We extract each <tr> row, skip image-only
+    cells (<td><img …></td>), and concatenate remaining cell texts into one
+    OcrToken per row with zone_hint="form".
+
+    The row's vertical position is estimated by dividing the table rect equally
+    among all rows. Character-proportional mapping within each row token then
+    places value-column text at approximately the correct horizontal position —
+    far better than the full-height vertical bars from the single-token path.
+
+    Heuristic: equal row height; MinerU does not expose per-cell bboxes.
+    LEARNABLE: use actual cell bboxes when the MinerU API provides them.
+    """
+
+    class _TableParser(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__()
+            self.rows: list[list[str]] = []
+            self._row: list[str] | None = None
+            self._cell: str | None = None
+            self._skip_cell: bool = False  # True when cell contains only <img>
+
+        def handle_starttag(self, tag: str, attrs: list) -> None:
+            if tag == "tr":
+                self._row = []
+                self._skip_cell = False
+            elif tag in ("td", "th") and self._row is not None:
+                self._cell = ""
+                self._skip_cell = False
+            elif tag == "img" and self._cell is not None:
+                # Cell contains an image — mark to skip; base64 src is not text
+                self._skip_cell = True
+
+        def handle_endtag(self, tag: str) -> None:
+            if tag == "tr" and self._row is not None:
+                non_empty = [c for c in self._row if c.strip()]
+                if non_empty:
+                    self.rows.append(non_empty)
+                self._row = None
+                self._skip_cell = False
+            elif tag in ("td", "th"):
+                if not self._skip_cell and self._cell and self._cell.strip():
+                    if self._row is not None:
+                        self._row.append(self._cell.strip())
+                self._cell = None
+                self._skip_cell = False
+
+        def handle_data(self, data: str) -> None:
+            if self._cell is not None and not self._skip_cell:
+                self._cell += data
+
+    parser = _TableParser()
+    try:
+        parser.feed(html_content)
+    except Exception:
+        # Malformed HTML: strip tags and emit a single plain-text body token
+        plain = re.sub(r"<[^>]+>", " ", html_content)
+        plain = re.sub(r"\s+", " ", plain).strip()
+        if plain:
+            return [OcrToken(text=plain, confidence=0.9,
+                             rect=table_rect, zone_hint="body")]
+        return []
+
+    rows = parser.rows
+    if not rows:
+        return []
+
+    n_rows = len(rows)
+    row_h = max((table_rect.y1 - table_rect.y0) / n_rows, 1.0)
+
+    # Estimate the value column start.
+    # Heuristic: label column (including any icon) ≈ 28% of row width.
+    # LEARNABLE: actual column widths should come from per-cell bboxes once
+    # the MinerU API exposes them; until then, 0.28 fits typical A4 forms.
+    _VALUE_COL_FRACTION = 0.28
+    table_width = table_rect.x1 - table_rect.x0
+    value_col_x0 = table_rect.x0 + table_width * _VALUE_COL_FRACTION
+
+    result: list[OcrToken] = []
+    for idx, cells in enumerate(rows):
+        if not cells:
+            continue
+
+        row_y0 = table_rect.y0 + idx * row_h
+        row_y1 = row_y0 + row_h
+        # Token rect covers only the VALUE COLUMN — label chars are to the left.
+        value_rect = fitz.Rect(value_col_x0, row_y0, table_rect.x1, row_y1)
+
+        # Join cells: if the label cell already ends with ":", add a space;
+        # otherwise insert ": " so LABELED_FIELD_PATTERNS can match the row.
+        if len(cells) == 1:
+            row_text = cells[0]
+            value_offset = None  # single-cell row, no label-value split
+        elif cells[0].rstrip().endswith(":"):
+            row_text = " ".join(cells)
+            value_offset = len(cells[0]) + 1  # after "Label: "
+        else:
+            row_text = cells[0] + ": " + " ".join(cells[1:])
+            value_offset = len(cells[0]) + 2  # after "Label: "
+
+        if row_text.strip():
+            result.append(OcrToken(
+                text=row_text,
+                confidence=1.0,
+                rect=value_rect,
+                zone_hint="form",
+                value_offset=value_offset,
+            ))
+
+    return result
 
 
 def _norm_bbox_to_rect(

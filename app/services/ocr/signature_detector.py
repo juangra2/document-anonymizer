@@ -152,8 +152,12 @@ def detect_signature_rect(
         if component_height < 3:
             continue
 
-        # Evita bordes, líneas horizontales largas o separadores.
-        if component_width > roi_width * 0.92:
+        # Filter wide+thin elements (form borders, horizontal separators).
+        # Wide signatures with significant vertical extent are kept.
+        # Heuristic: require height > 30% of roi_height to allow stylised
+        # wide signatures (zigzag waves, etc.) that would otherwise be
+        # mistaken for separators.
+        if component_width > roi_width * 0.92 and component_height <= max(6, roi_height * 0.30):
             continue
 
         if component_height > roi_height * 0.75:

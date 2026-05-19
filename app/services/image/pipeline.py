@@ -18,7 +18,14 @@ from app.services.pii.analyzer import PiiAnalyzer
 class ImageAnonymizationPipeline:
     def __init__(self) -> None:
         self._analyzer = PiiAnalyzer()
-        self._ocr_engine = get_ocr_engine()
+        # Use EasyOCR for standalone images: it returns per-word tokens with
+        # precise bounding boxes, which the form layout analyzer needs to place
+        # redaction boxes accurately.  MinerU returns the form as a single HTML
+        # table token, causing alignment drift in the character-to-pixel mapping.
+        # Design decision: MinerU is the primary engine for PDF pages (where its
+        # structured understanding adds value); EasyOCR handles images.
+        from app.services.ocr.easyocr_engine import EasyOcrEngine
+        self._ocr_engine = EasyOcrEngine(use_gpu=settings.ocr_use_gpu)
         self._segmenter = OcrPageSegmenter()
 
     def process(

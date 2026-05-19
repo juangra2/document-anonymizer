@@ -12,6 +12,11 @@ class OcrToken:
     # (e.g. MinerU).  Values: "body", "header", "footer", "table", "form".
     # None means the token's zone will be inferred heuristically.
     zone_hint: str | None = None
+    # For form row tokens (MinerU HTML table): character offset in token.text
+    # where the value portion begins (after the label prefix).
+    # When set, entity-to-rect mapping uses the full token rect for value entities
+    # instead of the linear character-proportion approximation.
+    value_offset: int | None = None
 
 
 @dataclass

@@ -250,7 +250,14 @@ def _entity_rects_from_zone(
     entity: PiiEntity,
     zone: PageZone,
 ) -> list[fitz.Rect]:
-    """Map a PII entity span (in zone.text) to pixel-space rects via ZoneTokens."""
+    """Map a PII entity span (in zone.text) to pixel-space rects via ZoneTokens.
+
+    For MinerU form-row tokens that carry a value_start offset: when the entity
+    falls in the value portion (local_start >= value_start), we map the entity to
+    the full token rect instead of using character-proportion interpolation.
+    This corrects the systematic rightward drift caused by long label prefixes
+    in "Label: Value" row tokens.
+    """
     result: list[fitz.Rect] = []
 
     for token in zone.tokens:
@@ -266,11 +273,54 @@ def _entity_rects_from_zone(
         local_start = max(entity.start, t_start) - t_start
         local_end = min(entity.end, t_end) - t_start
 
+        # Form-row remapping: entity in value portion → map to full token rect.
+        # Heuristic: token.value_start marks the boundary between label chars and
+        # value chars. Characters < value_start are the label (outside token rect);
+        # characters ≥ value_start are the value (fill the full token rect).
+        # LEARNABLE: value_start is estimated from the row's HTML structure; exact
+        # cell-level bboxes from the MinerU API would make this unnecessary.
+        if (
+            token.value_start is not None
+            and local_start >= token.value_start
+        ):
+            value_len = len(token.text) - token.value_start
+            if value_len > 0:
+                vs = local_start - token.value_start
+                ve = local_end - token.value_start
+                rect = _rect_for_value_range(token.rect, vs, ve, value_len)
+                if rect is not None:
+                    result.append(rect)
+            continue
+
         rect = _rect_for_token_range(token, local_start, local_end)
         if rect is not None:
             result.append(rect)
 
     return result
+
+
+def _rect_for_value_range(
+    token_rect: fitz.Rect,
+    vs: int,
+    ve: int,
+    value_len: int,
+) -> fitz.Rect | None:
+    """Map a value-portion entity to pixel coords within the token rect.
+
+    The token rect covers only the value column; vs/ve are offsets within
+    the value text (0 = start of value, value_len = end of value).
+    """
+    vs = max(0, min(vs, value_len))
+    ve = max(0, min(ve, value_len))
+    if vs >= ve:
+        return None
+    rect = fitz.Rect(token_rect)
+    if vs == 0 and ve == value_len:
+        return _padded(rect)
+    width = rect.x1 - rect.x0
+    x0 = rect.x0 + width * (vs / value_len)
+    x1 = rect.x0 + width * (ve / value_len)
+    return _padded(fitz.Rect(x0, rect.y0, x1, rect.y1))
 
 
 def _rect_for_token_range(
