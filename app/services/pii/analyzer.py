@@ -338,10 +338,12 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         # DD/MM/YYYY administrative dates (Spanish/Valencian standard format).
         # Heuristic: 4-digit year in 1900–2099 keeps the false-positive rate low
         # on legal citations (e.g. "art 3.1.c ET y 1255 CC").
+        # Optional time component HH:MM captures "04/05/2026 10:30" as one entity
+        # so the time portion is not left visible after the date is redacted.
         # LEARNABLE: a date-context classifier could distinguish contract dates,
         # birth dates, and institutional-reference dates (e.g. DOGV publication)
         # for selective redaction once a labelled corpus is available.
-        r"\b(?:0?[1-9]|[12]\d|3[01])/(?:0?[1-9]|1[0-2])/(?:19|20)\d{2}\b",
+        r"\b(?:0?[1-9]|[12]\d|3[01])/(?:0?[1-9]|1[0-2])/(?:19|20)\d{2}(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?\b",
         0.90,
     ),
     (
