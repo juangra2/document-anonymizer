@@ -5,17 +5,28 @@ import fitz
 import numpy as np
 from PIL import Image
 
+# pyzbar provides higher recall on low-contrast or small QR codes.
+# Optional dependency — silently disabled when not installed.
+# Install with: pip install pyzbar
+try:
+    from pyzbar.pyzbar import decode as _pyzbar_decode  # type: ignore
+    _PYZBAR_AVAILABLE = True
+except ImportError:
+    _PYZBAR_AVAILABLE = False
+
 
 def detect_visual_code_rects(
     image: Image.Image,
     padding: int = 8,
 ) -> list[fitz.Rect]:
-    """
-    Detecta códigos QR visibles en la imagen.
+    """Detect QR codes / barcodes in *image* and return their bounding rects.
 
-    Política segura:
-    - Si detectamos un QR, se redacta completo.
-    - No intentamos interpretar si contiene PII o no.
+    Policy: any detected code is fully redacted regardless of content.
+    Detection cascade (first match wins, then deduplication):
+      1. cv2.QRCodeDetectorAruco (newer OpenCV, highest recall on modern QR)
+      2. cv2.QRCodeDetector.detectAndDecodeMulti  (single-pass multi-QR)
+      3. cv2.QRCodeDetector.detect  (single-QR fallback)
+      4. pyzbar  (optional; handles 1-D barcodes and many QR variants)
     """
     cv_image = cv2.cvtColor(
         np.array(image.convert("RGB")),
@@ -24,33 +35,58 @@ def detect_visual_code_rects(
 
     rects: list[fitz.Rect] = []
 
-    detector = cv2.QRCodeDetector()
-
+    # --- Pass 1: QRCodeDetectorAruco (OpenCV ≥ 4.8) ---
     try:
-        retval, decoded_info, points, _ = detector.detectAndDecodeMulti(cv_image)
-    except Exception:
-        retval = False
-        points = None
+        aruco_detector = cv2.QRCodeDetectorAruco()
+        retval, _, points, _ = aruco_detector.detectAndDecodeMulti(cv_image)
+        if retval and points is not None:
+            for qr_points in points:
+                rect = _rect_from_points(qr_points, padding=padding)
+                if rect is not None:
+                    rects.append(rect)
+    except AttributeError:
+        pass  # QRCodeDetectorAruco not available in this OpenCV build
 
-    if retval and points is not None:
-        for qr_points in points:
-            rect = _rect_from_points(qr_points, padding=padding)
-
-            if rect is not None:
-                rects.append(rect)
-
-    # Fallback para algunos QR donde Multi falla.
+    # --- Pass 2: classic QRCodeDetector multi ---
     if not rects:
+        detector = cv2.QRCodeDetector()
         try:
-            _, single_points = detector.detect(cv_image)
+            retval, _, points, _ = detector.detectAndDecodeMulti(cv_image)
         except Exception:
-            single_points = None
+            retval = False
+            points = None
 
-        if single_points is not None:
-            rect = _rect_from_points(single_points, padding=padding)
+        if retval and points is not None:
+            for qr_points in points:
+                rect = _rect_from_points(qr_points, padding=padding)
+                if rect is not None:
+                    rects.append(rect)
 
-            if rect is not None:
-                rects.append(rect)
+        # --- Pass 3: single-QR fallback ---
+        if not rects:
+            try:
+                _, single_points = detector.detect(cv_image)
+            except Exception:
+                single_points = None
+
+            if single_points is not None:
+                rect = _rect_from_points(single_points, padding=padding)
+                if rect is not None:
+                    rects.append(rect)
+
+    # --- Pass 4: pyzbar (optional) ---
+    if not rects and _PYZBAR_AVAILABLE:
+        try:
+            for obj in _pyzbar_decode(image):
+                r = obj.rect
+                rects.append(fitz.Rect(
+                    r.left - padding,
+                    r.top - padding,
+                    r.left + r.width + padding,
+                    r.top + r.height + padding,
+                ))
+        except Exception:
+            pass
 
     return _dedupe_rects(rects)
 

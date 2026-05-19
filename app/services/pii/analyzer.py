@@ -86,6 +86,11 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
         r"(?im)^[^\S\r\n]*(?:iban|cuenta[^\S\r\n]+bancaria|n[uú]mero[^\S\r\n]+de[^\S\r\n]+cuenta)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
+        # ES-specific IBAN colon: captures full IBAN including newline-split last group.
+        "IBAN_CODE",
+        r"(?im)^[^\S\r\n]*(?:iban|cuenta[^\S\r\n]+bancaria|n[uú]mero[^\S\r\n]+de[^\S\r\n]+cuenta)[^\S\r\n]*:[^\S\r\n]*(?P<value>ES\d{2}(?:[ \t\n\-]?\d{4}){5})",
+    ),
+    (
         "ADDRESS",
         r"(?im)^[^\S\r\n]*(?:direcci[oó]n(?:[^\S\r\n]+postal|[^\S\r\n]+de[^\S\r\n]+notificaci[oó]n)?|domicilio|domicilio[^\S\r\n]+fiscal)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
@@ -128,6 +133,10 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
     (
         "POLICY_NUMBER",
         r"(?im)^[^\S\r\n]*(?:p[oó]liza|seguro[^\S\r\n]+m[eé]dico)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
+    (
+        "ES_NSS",
+        r"(?im)^[^\S\r\n]*(?:nass|n[uú]mero[^\S\r\n]+de[^\S\r\n]+afiliaci[oó]n|n[uú]m\.?[^\S\r\n]+afiliaci[oó]n)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
 ]
 
@@ -192,6 +201,10 @@ LABELED_FIELD_PATTERNS_VAL_CAT: list[tuple[str, str]] = [
         "CADASTRAL_REFERENCE",
         r"(?im)^[^\S\r\n]*(?:refer[eè]ncia[^\S\r\n]+cadastral)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
+    (
+        "ES_NSS",
+        r"(?im)^[^\S\r\n]*(?:nass|n[uú]mero[^\S\r\n]+d'afiliaci[oó])[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
     # Party declarations in Valencian/Spanish bilateral legal contracts.
     # "D'UNA PART: NAME, role" / "D'ALTRA PART: NAME, role"
     # "DE UNA PARTE: NAME, role" / "DE OTRA PARTE: NAME, role"
@@ -200,8 +213,10 @@ LABELED_FIELD_PATTERNS_VAL_CAT: list[tuple[str, str]] = [
     # LEARNABLE: if the corpus includes contracts with different party markers,
     # extend the alternation list (e.g. "DE PART VENDEDORA", "EN QUALITAT DE").
     (
+        # Party declarations: accept both ASCII apostrophe (') and Unicode right
+        # single quotation mark (’ — common in PDF-extracted text).
         "PERSON",
-        r"(?im)^[^\S\r\n]*d[e'][^\S\r\n]*(?:una|altra|otra)[^\S\r\n]+part(?:e)?[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n,]+?)[^\S\r\n]*(?:,|$)",
+        "(?im)^[^\\S\\r\\n]*d(?:e|'|’|‘)[^\\S\\r\\n]*(?:una|altra|otra)[^\\S\\r\\n]+part(?:e)?[^\\S\\r\\n]*:[^\\S\\r\\n]*(?P<value>[^\\r\\n,]+?)[^\\S\\r\\n]*(?:,|$)",
     ),
 ]
 
@@ -247,6 +262,14 @@ NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
         r"(?im)^[^\S\r\n]*(?:iban)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
+        # ES-specific IBAN no-colon: captures the full IBAN even when the last
+        # digit group is on the next OCR line (ES91 2100 0418 4502 0005\n1332).
+        # When both this and the generic pattern match, _merge_overlaps keeps
+        # the longer (this) one because same-priority longer span wins.
+        "IBAN_CODE",
+        r"(?im)^[^\S\r\n]*(?:iban)[^\S\r\n]+(?P<value>ES\d{2}(?:[ \t\n\-]?\d{4}){5})",
+    ),
+    (
         "CREDIT_CARD",
         r"(?im)^[^\S\r\n]*(?:tarjeta(?:[^\S\r\n]+bancaria)?(?:[^\S\r\n]+de[^\S\r\n]+prueba)?|tarjeta[^\S\r\n]+de[^\S\r\n]+prueba)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
@@ -269,6 +292,12 @@ NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
     (
         "LICENSE_PLATE",
         r"(?im)^[^\S\r\n]*(?:matr[ií]cula|matricula)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
+    (
+        # NASS no-colon: restrict value to the NN/NNNNNNNNNN format so the
+        # pattern does not absorb subsequent entities on the same line.
+        "ES_NSS",
+        r"(?im)^[^\S\r\n]*(?:nass)[^\S\r\n]+(?P<value>\d{2}/\d{10})",
     ),
 ]
 
@@ -310,13 +339,26 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
     ),
     (
         "IBAN_CODE",
-        r"\bES\d{2}(?:[ \t\-]?\d{4}){5}\b",
+        # Allow a single \n between digit groups: PDF text extraction sometimes
+        # splits the last IBAN group onto the next line (ES91 2100 0418 4502 0005\n1332).
+        r"\bES\d{2}(?:[ \t\n\-]?\d{4}){5}\b",
         0.95,
     ),
     (
         "PHONE_NUMBER",
-        r"(?<!\d)(?:\+34[ \t.\-]*)?(?:6|7|8|9)(?:[ \t.\-]?\d){8}(?!\d)",
+        # Allow up to 3 whitespace/separator chars between digit groups so that
+        # phone numbers split across OCR lines are captured:
+        # "+34 \n612 \n345 \n987" → each group on its own line.
+        r"(?<!\d)(?:\+34[ \t\n.\-]{0,3})?(?:6|7|8|9)(?:[ \t\n.\-]{0,3}\d){8}(?!\d)",
         0.85,
+    ),
+    (
+        "ES_NSS",
+        # Spanish Social Security affiliation number: 2-digit province code + 10 digits.
+        # Format NN/NNNNNNNNNN (e.g. 46/1234567890).
+        # LEARNABLE: province code validation (01–52) would cut false-positive rate further.
+        r"\b\d{2}/\d{10}\b",
+        0.88,
     ),
     (
         "URL",
@@ -368,7 +410,12 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
     ),
     (
         "PASSPORT",
-        r"\b(?:[A-Z]{2,5}[- \t]?[A-Z]?[- \t]?\d{4,}|FAKE[- \t]?[A-Z]?[- \t]?\d{4,})\b",
+        # Real passport numbers: 2–5 letters + optional single letter + 6–9 digits,
+        # no dash separator (e.g. PZ3849201, ABC 123456).
+        # Dashes are NOT used in real passports; allowing them causes FPs on document
+        # references like "INV-2027" or "QR-000723".
+        # FAKE branch keeps the synthetic test format FAKE-P-NNNNNN intact.
+        r"\b(?:[A-Z]{2,5}[ \t]?[A-Z]?[ \t]?\d{6,9}|FAKE[- \t]?[A-Z]?[- \t]?\d{4,})\b",
         0.80,
     ),
     (
@@ -771,8 +818,10 @@ class PiiAnalyzer:
                 # All-caps short spans are section headings, not PII.
                 # Heuristic: REUNITS, EXPOSEN, CLÀUSULES, SIGN, DOGV, etc.
                 # Generalizable: documents across all domains use all-caps headers.
+                # PERSON is exempted: "MARTA SOLER VIDAL" is a valid all-caps
+                # person name in bilingual legal contracts (party declarations).
                 # LEARNABLE: max word count (4) could be tuned per document type.
-                if self._is_section_header(value):
+                if result.entity_type != "PERSON" and self._is_section_header(value):
                     continue
 
                 # PERSON and LOCATION spans that start with a lowercase letter are
@@ -932,7 +981,11 @@ class PiiAnalyzer:
             for match in re.finditer(pattern, text, flags=re.IGNORECASE):
                 value = match.group(0)
 
-                if "\n" in value or "\r" in value:
+                # Allow phone and IBAN to span OCR line breaks; block all others.
+                if ("\n" in value or "\r" in value) and entity_type not in {
+                    "PHONE_NUMBER",
+                    "IBAN_CODE",
+                }:
                     continue
 
                 # PASSPORT patterns use re.IGNORECASE so that letter separators
