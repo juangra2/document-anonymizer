@@ -6,6 +6,29 @@ import re
 from collections import defaultdict
 from typing import Literal
 
+# Compiled once at import: institutional name root-words used to detect
+# document-issuing organisations that are context entities, not PII subjects.
+# Heuristic: any NER span containing these roots is a public institution name,
+# not personal data under RGPD Art. 4.
+# LEARNABLE: expand this list from a labelled corpus; or replace with a
+# NER model fine-tuned on Spanish administrative documents.
+_INSTITUTION_NAME_RE = re.compile(
+    r"(?i)\b(?:"
+    r"universitat|universidad|universidade"
+    r"|ajuntament|ayuntamiento"
+    r"|institut(?:o|ució|ución)?"
+    r"|escola\b|escuela"
+    r"|departament\b|departamento"
+    r"|generalitat|govern\b|gobierno"
+    r"|diputaci[oó]|consell(?:eria)?|consej(?:ería|eria)"
+    r"|patronat|patronato"
+    r"|fundaci[oó]"
+    r"|hospital|cl[ií]nica"
+    r"|enginyeria|ingenier[ií]a"
+    r"|t[eè]cnica?\b"
+    r")\b"
+)
+
 from presidio_analyzer import AnalyzerEngine, RecognizerRegistry
 from presidio_analyzer.nlp_engine import NlpEngineProvider
 
@@ -169,6 +192,17 @@ LABELED_FIELD_PATTERNS_VAL_CAT: list[tuple[str, str]] = [
         "CADASTRAL_REFERENCE",
         r"(?im)^[^\S\r\n]*(?:refer[eè]ncia[^\S\r\n]+cadastral)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
+    # Party declarations in Valencian/Spanish bilateral legal contracts.
+    # "D'UNA PART: NAME, role" / "D'ALTRA PART: NAME, role"
+    # "DE UNA PARTE: NAME, role" / "DE OTRA PARTE: NAME, role"
+    # Heuristic: captures up to the first comma so the role title is excluded.
+    # Generalizable to any bilingual administrative contract using this structure.
+    # LEARNABLE: if the corpus includes contracts with different party markers,
+    # extend the alternation list (e.g. "DE PART VENDEDORA", "EN QUALITAT DE").
+    (
+        "PERSON",
+        r"(?im)^[^\S\r\n]*d[e'][^\S\r\n]*(?:una|altra|otra)[^\S\r\n]+part(?:e)?[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n,]+?)[^\S\r\n]*(?:,|$)",
+    ),
 ]
 
 # Append Valencian/Catalan patterns to the main list
@@ -298,6 +332,17 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         "POSTAL_CODE",
         r"\b(?:0[1-9]|[1-4]\d|5[0-2])\d{3}\b",
         0.45,
+    ),
+    (
+        "DATE_TIME",
+        # DD/MM/YYYY administrative dates (Spanish/Valencian standard format).
+        # Heuristic: 4-digit year in 1900–2099 keeps the false-positive rate low
+        # on legal citations (e.g. "art 3.1.c ET y 1255 CC").
+        # LEARNABLE: a date-context classifier could distinguish contract dates,
+        # birth dates, and institutional-reference dates (e.g. DOGV publication)
+        # for selective redaction once a labelled corpus is available.
+        r"\b(?:0?[1-9]|[12]\d|3[01])/(?:0?[1-9]|1[0-2])/(?:19|20)\d{2}\b",
+        0.90,
     ),
     (
         "LICENSE_PLATE",
@@ -603,7 +648,18 @@ class PiiAnalyzer:
         self,
         text: str,
         mode: RedactionMode = "strict",
+        zone_type: str | None = None,
     ) -> list[PiiEntity]:
+        """Detect PII in *text*.
+
+        Args:
+            text:      The text to analyse.
+            mode:      "strict" (all heuristics) or "balanced" (validated only).
+            zone_type: Layout zone this text comes from ("body", "header",
+                       "footer", "form", "table", …).  When provided, enables
+                       zone-aware NER filtering to reduce false positives in
+                       dense legal prose.  None → no zone-specific adjustment.
+        """
         if not text.strip():
             return []
 
@@ -617,7 +673,7 @@ class PiiAnalyzer:
             entities.extend(self._detect_role_table_rows(text))
 
         entities.extend(self._detect_direct_regex(text, mode=mode))
-        entities.extend(self._detect_ner_entities(text))
+        entities.extend(self._detect_ner_entities(text, zone_type=zone_type))
 
         return self._merge_overlaps(entities)
 
@@ -630,11 +686,28 @@ class PiiAnalyzer:
 
         return dict(counts)
 
-    def _detect_ner_entities(self, text: str) -> list[PiiEntity]:
+    def _detect_ner_entities(
+        self,
+        text: str,
+        zone_type: str | None = None,
+    ) -> list[PiiEntity]:
+        # Zone-aware NER threshold.
+        # Heuristic: spaCy es_core_news_md was trained on news text and produces
+        # many false positives on dense legal prose, especially in Valencian.
+        # Raising the score threshold in BODY zones reduces FP rate.
+        # LEARNABLE: optimal per-zone threshold should be calibrated on a labelled
+        # corpus; a domain-adapted NER model would make this unnecessary.
+        is_dense_body = zone_type == "body"
+        ner_threshold = (
+            max(settings.presidio_score_threshold, 0.75)
+            if is_dense_body
+            else settings.presidio_score_threshold
+        )
+
         results = self._engine.analyze(
             text=text,
             language="es",
-            score_threshold=settings.presidio_score_threshold,
+            score_threshold=ner_threshold,
         )
 
         entities: list[PiiEntity] = []
@@ -681,6 +754,39 @@ class PiiAnalyzer:
                     continue
 
                 if self._looks_like_false_positive(result.entity_type, value):
+                    continue
+
+                # ── Zone-aware content filters ──────────────────────────────
+
+                # All-caps short spans are section headings, not PII.
+                # Heuristic: REUNITS, EXPOSEN, CLÀUSULES, SIGN, DOGV, etc.
+                # Generalizable: documents across all domains use all-caps headers.
+                # LEARNABLE: max word count (4) could be tuned per document type.
+                if self._is_section_header(value):
+                    continue
+
+                # PERSON and LOCATION spans that start with a lowercase letter are
+                # NER false positives (role titles, preposition phrases, common
+                # nouns like "d'enginyeria", "lloc d'adscripció").
+                # Proper names and place names always start uppercase.
+                if result.entity_type in {"PERSON", "LOCATION"} and value and value[0].islower():
+                    continue
+
+                # In BODY zones with dense legal prose, single-word NER
+                # detections are rarely genuine person/org/location names.
+                # Heuristic: require ≥2 words for NER entities in body text.
+                # LEARNABLE: min_words threshold per zone type.
+                if is_dense_body and result.entity_type in NER_ALLOWED_TYPES:
+                    if len(value.split()) < 2:
+                        continue
+
+                # Institutional names are context entities (employers, issuers),
+                # not personal data under RGPD Art. 4.  Detected when NER
+                # misclassifies an organisation as PERSON or LOCATION.
+                # Heuristic: roots like "universitat", "ajuntament", "institut".
+                # LEARNABLE: replace with a named-entity disambiguation model
+                # that distinguishes "person mentions" from "org mentions".
+                if _INSTITUTION_NAME_RE.search(value):
                     continue
 
                 entities.append(
@@ -819,6 +925,14 @@ class PiiAnalyzer:
                 if "\n" in value or "\r" in value:
                     continue
 
+                # PASSPORT patterns use re.IGNORECASE so that letter separators
+                # match both cases — but this causes legal citations such as
+                # "art 3.1.c ET y 1255 CC" to false-match (IGNORECASE makes "i"
+                # satisfy the [A-Z]? letter slot + space satisfies [- \t]?).
+                # Guard: a real passport/document number has no lowercase letters.
+                if entity_type == "PASSPORT" and value != value.upper():
+                    continue
+
                 if PiiAnalyzer._looks_like_false_positive(entity_type, value):
                     continue
 
@@ -907,6 +1021,24 @@ class PiiAnalyzer:
                 return True
 
         return False
+
+    @staticmethod
+    def _is_section_header(value: str) -> bool:
+        """True when *value* looks like an all-caps structural section heading.
+
+        Heuristic: short spans that are fully uppercase (REUNITS, EXPOSEN,
+        CLÀUSULES, DOGV, SIGN …) are document headings, never PII.
+        Generalizable across all document types that use all-caps headings.
+        LEARNABLE: max_words threshold (currently 4) could be calibrated per
+        document type once a labelled corpus is available.
+        """
+        stripped = value.strip()
+        if not stripped:
+            return False
+        words = stripped.split()
+        if len(words) > 4:
+            return False
+        return stripped == stripped.upper() and any(c.isalpha() for c in stripped)
 
     @staticmethod
     def _merge_overlaps(entities: list[PiiEntity]) -> list[PiiEntity]:

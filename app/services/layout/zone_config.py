@@ -35,6 +35,7 @@ ALL_PII_TYPES: list[str] = [
     "POSTAL_CODE",
     "URL",
     "DATE_OF_BIRTH",
+    "DATE_TIME",
     "CASE_TABLE_ROW",
     "ROLE_TABLE_ROW",
 ]
@@ -76,6 +77,7 @@ _HEADER_CONFIG = ZoneDetectorConfig(
         "ES_CIF",
         "CASE_NUMBER",
         "DATE_OF_BIRTH",
+        "DATE_TIME",
         "EMAIL_ADDRESS",
         "PHONE_NUMBER",
     ],

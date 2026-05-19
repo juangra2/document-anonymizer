@@ -224,7 +224,11 @@ def _collect_redaction_rects(
         if not zone.text.strip() or cfg.entity_types is None:
             continue
 
-        local_entities = analyzer.analyze(zone.text, mode=mode)
+        local_entities = analyzer.analyze(
+            zone.text,
+            mode=mode,
+            zone_type=zone.zone_type.value,
+        )
         allowed = set(cfg.entity_types)
         local_entities = [e for e in local_entities if e.entity_type in allowed]
 
