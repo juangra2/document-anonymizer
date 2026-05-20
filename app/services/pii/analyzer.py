@@ -51,7 +51,7 @@ RedactionMode = Literal["strict", "balanced"]
 LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
     (
         "PERSON",
-        r"(?im)^[^\S\r\n]*(?:solicitante|interesado|titular|promotor(?:a)?|propietario(?:a)?|representante|arquitecto(?:a)?|t[eé]cnico(?:a)?|m[eé]dico[^\S\r\n]+responsable|doctor(?:a)?|nombre(?:[^\S\r\n]+completo)?|nombre(?:[^\S\r\n]+y[^\S\r\n]+apellidos)?|apellidos|persona)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:solicitante|interesado|titular|promotor(?:a)?|propietario(?:a)?|representante|arquitecto(?:a)?|t[eé]cnico(?:a)?|m[eé]dico[^\S\r\n]+responsable|doctor(?:a)?|nombre(?:[^\S\r\n]+completo)?|nombre(?:[^\S\r\n]+y[^\S\r\n]+apellidos)?|apellidos|persona)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
     ),
     (
         "DATE_OF_BIRTH",
@@ -96,7 +96,7 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "CASE_NUMBER",
-        r"(?im)^[^\S\r\n]*(?:expediente(?:[^\S\r\n]+municipal)?|n[uú]mero[^\S\r\n]+de[^\S\r\n]+expediente|exp\.?|id[^\S\r\n]+caso)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:expediente(?:[^\S\r\n]+municipal)?|n[uú]mero[^\S\r\n]+de[^\S\r\n]+expediente|exp\.?(?:[^\S\r\n]+n[uú]m\.?)?|id[^\S\r\n]+caso)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
         "PROFESSIONAL_LICENSE",
@@ -147,7 +147,7 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
 LABELED_FIELD_PATTERNS_VAL_CAT: list[tuple[str, str]] = [
     (
         "PERSON",
-        r"(?im)^[^\S\r\n]*(?:nom(?:[^\S\r\n]+complet|[^\S\r\n]+i[^\S\r\n]+cognoms)?|cognoms|sollicitant|titular)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:nom(?:[^\S\r\n]+complet|[^\S\r\n]+i[^\S\r\n]+cognoms)?|cognoms|sollicitant|titular)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
     ),
     (
         "DATE_OF_BIRTH",
@@ -227,7 +227,7 @@ LABELED_FIELD_PATTERNS = LABELED_FIELD_PATTERNS + LABELED_FIELD_PATTERNS_VAL_CAT
 NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
     (
         "PERSON",
-        r"(?im)^[^\S\r\n]*(?:nombre[^\S\r\n]+completo|nombre|persona)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:nombre[^\S\r\n]+completo|nombre|persona)[^\S\r\n]+(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
     ),
     (
         "DATE_OF_BIRTH",
@@ -382,11 +382,19 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         # on legal citations (e.g. "art 3.1.c ET y 1255 CC").
         # Optional time component HH:MM captures "04/05/2026 10:30" as one entity
         # so the time portion is not left visible after the date is redacted.
-        # LEARNABLE: a date-context classifier could distinguish contract dates,
-        # birth dates, and institutional-reference dates (e.g. DOGV publication)
-        # for selective redaction once a labelled corpus is available.
         r"\b(?:0?[1-9]|[12]\d|3[01])/(?:0?[1-9]|1[0-2])/(?:19|20)\d{2}(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?\b",
         0.90,
+    ),
+    (
+        "DATE_TIME",
+        # Written-out dates in Spanish and Valencian/Catalan:
+        # "9 de febrero de 2021", "15 de febrer de 2020", "16 de junio de 2024".
+        # Month list covers all 12 months in both languages plus common variants.
+        r"(?i)\b(?:0?[1-9]|[12]\d|3[01])\s+de\s+"
+        r"(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre"
+        r"|gener|febrer|mar[çc]|maig|juny|juliol|agost|setembre|novembre|desembre)"
+        r"\s+de\s+(?:19|20)\d{2}\b",
+        0.88,
     ),
     (
         "LICENSE_PLATE",
@@ -401,6 +409,14 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
     (
         "CASE_NUMBER",
         r"\b(?:EXP|REF|EXPDTE|EXPTE)[-/_.]?[A-Z0-9]{2,}(?:[-/_.][A-Z0-9]{2,})+\b",
+        0.80,
+    ),
+    (
+        "CASE_NUMBER",
+        # Administrative case references of the form PREFIX/YYYY/NNNN(/NN):
+        # AMO/2019/0892/00, AMO-2018-0011, EXP/2023/001, etc.
+        # Requires a 4-digit year component to reduce FPs on other alphanumeric codes.
+        r"\b[A-Z]{2,5}[-/]\d{4}[-/]\d{2,6}(?:[-/]\d{2})?\b",
         0.80,
     ),
     (
