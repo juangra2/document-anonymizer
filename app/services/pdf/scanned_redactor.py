@@ -24,7 +24,7 @@ import fitz
 from PIL import Image, ImageDraw
 
 from app.core.config import settings
-from app.schemas.report import OcrInfo, ProcessingLimits, ProcessingReport
+from app.schemas.report import DetectedEntityInfo, OcrInfo, ProcessingLimits, ProcessingReport
 from app.services.layout.models import PageZone, ZoneToken, ZoneType
 from app.services.layout.segmenters import OcrPageSegmenter
 from app.services.layout.zone_config import get_detector_config
@@ -43,6 +43,7 @@ def redact_pdf_scanned(
     analyzer: PiiAnalyzer,
     mode: str = "strict",
     document_type: str = "pdf_scanned",
+    collect_entities: bool = False,
 ) -> ProcessingReport:
     inspection = inspect_pdf_for_phase1(input_path)
 
@@ -189,6 +190,15 @@ def redact_pdf_scanned(
             low_confidence_pages=low_confidence_pages,
             second_pass_verification=settings.ocr_second_pass_verification,
         ),
+        detected_entities=(
+            [
+                DetectedEntityInfo(text=e.text, type=e.entity_type, score=e.score, source=e.source)
+                for e in all_entities
+                if e.text
+            ]
+            if collect_entities
+            else []
+        ),
     )
 
 
@@ -241,7 +251,14 @@ def _collect_redaction_rects(
                     rects.append(r)
 
             if entity_rects:
-                entities.append(entity)
+                entities.append(PiiEntity(
+                    entity_type=entity.entity_type,
+                    start=entity.start,
+                    end=entity.end,
+                    score=entity.score,
+                    source=entity.source,
+                    text=zone.text[entity.start:entity.end],
+                ))
 
     return rects, entities
 

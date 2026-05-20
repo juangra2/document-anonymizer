@@ -31,16 +31,17 @@ class PdfAnonymizationPipeline:
         output_path: Path,
         job_id: str,
         mode: str = "strict",
+        collect_entities: bool = False,
     ) -> ProcessingReport:
         started = perf_counter()
         inspection = inspect_pdf_for_phase1(input_path)
 
         if settings.pdf_processing_mode == "raster_ocr":
-            report = self._process_pdf_as_raster_ocr(input_path, output_path, job_id, mode)
+            report = self._process_pdf_as_raster_ocr(input_path, output_path, job_id, mode, collect_entities)
         elif settings.pdf_processing_mode == "hybrid_secure":
-            report = self._process_pdf_hybrid_secure(input_path, output_path, job_id, mode, inspection)
+            report = self._process_pdf_hybrid_secure(input_path, output_path, job_id, mode, inspection, collect_entities)
         else:
-            report = self._process_pdf_auto(input_path, output_path, job_id, mode, inspection)
+            report = self._process_pdf_auto(input_path, output_path, job_id, mode, inspection, collect_entities)
 
         report.redaction_mode = mode
         report.processing_ms = int((perf_counter() - started) * 1000)
@@ -50,18 +51,19 @@ class PdfAnonymizationPipeline:
     # Mode dispatchers
     # ------------------------------------------------------------------
 
-    def _process_pdf_as_raster_ocr(self, input_path, output_path, job_id, mode):
+    def _process_pdf_as_raster_ocr(self, input_path, output_path, job_id, mode, collect_entities=False):
         return redact_pdf_scanned(
             input_path=input_path, output_path=output_path,
             job_id=job_id, analyzer=self._analyzer, mode=mode,
             document_type="pdf_rasterized_ocr",
+            collect_entities=collect_entities,
         )
 
-    def _process_pdf_hybrid_secure(self, input_path, output_path, job_id, mode, inspection):
+    def _process_pdf_hybrid_secure(self, input_path, output_path, job_id, mode, inspection, collect_entities=False):
         if inspection.document_type == "pdf_digital":
-            return self._process_digital_pdf(input_path, output_path, job_id, mode)
+            return self._process_digital_pdf(input_path, output_path, job_id, mode, collect_entities)
         if inspection.document_type == "pdf_scanned":
-            return self._process_scanned_pdf(input_path, output_path, job_id, mode)
+            return self._process_scanned_pdf(input_path, output_path, job_id, mode, collect_entities)
         report = redact_pdf_hybrid_secure(
             input_path=input_path, output_path=output_path,
             job_id=job_id, analyzer=self._analyzer, mode=mode,
@@ -69,24 +71,26 @@ class PdfAnonymizationPipeline:
         self._run_verification(report, output_path, mode)
         return report
 
-    def _process_pdf_auto(self, input_path, output_path, job_id, mode, inspection):
+    def _process_pdf_auto(self, input_path, output_path, job_id, mode, inspection, collect_entities=False):
         if inspection.document_type == "pdf_digital":
-            return self._process_digital_pdf(input_path, output_path, job_id, mode)
-        return self._process_scanned_pdf(input_path, output_path, job_id, mode)
+            return self._process_digital_pdf(input_path, output_path, job_id, mode, collect_entities)
+        return self._process_scanned_pdf(input_path, output_path, job_id, mode, collect_entities)
 
-    def _process_digital_pdf(self, input_path, output_path, job_id, mode):
+    def _process_digital_pdf(self, input_path, output_path, job_id, mode, collect_entities=False):
         report = redact_pdf_digital(
             input_path=input_path, output_path=output_path,
             job_id=job_id, analyzer=self._analyzer, mode=mode,
+            collect_entities=collect_entities,
         )
         self._run_verification(report, output_path, mode)
         return report
 
-    def _process_scanned_pdf(self, input_path, output_path, job_id, mode):
+    def _process_scanned_pdf(self, input_path, output_path, job_id, mode, collect_entities=False):
         return redact_pdf_scanned(
             input_path=input_path, output_path=output_path,
             job_id=job_id, analyzer=self._analyzer, mode=mode,
             document_type="pdf_scanned",
+            collect_entities=collect_entities,
         )
 
     # ------------------------------------------------------------------

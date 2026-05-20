@@ -8,3 +8,4 @@ class PiiEntity:
     end: int
     score: float
     source: str = "presidio"
+    text: str = ""

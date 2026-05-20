@@ -3,6 +3,13 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+class DetectedEntityInfo(BaseModel):
+    text: str
+    type: str
+    score: float
+    source: str
+
+
 class OcrInfo(BaseModel):
     enabled: bool = False
     engine: str | None = None
@@ -106,3 +113,6 @@ class ProcessingReport(BaseModel):
 
     # Populated after post-redaction verification runs.
     verification: VerificationSummary | None = None
+
+    # Populated only when ?include_entities=true is requested (evaluation / audit use).
+    detected_entities: list[DetectedEntityInfo] = Field(default_factory=list)

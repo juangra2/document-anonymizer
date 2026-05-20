@@ -70,6 +70,13 @@ async def anonymize(
         default="strict",
         description="Redaction mode. strict redacts more aggressively; balanced redacts less.",
     ),
+    include_entities: bool = Query(
+        default=False,
+        description=(
+            "Include detected entity list (text + type) in report.json. "
+            "Intended for evaluation and audit. Disabled by default for privacy."
+        ),
+    ),
 ) -> Response:
     supported_content_types = {
         "application/pdf",
@@ -127,9 +134,13 @@ async def anonymize(
                     output_path,
                     temp_job.job_id,
                     mode,
+                    include_entities,
                 )
 
             output_bytes = output_path.read_bytes()
+
+        if include_entities:
+            report.security_checks.report_contains_pii_values = True
 
         report.output_format = output
         report.redaction_mode = mode

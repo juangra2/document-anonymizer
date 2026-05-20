@@ -21,7 +21,7 @@ import fitz
 from PIL import Image
 
 from app.core.config import settings
-from app.schemas.report import ProcessingLimits, ProcessingReport
+from app.schemas.report import DetectedEntityInfo, ProcessingLimits, ProcessingReport
 from app.services.layout.models import PageZone, ZoneType
 from app.services.layout.segmenters import DigitalPageSegmenter
 from app.services.layout.zone_config import get_detector_config
@@ -42,6 +42,7 @@ def redact_pdf_digital(
     job_id: str,
     analyzer: PiiAnalyzer,
     mode: str = "strict",
+    collect_entities: bool = False,
 ) -> ProcessingReport:
     inspection = inspect_pdf_for_phase1(input_path)
     segmenter = DigitalPageSegmenter()
@@ -141,6 +142,15 @@ def redact_pdf_digital(
             max_pdf_pages=settings.max_pdf_pages,
             min_digital_text_chars=settings.min_digital_text_chars,
         ),
+        detected_entities=(
+            [
+                DetectedEntityInfo(text=e.text, type=e.entity_type, score=e.score, source=e.source)
+                for e in all_entities
+                if e.text
+            ]
+            if collect_entities
+            else []
+        ),
     )
 
 
@@ -211,6 +221,7 @@ def _collect_redaction_rects(
                 end=abs_end,
                 score=entity.score,
                 source=entity.source,
+                text=zone.text[entity.start:entity.end],
             ))
 
     return rects, entities, layout_count
