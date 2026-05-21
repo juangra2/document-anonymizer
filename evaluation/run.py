@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 
 from evaluation.evaluator import run_evaluation
-from evaluation.metrics import AggregatedMetrics, aggregate_results
+from evaluation.metrics import AggregatedMetrics, OUT_OF_SCOPE_GT_TYPES, aggregate_results
 from evaluation.report import generate_report
 
 
@@ -120,13 +120,23 @@ def main() -> None:
 
     by_type = aggregated["by_type"]
     if by_type:
-        print("\nPer entity type:")
-        for et in sorted(by_type, key=lambda t: -by_type[t].f1()):
-            agg = by_type[et]
+        inscope = {t: a for t, a in by_type.items() if t not in OUT_OF_SCOPE_GT_TYPES}
+        outscope = {t: a for t, a in by_type.items() if t in OUT_OF_SCOPE_GT_TYPES}
+        print("\nPer entity type (in GT scope):")
+        for et in sorted(inscope, key=lambda t: -inscope[t].f1()):
+            agg = inscope[et]
             print(
                 f"  {et:<22} P={agg.precision():.2f}  R={agg.recall():.2f}  "
                 f"F1={agg.f1():.2f}  (TP={agg.tp} FN={agg.fn_count} FP={agg.fp_count})"
             )
+        if outscope:
+            print("\nFuera de scope del GT (política de redacción, no errores):")
+            for et in sorted(outscope):
+                agg = outscope[et]
+                print(
+                    f"  {et:<22} FP={agg.fp_count}  "
+                    f"(detectados pero no anotados en GT)"
+                )
 
 
 if __name__ == "__main__":

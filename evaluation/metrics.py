@@ -109,6 +109,17 @@ class AggregatedMetrics:
         return 2 * p * r / (p + r) if (p + r) else 0.0
 
 
+# Entity types that the system redacts by policy (NER over-detection, heuristics)
+# but the GT corpus does not annotate as personal PII.  Excluded from global
+# P/R/F1 so they do not distort the overall score; still visible per-type.
+OUT_OF_SCOPE_GT_TYPES: frozenset[str] = frozenset({
+    "LOCATION",
+    "ORGANIZATION",
+    "URL",
+    "PHONE_NUMBER",
+})
+
+
 # ---------------------------------------------------------------------------
 # IoU helpers
 # ---------------------------------------------------------------------------
@@ -212,8 +223,12 @@ def evaluate_document(
         for e in detected_entities
     ]
 
-    tp_exact, tp_partial, fn_list, fp_list = match_entities(gt_records, det_records, iou_threshold)
+    # Global TP/FP/FN exclude out-of-scope types so they don't distort P/R/F1.
+    gt_scope = [e for e in gt_records if e.entity_type not in OUT_OF_SCOPE_GT_TYPES]
+    det_scope = [e for e in det_records if e.entity_type not in OUT_OF_SCOPE_GT_TYPES]
+    tp_exact, tp_partial, fn_list, fp_list = match_entities(gt_scope, det_scope, iou_threshold)
 
+    # Per-type breakdown includes ALL types (out-of-scope appear for reference).
     all_types = sorted(
         {e.entity_type for e in gt_records} | {e.entity_type for e in det_records}
     )

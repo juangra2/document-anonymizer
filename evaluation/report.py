@@ -8,7 +8,7 @@ import html
 from datetime import datetime
 from pathlib import Path
 
-from evaluation.metrics import AggregatedMetrics, DocResult
+from evaluation.metrics import AggregatedMetrics, DocResult, OUT_OF_SCOPE_GT_TYPES
 
 _MAX_EXAMPLES = 5  # FN/FP examples shown per entity type
 
@@ -144,6 +144,8 @@ tr:hover td { background: #fafbff; }
 .tag-q-scanned  { background:#fef3c7; color:#92400e; }
 .tag-q-watermark{ background:#ede9fe; color:#5b21b6; }
 .tag-lang { background:#e0f2fe; color:#075985; }
+.tag-oos  { background:#f3f4f6; color:#6b7280; border:1px solid #d1d5db; cursor:help; }
+.oos-row  { opacity:.7; background:#fafafa; }
 .chip { display:inline-block; padding:1px 6px; border-radius:12px;
         background:#e5e7eb; font-size:11px; color:#374151; margin:1px; }
 .example-block { background:#f9fafb; border:1px solid #e5e7eb; border-radius:6px;
@@ -228,6 +230,43 @@ def _examples_section(examples: list[dict], kind: str, max_per_type: int = _MAX_
     return "\n".join(parts)
 
 
+def _type_table_html(by_type: dict[str, AggregatedMetrics]) -> str:
+    """Entity-type metrics table; out-of-scope rows are dimmed and P/R/F1 omitted."""
+    rows = []
+    header = (
+        "<table><thead><tr>"
+        "<th>Tipo</th><th>TP-exact</th><th>TP-partial</th><th>FN</th><th>FP</th>"
+        "<th>Precision</th><th>Recall</th><th>F1</th>"
+        "</tr></thead><tbody>"
+    )
+    for et in sorted(by_type):
+        agg = by_type[et]
+        oos = et in OUT_OF_SCOPE_GT_TYPES
+        badge = (
+            ' <span class="tag tag-oos" '
+            'title="No anotado en GT; excluido de métricas globales">fuera GT</span>'
+            if oos else ""
+        )
+        row_cls = ' class="oos-row"' if oos else ""
+        if oos:
+            p_cell = r_cell = f1_cell = "<span style='color:#bbb'>—</span>"
+        else:
+            p_cell = _pct(agg.precision())
+            r_cell = _pct(agg.recall())
+            f1_cell = _pct(agg.f1())
+        rows.append(
+            f"<tr{row_cls}>"
+            f"<td>{html.escape(et)}{badge}</td>"
+            f"<td>{_count(agg.tp_exact)}</td>"
+            f"<td>{_count(agg.tp_partial)}</td>"
+            f"<td>{_count(agg.fn_count)}</td>"
+            f"<td>{_count(agg.fp_count)}</td>"
+            f"<td>{p_cell}</td><td>{r_cell}</td><td>{f1_cell}</td>"
+            f"</tr>"
+        )
+    return header + "".join(rows) + "</tbody></table>"
+
+
 # ---------------------------------------------------------------------------
 # Main report generator
 # ---------------------------------------------------------------------------
@@ -248,21 +287,21 @@ def generate_report(
     n_errors = sum(1 for d in doc_results if d.api_status.startswith("error"))
     avg_ms = int(sum(d.processing_ms for d in doc_results) / n_docs) if n_docs else 0
 
-    # ---- entity-type bar chart ----
-    type_labels = sorted(by_type.keys())
+    # ---- entity-type bar chart (in-scope types only) ----
+    inscope_labels = sorted(t for t in by_type if t not in OUT_OF_SCOPE_GT_TYPES)
     chart_svg = _bar_chart_svg(
-        labels=type_labels,
+        labels=inscope_labels,
         series={
-            "Precision": [by_type[t].precision() for t in type_labels],
-            "Recall":    [by_type[t].recall()    for t in type_labels],
-            "F1":        [by_type[t].f1()         for t in type_labels],
+            "Precision": [by_type[t].precision() for t in inscope_labels],
+            "Recall":    [by_type[t].recall()    for t in inscope_labels],
+            "F1":        [by_type[t].f1()         for t in inscope_labels],
         },
         colors=_COLORS,
         bar_height=18,
         gap=4,
         group_gap=10,
         x_label_width=200,
-        title="Precision / Recall / F1 por tipo de entidad",
+        title="Precision / Recall / F1 por tipo de entidad (scope GT)",
     )
 
     # ---- per-document table (sorted by F1 asc — worst first) ----
@@ -325,14 +364,16 @@ def generate_report(
         # --- By entity type: table ---
         '<div class="section">',
         "<h2>Métricas por tipo de entidad</h2>",
-        _metric_table_html(
-            [(et, by_type[et]) for et in sorted(by_type)],
-        ),
+        "<p style='font-size:12px;color:#6b7280;margin-bottom:12px'>"
+        "Los tipos marcados <span class='tag tag-oos'>fuera GT</span> son detectados "
+        "por política de redacción del sistema pero no están anotados en el GT — "
+        "se excluyen del P/R/F1 global para no distorsionar las métricas.</p>",
+        _type_table_html(by_type),
         "</div>",
 
-        # --- Bar chart ---
+        # --- Bar chart (in-scope types only) ---
         '<div class="section">',
-        "<h2>Gráfico Precision / Recall / F1 por tipo</h2>",
+        "<h2>Gráfico Precision / Recall / F1 por tipo (scope GT)</h2>",
         chart_svg,
         "</div>",
 
