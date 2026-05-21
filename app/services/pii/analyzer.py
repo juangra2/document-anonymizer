@@ -92,7 +92,7 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "ADDRESS",
-        r"(?im)^[^\S\r\n]*(?:direcci[oó]n(?:[^\S\r\n]+postal|[^\S\r\n]+de[^\S\r\n]+notificaci[oó]n|[^\S\r\n]+habitual|[^\S\r\n]+fiscal)?|domicilio(?:[^\S\r\n]+fiscal|[^\S\r\n]+habitual|[^\S\r\n]+de[^\S\r\n]+notificaci[oó]n)?|via[^\S\r\n]+notificaci[oó]n)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:direcci[oó]n(?:[^\S\r\n]+postal|[^\S\r\n]+de[^\S\r\n]+notificaci[oó]n|[^\S\r\n]+habitual|[^\S\r\n]+fiscal)?|domicilio(?:[^\S\r\n]+fiscal|[^\S\r\n]+habitual|[^\S\r\n]+de[^\S\r\n]+notificaci[oó]n|[^\S\r\n]+de[^\S\r\n]+empadronamiento)?|via[^\S\r\n]+notificaci[oó]n)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
         "POSTAL_CODE",
@@ -402,16 +402,17 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
     ),
     (
         "DATE_OF_BIRTH",
-        # Context-aware birth date: "nacido/a el DATE" or "nat/nada el DATE".
+        # Context-aware birth date: "nacido/a el DATE", "nacida el DATE", etc.
         # Named group "value" captures only the date so the prefix is not redacted.
         # Covers numeric (DD/MM/YYYY) and written-out (DD de MES de YYYY) forms.
-        r"(?i)nasc?id[ao]s?\s+(?:el\s+|la\s+)?(?P<value>"
-        r"(?:0?[1-9]|[12]\d|3[01])[/.\- ][^\S\r\n]*(?:0?[1-9]|1[0-2])[/.\- ][^\S\r\n]*(?:19|20)\d{2}"
+        # "nacido/a" = Spanish gender-neutral shorthand for nacido/nacida.
+        r"(?i)nacid[ao](?:/[ao])?\s+(?:el\s+|la\s+)?(?P<value>"
+        r"(?:0?[1-9]|[12]\d|3[01])[/.\-][^\S\r\n]*(?:0?[1-9]|1[0-2])[/.\-][^\S\r\n]*(?:19|20)\d{2}"
         r"|(?:0?[1-9]|[12]\d|3[01])\s+de\s+"
         r"(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre"
         r"|gener|febrer|mar[çc]|maig|juny|juliol|agost|setembre|novembre|desembre)"
         r"\s+de\s+(?:19|20)\d{2})",
-        0.90,
+        0.92,
     ),
     (
         "LICENSE_PLATE",
@@ -893,34 +894,67 @@ class PiiAnalyzer:
 
         return entities
 
+    # Colon suffix shared by all labeled-field patterns; used to generate the
+    # "next-line value" variant automatically without duplicating every regex.
+    _COLON_SUFFIX = r":[^\S\r\n]*(?P<value>"
+
+    # Same suffix with an optional newline: covers "Label:\nValue" formats
+    # common in administrative certificates (e.g. "Domicilio de empadronamiento:\n
+    # Carrer dels Àngels, 25, ...").
+    _COLON_NL_SUFFIX = r":[^\S\r\n]*(?:\r?\n[^\S\r\n]*)?(?P<value>"
+
     @staticmethod
     def _detect_labeled_fields(text: str, mode: RedactionMode) -> list[PiiEntity]:
         entities: list[PiiEntity] = []
+        seen_spans: set[tuple[int, int]] = set()
 
         for entity_type, pattern in LABELED_FIELD_PATTERNS:
-            for match in re.finditer(pattern, text):
-                value = match.group("value")
-
-                if not value.strip():
-                    continue
-
-                if not PiiAnalyzer._passes_validation(
-                    entity_type=entity_type,
-                    value=value,
-                    mode=mode,
-                    source="labeled_field",
-                ):
-                    continue
-
-                entities.append(
-                    PiiEntity(
-                        entity_type=entity_type,
-                        start=match.start("value"),
-                        end=match.end("value"),
-                        score=0.97,
-                        source="labeled_field",
-                    )
+            # Run both inline ("Label: Value") and next-line ("Label:\nValue").
+            patterns_to_try: list[str] = [pattern]
+            if PiiAnalyzer._COLON_SUFFIX in pattern:
+                patterns_to_try.append(
+                    pattern.replace(PiiAnalyzer._COLON_SUFFIX, PiiAnalyzer._COLON_NL_SUFFIX, 1)
                 )
+
+            for p_idx, p in enumerate(patterns_to_try):
+                is_next_line = p_idx > 0
+                for match in re.finditer(p, text):
+                    value = match.group("value")
+
+                    if not value.strip():
+                        continue
+
+                    span = (match.start("value"), match.end("value"))
+                    if span in seen_spans:
+                        continue
+
+                    # Next-line variants can incorrectly capture the label of the
+                    # following field when the current field's value is empty or
+                    # has been redacted (e.g. "Nombre:\nDNI: 12345678Z").
+                    if is_next_line and (
+                        PiiAnalyzer._starts_with_known_field_label(value)
+                        or PiiAnalyzer._is_field_label_only(value)
+                    ):
+                        continue
+
+                    if not PiiAnalyzer._passes_validation(
+                        entity_type=entity_type,
+                        value=value,
+                        mode=mode,
+                        source="labeled_field",
+                    ):
+                        continue
+
+                    seen_spans.add(span)
+                    entities.append(
+                        PiiEntity(
+                            entity_type=entity_type,
+                            start=span[0],
+                            end=span[1],
+                            score=0.97,
+                            source="labeled_field",
+                        )
+                    )
 
         return entities
 
