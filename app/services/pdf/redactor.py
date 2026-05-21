@@ -69,6 +69,7 @@ def redact_pdf_digital(
                 page_text=page_text,
                 analyzer=analyzer,
                 mode=mode,
+                collect_entities=collect_entities,
             )
 
             all_entities.extend(page_entities)
@@ -163,6 +164,7 @@ def _collect_redaction_rects(
     page_text,
     analyzer: PiiAnalyzer,
     mode: str,
+    collect_entities: bool = False,
 ) -> tuple[list[fitz.Rect], list[PiiEntity], int]:
     """Return (rects_to_redact, pii_entities_found, layout_rect_count)."""
     rects: list[fitz.Rect] = []
@@ -187,6 +189,24 @@ def _collect_redaction_rects(
         if zone.zone_type in (ZoneType.FORM, ZoneType.TABLE) and zone.layout_redact_rects:
             rects.extend(zone.layout_redact_rects)
             layout_count += len(zone.layout_redact_rects)
+            if collect_entities and zone.text.strip():
+                cfg = get_detector_config(zone.zone_type)
+                if cfg.entity_types is not None:
+                    form_entities = analyzer.analyze(
+                        zone.text, mode=mode, zone_type=zone.zone_type.value
+                    )
+                    allowed = set(cfg.entity_types)
+                    for entity in form_entities:
+                        if entity.entity_type not in allowed:
+                            continue
+                        entities.append(PiiEntity(
+                            entity_type=entity.entity_type,
+                            start=zone.page_text_offset + entity.start,
+                            end=zone.page_text_offset + entity.end,
+                            score=entity.score,
+                            source=entity.source,
+                            text=zone.text[entity.start:entity.end],
+                        ))
             continue
 
         # BODY / HEADER / FOOTER → PII analysis with zone-specific types

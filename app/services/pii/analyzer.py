@@ -92,7 +92,11 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "ADDRESS",
-        r"(?im)^[^\S\r\n]*(?:direcci[oó]n(?:[^\S\r\n]+postal|[^\S\r\n]+de[^\S\r\n]+notificaci[oó]n)?|domicilio|domicilio[^\S\r\n]+fiscal)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:direcci[oó]n(?:[^\S\r\n]+postal|[^\S\r\n]+de[^\S\r\n]+notificaci[oó]n|[^\S\r\n]+habitual|[^\S\r\n]+fiscal)?|domicilio(?:[^\S\r\n]+fiscal|[^\S\r\n]+habitual|[^\S\r\n]+de[^\S\r\n]+notificaci[oó]n)?|via[^\S\r\n]+notificaci[oó]n)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
+    (
+        "POSTAL_CODE",
+        r"(?im)^[^\S\r\n]*(?:c[oó]digo[^\S\r\n]+postal|cp)[^\S\r\n]*:[^\S\r\n]*(?P<value>\d{5})[^\S\r\n]*$",
     ),
     (
         "CASE_NUMBER",
@@ -179,7 +183,7 @@ LABELED_FIELD_PATTERNS_VAL_CAT: list[tuple[str, str]] = [
     ),
     (
         "ADDRESS",
-        r"(?im)^[^\S\r\n]*(?:adre[cç]a(?:[^\S\r\n]+postal)?|domicili(?:[^\S\r\n]+fiscal)?)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:adre[cç]a(?:[^\S\r\n]+postal)?|domicili(?:[^\S\r\n]+fiscal|[^\S\r\n]+habitual)?|via[^\S\r\n]+notificaci[oó])[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
         "CASE_NUMBER",
@@ -395,6 +399,19 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         r"|gener|febrer|mar[çc]|maig|juny|juliol|agost|setembre|novembre|desembre)"
         r"\s+de\s+(?:19|20)\d{2}\b",
         0.88,
+    ),
+    (
+        "DATE_OF_BIRTH",
+        # Context-aware birth date: "nacido/a el DATE" or "nat/nada el DATE".
+        # Named group "value" captures only the date so the prefix is not redacted.
+        # Covers numeric (DD/MM/YYYY) and written-out (DD de MES de YYYY) forms.
+        r"(?i)nasc?id[ao]s?\s+(?:el\s+|la\s+)?(?P<value>"
+        r"(?:0?[1-9]|[12]\d|3[01])[/.\- ][^\S\r\n]*(?:0?[1-9]|1[0-2])[/.\- ][^\S\r\n]*(?:19|20)\d{2}"
+        r"|(?:0?[1-9]|[12]\d|3[01])\s+de\s+"
+        r"(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre"
+        r"|gener|febrer|mar[çc]|maig|juny|juliol|agost|setembre|novembre|desembre)"
+        r"\s+de\s+(?:19|20)\d{2})",
+        0.90,
     ),
     (
         "LICENSE_PLATE",
@@ -995,10 +1012,22 @@ class PiiAnalyzer:
 
         for entity_type, pattern, score in DIRECT_REGEX_PATTERNS:
             for match in re.finditer(pattern, text, flags=re.IGNORECASE):
-                value = match.group(0)
+                full_match = match.group(0)
+
+                # Named group "value" allows context-aware patterns to include a
+                # non-PII prefix (e.g. "nacido el") while only capturing the PII
+                # portion as the entity span.
+                try:
+                    value = match.group("value")
+                    start = match.start("value")
+                    end = match.end("value")
+                except IndexError:
+                    value = full_match
+                    start = match.start()
+                    end = match.end()
 
                 # Allow phone and IBAN to span OCR line breaks; block all others.
-                if ("\n" in value or "\r" in value) and entity_type not in {
+                if ("\n" in full_match or "\r" in full_match) and entity_type not in {
                     "PHONE_NUMBER",
                     "IBAN_CODE",
                 }:
@@ -1009,7 +1038,7 @@ class PiiAnalyzer:
                 # "art 3.1.c ET y 1255 CC" to false-match (IGNORECASE makes "i"
                 # satisfy the [A-Z]? letter slot + space satisfies [- \t]?).
                 # Guard: a real passport/document number has no lowercase letters.
-                if entity_type == "PASSPORT" and value != value.upper():
+                if entity_type == "PASSPORT" and full_match != full_match.upper():
                     continue
 
                 if PiiAnalyzer._looks_like_false_positive(entity_type, value):
@@ -1026,8 +1055,8 @@ class PiiAnalyzer:
                 entities.append(
                     PiiEntity(
                         entity_type=entity_type,
-                        start=match.start(),
-                        end=match.end(),
+                        start=start,
+                        end=end,
                         score=score,
                         source="deterministic_regex",
                     )

@@ -106,15 +106,7 @@ _MARGINALIA_CONFIG = ZoneDetectorConfig(
 # Zones where every entity type is relevant and layout sub-analysis applies.
 _ALL_TYPES_CONFIG = ZoneDetectorConfig(entity_types=ALL_PII_TYPES)
 
-# Body zones: all PII types except POSTAL_CODE.
-# Postal codes in body text are almost always part of institutional addresses
-# (org headquarters, court locations, …) rather than personal addresses.
-# Redacting them produces false positives on institutional references.
-# POSTAL_CODE is kept in FORM/TABLE zones where it comes from labelled fields.
-# LEARNABLE: a personal-vs-institutional address classifier trained on a labelled
-# corpus would allow selective redaction; until then, zone-level exclusion is safest.
-_BODY_TYPES = [t for t in ALL_PII_TYPES if t != "POSTAL_CODE"]
-_BODY_CONFIG = ZoneDetectorConfig(entity_types=_BODY_TYPES)
+_BODY_CONFIG = ZoneDetectorConfig(entity_types=list(ALL_PII_TYPES))
 
 
 ZONE_DETECTOR_CONFIG: dict[ZoneType, ZoneDetectorConfig] = {
