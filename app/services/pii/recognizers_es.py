@@ -36,7 +36,7 @@ def build_spanish_pattern_recognizers() -> list[PatternRecognizer]:
             patterns=[
                 Pattern(
                     name="cif_pattern",
-                    regex=r"\b[A-HJNPQRSUVW][\s\-]?\d{7}[\s\-]?[0-9A-J]\b",
+                    regex=r"\b[A-HJKLMNPQRSUVW][\s\-]?\d{7}[\s\-]?[0-9A-J]\b",
                     score=0.75,
                 )
             ],

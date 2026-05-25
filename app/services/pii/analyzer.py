@@ -75,11 +75,11 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "EMAIL_ADDRESS",
-        r"(?im)^[^\S\r\n]*(?:email(?:[^\S\r\n]+personal|[^\S\r\n]+contacto)?|e-mail|correo(?:[^\S\r\n]+personal)?|correo[^\S\r\n]+electr[oó]nico)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:email(?:[^\S\r\n]+personal|[^\S\r\n]+contacto)?|e-mail|correo(?:[^\S\r\n]+personal)?|correo[^\S\r\n]+electr[oó]nico)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
     ),
     (
         "PHONE_NUMBER",
-        r"(?im)^[^\S\r\n]*(?:tel[eé]fono(?:[^\S\r\n]+m[oó]vil|[^\S\r\n]+alternativo|[^\S\r\n]+contacto)?|telefono(?:[^\S\r\n]+movil)?|telf\.?|m[oó]vil)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:tel[eé]fono(?:[^\S\r\n]+m[oó]vil|[^\S\r\n]+alternativo|[^\S\r\n]+contacto)?|telefono(?:[^\S\r\n]+movil)?|telf\.?|m[oó]vil)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
     ),
     (
         "IBAN_CODE",
@@ -171,11 +171,11 @@ LABELED_FIELD_PATTERNS_VAL_CAT: list[tuple[str, str]] = [
     ),
     (
         "EMAIL_ADDRESS",
-        r"(?im)^[^\S\r\n]*(?:correu(?:[^\S\r\n]+electr[oò]nic)?|adre[cç]a[^\S\r\n]+electr[oò]nica)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:correu(?:[^\S\r\n]+electr[oò]nic)?|adre[cç]a[^\S\r\n]+electr[oò]nica)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
     ),
     (
         "PHONE_NUMBER",
-        r"(?im)^[^\S\r\n]*(?:tel[eè]fon(?:[^\S\r\n]+m[oò]bil)?|m[oò]bil)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:tel[eè]fon(?:[^\S\r\n]+m[oò]bil)?|m[oò]bil)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
     ),
     (
         "IBAN_CODE",
@@ -298,6 +298,14 @@ NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
         r"(?im)^[^\S\r\n]*(?:matr[ií]cula|matricula)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
+        # License plate on the next line (table format without colon separator):
+        #   "Matrícula vehículo\n7338-ZWL"
+        # Matches "Matrícula" + optional extra label text + newline + plate value.
+        # Value restricted to NNNN-LLL format to avoid capturing prose from next line.
+        "LICENSE_PLATE",
+        r"(?im)^[^\S\r\n]*(?:matr[ií]cula(?:[^\S\r\n]+veh[ií]culo)?)[^\S\r\n]*\r?\n[^\S\r\n]*(?P<value>\d{4}[- \t]?[A-Z]{3})[^\S\r\n]*$",
+    ),
+    (
         # NASS no-colon: restrict value to the NN/NNNNNNNNNN format so the
         # pattern does not absorb subsequent entities on the same line.
         "ES_NSS",
@@ -338,7 +346,7 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
     ),
     (
         "ES_CIF",
-        r"\b[A-HJNPQRSUVW][ \t\-]?\d{7}[ \t\-]?[0-9A-J]\b",
+        r"\b[A-HJKLMNPQRSUVW][ \t\-]?\d{7}[ \t\-]?[0-9A-J]\b",
         0.80,
     ),
     (
@@ -373,11 +381,6 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         "IP_ADDRESS",
         r"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b",
         0.75,
-    ),
-    (
-        "POSTAL_CODE",
-        r"\b(?:0[1-9]|[1-4]\d|5[0-2])\d{3}\b",
-        0.45,
     ),
     (
         "DATE_TIME",
@@ -415,6 +418,25 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         0.92,
     ),
     (
+        "DATE_OF_BIRTH",
+        # Split-label ("Fecha de\nnacimiento:VALUE") and run-on lines
+        # ("...Fecha de nacimiento:27/01/1954 Domicilio:..."). Non-anchored;
+        # score 0.95 beats DATE_TIME (0.90) to prevent type collision.
+        r"(?i)nacimiento[^\S\r\n]*:[^\S\r\n]*(?P<value>"
+        r"(?:0?[1-9]|[12]\d|3[01])[/.\-](?:0?[1-9]|1[0-2])[/.\-](?:19|20)\d{2}"
+        r"(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?)",
+        0.95,
+    ),
+    (
+        "DATE_OF_BIRTH",
+        # No-colon next-line: "Fecha de nacimiento\nDD/MM/YYYY" (formulario_medico).
+        # Requires DATE_OF_BIRTH in the newline-allowed set of _detect_direct_regex.
+        r"(?i)fecha[^\S\r\n]+de[^\S\r\n]+nacimiento[^\S\r\n]*\r?\n[^\S\r\n]*(?P<value>"
+        r"(?:0?[1-9]|[12]\d|3[01])[/.\-](?:0?[1-9]|1[0-2])[/.\-](?:19|20)\d{2}"
+        r"(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?)",
+        0.95,
+    ),
+    (
         "LICENSE_PLATE",
         r"\b\d{4}[- \t]?[A-Z]{3}\b",
         0.75,
@@ -439,7 +461,7 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
     ),
     (
         "PROFESSIONAL_LICENSE",
-        r"\b(?:COACV[-/_.]?\d{3,}|COA[-/_.]?[A-Z0-9]{3,}|COL[-/_.]?[A-Z0-9]{3,}|COLEG[-/_.][A-Z0-9]{3,})\b",
+        r"\b(?:COACV[-/_.]?\d{3,}|COA[-/_.]?[A-Z0-9]{3,}|COL[-/_.][A-Z0-9]{3,}|COLEG[-/_.][A-Z0-9]{3,})\b",
         0.80,
     ),
     (
@@ -451,6 +473,14 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         # FAKE branch keeps the synthetic test format FAKE-P-NNNNNN intact.
         r"\b(?:[A-Z]{2,5}[ \t]?[A-Z]?[ \t]?\d{6,9}|FAKE[- \t]?[A-Z]?[- \t]?\d{4,})\b",
         0.80,
+    ),
+    (
+        "PASSPORT",
+        # Non-anchored context match for run-on lines like
+        # "Teléfono:947... Pasaporte:PZ2166554".  Score 0.95 prevents absorption
+        # by PHONE_NUMBER labeled_field.  Named group so prefix is not redacted.
+        r"(?i)pasaporte[^\S\r\n]*:[^\S\r\n]*(?P<value>[A-Z]{2,5}\d{6,9})",
+        0.95,
     ),
     (
         "CREDIT_CARD",
@@ -1060,10 +1090,11 @@ class PiiAnalyzer:
                     start = match.start()
                     end = match.end()
 
-                # Allow phone and IBAN to span OCR line breaks; block all others.
+                # Allow phone, IBAN, and date-of-birth to span OCR line breaks.
                 if ("\n" in full_match or "\r" in full_match) and entity_type not in {
                     "PHONE_NUMBER",
                     "IBAN_CODE",
+                    "DATE_OF_BIRTH",
                 }:
                     continue
 
@@ -1072,7 +1103,7 @@ class PiiAnalyzer:
                 # "art 3.1.c ET y 1255 CC" to false-match (IGNORECASE makes "i"
                 # satisfy the [A-Z]? letter slot + space satisfies [- \t]?).
                 # Guard: a real passport/document number has no lowercase letters.
-                if entity_type == "PASSPORT" and full_match != full_match.upper():
+                if entity_type == "PASSPORT" and value != value.upper():
                     continue
 
                 if PiiAnalyzer._looks_like_false_positive(entity_type, value):
