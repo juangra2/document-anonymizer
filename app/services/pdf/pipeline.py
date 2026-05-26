@@ -64,9 +64,15 @@ class PdfAnonymizationPipeline:
             return self._process_digital_pdf(input_path, output_path, job_id, mode, collect_entities)
         if inspection.document_type == "pdf_scanned":
             return self._process_scanned_pdf(input_path, output_path, job_id, mode, collect_entities)
+        # pdf_hybrid: if text-dominant (images are icons/QR, not rasterized text),
+        # the digital pipeline already covers all PII — skip the expensive OCR pass.
+        avg_chars = inspection.selectable_text_chars / max(1, inspection.pages)
+        if avg_chars >= 200:
+            return self._process_digital_pdf(input_path, output_path, job_id, mode, collect_entities)
         report = redact_pdf_hybrid_secure(
             input_path=input_path, output_path=output_path,
             job_id=job_id, analyzer=self._analyzer, mode=mode,
+            collect_entities=collect_entities,
         )
         self._run_verification(report, output_path, mode)
         return report

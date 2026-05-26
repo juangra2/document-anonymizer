@@ -21,7 +21,7 @@ from tempfile import TemporaryDirectory
 import fitz
 
 from app.core.config import settings
-from app.schemas.report import OcrInfo, ProcessingLimits, ProcessingReport
+from app.schemas.report import DetectedEntityInfo, OcrInfo, ProcessingLimits, ProcessingReport
 from app.services.layout.segmenters import OcrPageSegmenter
 from app.services.ocr.factory import get_ocr_engine
 from app.services.pdf.inspector import inspect_pdf_for_phase1
@@ -42,6 +42,7 @@ def redact_pdf_hybrid_secure(
     job_id: str,
     analyzer: PiiAnalyzer,
     mode: str = "strict",
+    collect_entities: bool = False,
 ) -> ProcessingReport:
     inspection = inspect_pdf_for_phase1(input_path)
 
@@ -67,6 +68,7 @@ def redact_pdf_hybrid_secure(
             job_id=job_id,
             analyzer=analyzer,
             mode=mode,
+            collect_entities=collect_entities,
         )
         warnings.extend(digital_report.warnings)
 
@@ -106,6 +108,7 @@ def redact_pdf_hybrid_secure(
                     zoned_page=zoned_page,
                     analyzer=analyzer,
                     mode=mode,
+                    collect_entities=collect_entities,
                 )
 
                 all_ocr_entities.extend(page_entities)
@@ -189,6 +192,16 @@ def redact_pdf_hybrid_secure(
         sum(confidence_values) / len(confidence_values) if confidence_values else None
     )
 
+    all_detected = (
+        list(digital_report.detected_entities) + [
+            DetectedEntityInfo(text=e.text, type=e.entity_type, score=e.score, source=e.source)
+            for e in all_ocr_entities
+            if e.text
+        ]
+        if collect_entities
+        else []
+    )
+
     return ProcessingReport(
         job_id=job_id,
         status="completed_with_warnings" if warnings else "completed",
@@ -221,4 +234,5 @@ def redact_pdf_hybrid_secure(
             low_confidence_pages=low_confidence_pages,
             second_pass_verification=settings.ocr_second_pass_verification,
         ),
+        detected_entities=all_detected,
     )

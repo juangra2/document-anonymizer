@@ -161,7 +161,7 @@ def run_evaluation(
 
     total = len(pdf_files)
     if verbose:
-        print(f"Evaluating {total} document(s) (workers={workers}, IoU≥{iou_threshold})")
+        print(f"Evaluating {total} document(s) (workers={workers}, IoU>={iou_threshold})")
 
     results: list[DocResult] = []
 
