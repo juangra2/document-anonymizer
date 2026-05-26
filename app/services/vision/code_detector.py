@@ -15,6 +15,93 @@ except ImportError:
     _PYZBAR_AVAILABLE = False
 
 
+def detect_and_decode_visual_codes(
+    image: Image.Image,
+    padding: int = 8,
+) -> list[tuple[fitz.Rect, str]]:
+    """Detect QR codes / barcodes and return (rect, decoded_text) pairs.
+
+    Same detection cascade as detect_visual_code_rects but also captures the
+    decoded content so callers can report it as a QR_CODE entity.
+    """
+    cv_image = cv2.cvtColor(
+        np.array(image.convert("RGB")),
+        cv2.COLOR_RGB2BGR,
+    )
+
+    pairs: list[tuple[fitz.Rect, str]] = []
+
+    # --- Pass 1: QRCodeDetectorAruco ---
+    try:
+        aruco_detector = cv2.QRCodeDetectorAruco()
+        retval, decoded_info, points, _ = aruco_detector.detectAndDecodeMulti(cv_image)
+        if retval and points is not None:
+            for text, qr_points in zip(decoded_info or [], points):
+                rect = _rect_from_points(qr_points, padding=padding)
+                if rect is not None and _is_plausible_qr_rect(rect):
+                    pairs.append((rect, text or ""))
+    except AttributeError:
+        pass
+
+    # --- Pass 2: classic QRCodeDetector multi ---
+    if not pairs:
+        detector = cv2.QRCodeDetector()
+        try:
+            retval, decoded_info, points, _ = detector.detectAndDecodeMulti(cv_image)
+        except Exception:
+            retval = False
+            points = None
+            decoded_info = []
+        if retval and points is not None:
+            for text, qr_points in zip(decoded_info or [], points):
+                rect = _rect_from_points(qr_points, padding=padding)
+                if rect is not None and _is_plausible_qr_rect(rect):
+                    pairs.append((rect, text or ""))
+
+        # --- Pass 3: single-QR fallback ---
+        if not pairs:
+            try:
+                decoded, single_points, _ = detector.detectAndDecode(cv_image)
+            except Exception:
+                decoded = ""
+                single_points = None
+            if single_points is not None:
+                rect = _rect_from_points(single_points, padding=padding)
+                if rect is not None and _is_plausible_qr_rect(rect):
+                    pairs.append((rect, decoded or ""))
+
+    # --- Pass 4: pyzbar ---
+    if not pairs and _PYZBAR_AVAILABLE:
+        try:
+            for obj in _pyzbar_decode(image):
+                r = obj.rect
+                rect = fitz.Rect(
+                    r.left - padding,
+                    r.top - padding,
+                    r.left + r.width + padding,
+                    r.top + r.height + padding,
+                )
+                if _is_plausible_qr_rect(rect):
+                    text = obj.data.decode("utf-8", errors="replace")
+                    pairs.append((rect, text))
+        except Exception:
+            pass
+
+    # Deduplicate by rect proximity
+    tolerance = 4.0
+    unique: list[tuple[fitz.Rect, str]] = []
+    for rect, text in pairs:
+        if not any(
+            abs(rect.x0 - ex.x0) <= tolerance
+            and abs(rect.y0 - ex.y0) <= tolerance
+            and abs(rect.x1 - ex.x1) <= tolerance
+            and abs(rect.y1 - ex.y1) <= tolerance
+            for ex, _ in unique
+        ):
+            unique.append((rect, text))
+    return unique
+
+
 def detect_visual_code_rects(
     image: Image.Image,
     padding: int = 8,

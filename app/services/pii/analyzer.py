@@ -457,7 +457,7 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         # Calle X, N, CP Ciudad" and "domicilio en / domiciliado/a en".
         # Requires an embedded 5-digit postal code to anchor the end of the value.
         "ADDRESS",
-        r"(?i)domicili(?:o[^\S\r\n]+(?:a[^\S\r\n]+efectos[^\S\r\n]+de[^\S\r\n]+notificaciones[^\S\r\n]+en|en|a)|ado?|ada)[^\S\r\n]+(?P<value>[^\r\n:]+?\d{5}[^\r\n:]*?)[^\S\r\n]*(?=\r?\n|$|[^\S\r\n]*[A-Za-záéíóúÁÉÍÓÚüÜñÑ]+[^\S\r\n]*:)",
+        r"(?i)domicili(?:o[^\S\r\n]+(?:a[^\S\r\n]+efectos[^\S\r\n]+de[^\S\r\n]+notificaciones[^\S\r\n]+en|en|a)|ado?|ada)[^\S\r\n]+(?P<value>[^\r\n:]+?\d{5}(?:[^\S\r\n]+[^\r\n,;:\d]+?)?)[^\S\r\n]*(?=\r?\n|$|[^\S\r\n]*[A-Za-záéíóúÁÉÍÓÚüÜñÑ]+[^\S\r\n]*:|,)",
         0.88,
     ),
     (

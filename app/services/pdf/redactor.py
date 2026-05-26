@@ -29,7 +29,7 @@ from app.services.pdf.extractor import extract_page_text, rects_for_span
 from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services.pii.models import PiiEntity
-from app.services.vision.code_detector import detect_visual_code_rects
+from app.services.vision.code_detector import detect_and_decode_visual_codes, detect_visual_code_rects
 
 # Render DPI used only for visual QR detection — not full-page OCR.
 # 150 DPI gives enough resolution for most QR codes without excessive memory use.
@@ -181,6 +181,15 @@ def _collect_redaction_rects(
         # SIGNATURE / QR_CODE → full zone rect
         if zone.is_auto_redact:
             rects.append(zone.rect)
+            if collect_entities and zone.zone_type == ZoneType.QR_CODE and zone.text:
+                entities.append(PiiEntity(
+                    entity_type="QR_CODE",
+                    start=0,
+                    end=len(zone.text),
+                    score=0.99,
+                    source="visual_qr",
+                    text=zone.text,
+                ))
             continue
 
         # FORM / TABLE with pre-computed structural rects (heuristic segmenter).
@@ -266,7 +275,7 @@ def _add_visual_qr_zones(page: fitz.Page, zoned_page) -> None:
     pixmap = page.get_pixmap(matrix=matrix, alpha=False)
     image = Image.open(BytesIO(pixmap.tobytes("png"))).convert("RGB")
 
-    for qr_rect in detect_visual_code_rects(image):
+    for qr_rect, decoded_text in detect_and_decode_visual_codes(image):
         pdf_rect = fitz.Rect(
             qr_rect.x0 / scale,
             qr_rect.y0 / scale,
@@ -276,6 +285,6 @@ def _add_visual_qr_zones(page: fitz.Page, zoned_page) -> None:
         zoned_page.zones.append(PageZone(
             zone_type=ZoneType.QR_CODE,
             rect=pdf_rect,
-            text="",
+            text=decoded_text,
             source="digital",
         ))

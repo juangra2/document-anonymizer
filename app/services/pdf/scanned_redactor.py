@@ -222,6 +222,15 @@ def _collect_redaction_rects(
         # SIGNATURE / QR_CODE → full zone rect
         if zone.is_auto_redact:
             rects.append(zone.rect)
+            if collect_entities and zone.zone_type == ZoneType.QR_CODE and zone.text:
+                entities.append(PiiEntity(
+                    entity_type="QR_CODE",
+                    start=0,
+                    end=len(zone.text),
+                    score=0.99,
+                    source="visual_qr",
+                    text=zone.text,
+                ))
             continue
 
         # FORM / TABLE with pre-computed structural rects (heuristic segmenter).
