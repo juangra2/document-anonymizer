@@ -262,6 +262,13 @@ NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
         r"(?im)^[^\S\r\n]*(?:direcci[oó]n[^\S\r\n]+postal|direccion[^\S\r\n]+postal|direcci[oó]n|direccion)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
+        # ADDRESS next-line no-colon: "Domicilio\nCalle X, N, CP Ciudad"
+        # Covers formulario_medico table format where label and value are on
+        # separate lines with no separator.
+        "ADDRESS",
+        r"(?im)^[^\S\r\n]*domicilio[^\S\r\n]*\r?\n[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+    ),
+    (
         "IBAN_CODE",
         r"(?im)^[^\S\r\n]*(?:iban)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
@@ -346,7 +353,7 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
     ),
     (
         "ES_CIF",
-        r"\b[A-HJKLMNPQRSUVW][ \t\-]?\d{7}[ \t\-]?[0-9A-J]\b",
+        r"\b[A-HJKLMNPQRSUVW][ \t\-]?\d{7,8}[ \t\-]?[0-9A-J]\b",
         0.80,
     ),
     (
@@ -435,6 +442,23 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         r"(?:0?[1-9]|[12]\d|3[01])[/.\-](?:0?[1-9]|1[0-2])[/.\-](?:19|20)\d{2}"
         r"(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?)",
         0.95,
+    ),
+    (
+        # ADDRESS run-on (Format A): "...Domicilio:Calle X, N, CP Ciudad Teléfono:..."
+        # Non-anchored; fires when "Domicilio:" appears mid-line (^ anchor fails).
+        # Stops before the next "Word:" token via lookahead so subsequent fields
+        # are not absorbed into the address value.
+        "ADDRESS",
+        r"(?i)domicilio[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*(?=\r?\n|$|[^\S\r\n]*[A-Za-záéíóúÁÉÍÓÚüÜñÑ]+[^\S\r\n]*:)",
+        0.88,
+    ),
+    (
+        # ADDRESS prose (Format C): "con domicilio a efectos de notificaciones en
+        # Calle X, N, CP Ciudad" and "domicilio en / domiciliado/a en".
+        # Requires an embedded 5-digit postal code to anchor the end of the value.
+        "ADDRESS",
+        r"(?i)domicili(?:o[^\S\r\n]+(?:a[^\S\r\n]+efectos[^\S\r\n]+de[^\S\r\n]+notificaciones[^\S\r\n]+en|en|a)|ado?|ada)[^\S\r\n]+(?P<value>[^\r\n:]+?\d{5}[^\r\n:]*?)[^\S\r\n]*(?=\r?\n|$|[^\S\r\n]*[A-Za-záéíóúÁÉÍÓÚüÜñÑ]+[^\S\r\n]*:)",
+        0.88,
     ),
     (
         "LICENSE_PLATE",
@@ -703,6 +727,11 @@ SOURCE_PRIORITY = {
     "presidio": 1,
 }
 
+# Used by _detect_labeled_fields to re-type PERSON entities whose value is
+# actually a document number (e.g. "representante:05078944S").
+_DNI_FULL_RE = re.compile(r"^\d{8}[A-HJ-NP-TV-Z]$", re.IGNORECASE)
+_NIE_FULL_RE = re.compile(r"^[XYZ]\d{7}[A-HJ-NP-TV-Z]$", re.IGNORECASE)
+
 
 class PiiAnalyzer:
     def __init__(self) -> None:
@@ -788,7 +817,9 @@ class PiiAnalyzer:
         entities.extend(self._detect_direct_regex(text, mode=mode))
         entities.extend(self._detect_ner_entities(text, zone_type=zone_type))
 
-        return self._merge_overlaps(entities)
+        merged = self._merge_overlaps(entities)
+        merged.extend(self._extract_postal_codes_from_addresses(text, merged))
+        return merged
 
     @staticmethod
     def count_by_type(entities: list[PiiEntity]) -> dict[str, int]:
@@ -967,8 +998,20 @@ class PiiAnalyzer:
                     ):
                         continue
 
+                    # Re-type PERSON labeled_field values that are actually
+                    # document numbers (e.g. "representante:05078944S").
+                    # Without this, PERSON (priority 5) would suppress ES_DNI
+                    # (priority 2) in _merge_overlaps.
+                    emit_type = entity_type
+                    if entity_type == "PERSON":
+                        v = value.strip()
+                        if _DNI_FULL_RE.fullmatch(v):
+                            emit_type = "ES_DNI"
+                        elif _NIE_FULL_RE.fullmatch(v):
+                            emit_type = "ES_NIE"
+
                     if not PiiAnalyzer._passes_validation(
-                        entity_type=entity_type,
+                        entity_type=emit_type,
                         value=value,
                         mode=mode,
                         source="labeled_field",
@@ -978,7 +1021,7 @@ class PiiAnalyzer:
                     seen_spans.add(span)
                     entities.append(
                         PiiEntity(
-                            entity_type=entity_type,
+                            entity_type=emit_type,
                             start=span[0],
                             end=span[1],
                             score=0.97,
@@ -1423,3 +1466,41 @@ class PiiAnalyzer:
                 parts.append((part_start, part_end))
 
         return parts
+
+    # Spanish postal-code pattern (01000–52999) used to extract CP entities
+    # embedded inside ADDRESS spans after _merge_overlaps.
+    _CP_IN_ADDRESS_RE = re.compile(r"\b(?:0[1-9]|[1-4]\d|5[0-2])\d{3}\b")
+
+    @staticmethod
+    def _extract_postal_codes_from_addresses(
+        text: str,
+        entities: list[PiiEntity],
+    ) -> list[PiiEntity]:
+        """Extract POSTAL_CODE entities embedded in ADDRESS spans.
+
+        ADDRESS labeled_field (priority 5) absorbs any POSTAL_CODE direct_regex
+        (priority 2) in _merge_overlaps.  Running this after the merge creates
+        the POSTAL_CODE entities without going through overlap resolution again.
+        """
+        existing_cp = {
+            (e.start, e.end) for e in entities if e.entity_type == "POSTAL_CODE"
+        }
+        result: list[PiiEntity] = []
+        for e in entities:
+            if e.entity_type != "ADDRESS":
+                continue
+            addr_text = text[e.start : e.end]
+            for m in PiiAnalyzer._CP_IN_ADDRESS_RE.finditer(addr_text):
+                cp_start = e.start + m.start()
+                cp_end = e.start + m.end()
+                if (cp_start, cp_end) not in existing_cp:
+                    result.append(
+                        PiiEntity(
+                            entity_type="POSTAL_CODE",
+                            start=cp_start,
+                            end=cp_end,
+                            score=0.88,
+                            source="deterministic_regex",
+                        )
+                    )
+        return result
