@@ -147,13 +147,17 @@ class DigitalPageSegmenter:
                 body_rows.append(row)
 
         # One FORM zone that carries all pre-computed structural rects.
-        # PII analysis is NOT run on this zone (layout handles all redaction).
+        # Text is populated so collect_entities can report entities from form rows
+        # (e.g. LICENSE_PLATE in table cells) even though layout handles redaction.
         if form_rows and layout.redaction_rects:
             all_form_words = [w for row in form_rows for w in row]
+            form_text_start = min(w.start for w in all_form_words)
+            form_text_end = max(w.end for w in all_form_words)
+            form_text = page_text.text[form_text_start:form_text_end]
             zones.append(PageZone(
                 zone_type=ZoneType.FORM,
                 rect=_rect_for_word_row(all_form_words),
-                text="",  # not used for PII analysis
+                text=form_text,
                 tokens=[
                     ZoneToken(text=w.text, rect=w.rect)
                     for w in sorted(all_form_words, key=lambda w: (w.rect.y0, w.rect.x0))
@@ -161,6 +165,7 @@ class DigitalPageSegmenter:
                 source="digital",
                 layout_redact_rects=layout.redaction_rects,
                 layout_protected_rects=layout.protected_rects,
+                page_text_offset=form_text_start,
             ))
 
         # One BODY zone per row so page_text_offset maps directly.
