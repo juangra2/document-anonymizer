@@ -32,8 +32,8 @@ from app.services.pii.models import PiiEntity
 from app.services.vision.code_detector import detect_and_decode_visual_codes, detect_visual_code_rects
 
 # Render DPI used only for visual QR detection — not full-page OCR.
-# 150 DPI gives enough resolution for most QR codes without excessive memory use.
-_QR_DETECT_DPI = 150
+# 200 DPI improves decode rate for small QR codes (contrato_laboral) vs 150.
+_QR_DETECT_DPI = 200
 
 
 def redact_pdf_digital(

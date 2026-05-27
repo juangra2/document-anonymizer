@@ -63,9 +63,14 @@ def build_spanish_pattern_recognizers() -> list[PatternRecognizer]:
                     name="spanish_phone_pattern",
                     regex=r"(?<!\d)(?:\+34[\s\-]?)?(?:6|7|8|9)\d{2}[\s\-]?\d{3}[\s\-]?\d{3}(?!\d)",
                     score=0.75,
-                )
+                ),
+                Pattern(
+                    name="international_phone_pattern",
+                    regex=r"(?<!\d)\+(?!34\b)(?:\d{1,3})(?:[\s\t\-\.()]{0,3}\d{2,5}){2,4}(?!\d)",
+                    score=0.70,
+                ),
             ],
-            context=["teléfono", "telefono", "móvil", "movil", "contacto"],
+            context=["teléfono", "telefono", "móvil", "movil", "contacto", "phone", "tel"],
         ),
         PatternRecognizer(
             name="SPANISH_IBAN_RECOGNIZER",
@@ -87,7 +92,7 @@ def build_spanish_pattern_recognizers() -> list[PatternRecognizer]:
             patterns=[
                 Pattern(
                     name="url_pattern",
-                    regex=r"\bhttps?://[^\s<>()]+|\bwww\.[^\s<>()]+",
+                    regex=r"\bhttps?://[^\s<>()]+[^\s<>().,;:!?]|\bwww\.[^\s<>()]+[^\s<>().,;:!?]",
                     score=0.75,
                 )
             ],

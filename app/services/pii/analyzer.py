@@ -128,7 +128,12 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "IP_ADDRESS",
-        r"(?im)^[^\S\r\n]*(?:ip(?:[^\S\r\n]+(?:de[^\S\r\n]+)?[uú]ltima[^\S\r\n]+conexi[oó]n)?|ip[^\S\r\n]+reservada(?:[^\S\r\n]+para[^\S\r\n]+documentaci[oó]n)?)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:ip(?:[^\S\r\n]+(?:de[^\S\r\n]+)?[uú]ltima[^\S\r\n]+conexi[oó]n)?|ip[^\S\r\n]+reservada(?:[^\S\r\n]+para[^\S\r\n]+documentaci[oó]n)?)[^\S\r\n]*:[^\S\r\n]*(?P<value>\d{1,3}(?:\.\d{1,3}){3}[^\r\n]*?)[^\S\r\n]*$",
+    ),
+    (
+        # "Acceso al expediente: IP" — notificacion_sancionador log field.
+        "IP_ADDRESS",
+        r"(?im)^[^\S\r\n]*acceso[^\S\r\n]+al[^\S\r\n]+expediente[^\S\r\n]*:[^\S\r\n]*(?P<value>\d{1,3}(?:\.\d{1,3}){3})[^\S\r\n]*$",
     ),
     (
         "MEDICAL_ID",
@@ -269,14 +274,9 @@ NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
         r"(?im)^[^\S\r\n]*domicilio[^\S\r\n]*\r?\n[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
-        "IBAN_CODE",
-        r"(?im)^[^\S\r\n]*(?:iban)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
-    ),
-    (
-        # ES-specific IBAN no-colon: captures the full IBAN even when the last
-        # digit group is on the next OCR line (ES91 2100 0418 4502 0005\n1332).
-        # When both this and the generic pattern match, _merge_overlaps keeps
-        # the longer (this) one because same-priority longer span wins.
+        # No-colon IBAN: require value to start with ES IBAN format.
+        # Removed the generic variant that captured arbitrary text like "pago"
+        # from column headers such as "IBAN pago" in nómina documents.
         "IBAN_CODE",
         r"(?im)^[^\S\r\n]*(?:iban)[^\S\r\n]+(?P<value>ES\d{2}(?:[ \t\n\-]?\d{4}){5})",
     ),
@@ -290,7 +290,7 @@ NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "IP_ADDRESS",
-        r"(?im)^[^\S\r\n]*(?:ip(?:[^\S\r\n]+(?:de[^\S\r\n]+)?[uú]ltima[^\S\r\n]+conexi[oó]n)?|ip[^\S\r\n]+reservada(?:[^\S\r\n]+para[^\S\r\n]+documentaci[oó]n)?)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:ip(?:[^\S\r\n]+(?:de[^\S\r\n]+)?[uú]ltima[^\S\r\n]+conexi[oó]n)?|ip[^\S\r\n]+reservada(?:[^\S\r\n]+para[^\S\r\n]+documentaci[oó]n)?)[^\S\r\n]+(?P<value>\d{1,3}(?:\.\d{1,3}){3})[^\S\r\n]*$",
     ),
     (
         "MEDICAL_ID",
@@ -365,11 +365,24 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
     ),
     (
         "PHONE_NUMBER",
-        # Allow up to 3 whitespace/separator chars between digit groups so that
-        # phone numbers split across OCR lines are captured:
-        # "+34 \n612 \n345 \n987" → each group on its own line.
+        # Spanish phones: +34 optional prefix, must start 6/7/8/9.
+        # Flexible separators allow OCR line-split groups.
         r"(?<!\d)(?:\+34[ \t\n.\-]{0,3})?(?:6|7|8|9)(?:[ \t\n.\-]{0,3}\d){8}(?!\d)",
         0.85,
+    ),
+    (
+        "PHONE_NUMBER",
+        # International phones: +CC followed by 7–13 digits with separators.
+        # Requires explicit + prefix to avoid matching bare local numbers.
+        # Excludes +34 (covered above) to avoid duplicate detections.
+        r"(?<!\d)\+(?!34\b)(?:\d{1,3})(?:[ \t\-\.\(\)]{0,3}\d{2,5}){2,4}(?!\d)",
+        0.80,
+    ),
+    (
+        "PHONE_NUMBER",
+        # US/Canada style: (NXX) NXX-XXXX or NXX-NXX-XXXX.
+        r"(?<!\d)(?:\(\d{3}\)[ \t\-]?\d{3}|\d{3}[ \t\-]\d{3})[ \t\-]\d{4}(?!\d)",
+        0.75,
     ),
     (
         "ES_NSS",
@@ -381,7 +394,8 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
     ),
     (
         "URL",
-        r"\bhttps?://[^\s<>()]+|\bwww\.[^\s<>()]+",
+        # Trim trailing sentence punctuation (.,;:!?) that is not part of the URL.
+        r"\bhttps?://[^\s<>()]+[^\s<>().,;:!?]|\bwww\.[^\s<>()]+[^\s<>().,;:!?]",
         0.80,
     ),
     (
@@ -459,6 +473,25 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         "ADDRESS",
         r"(?i)domicili(?:o[^\S\r\n]+(?:a[^\S\r\n]+efectos[^\S\r\n]+de[^\S\r\n]+notificaciones[^\S\r\n]+en|en|a)|ado?|ada)[^\S\r\n]+(?P<value>[^\r\n:]+?\d{5}(?:[^\S\r\n]+[^\r\n,;:\d]+?)?)[^\S\r\n]*(?=\r?\n|$|[^\S\r\n]*[A-Za-záéíóúÁÉÍÓÚüÜñÑ]+[^\S\r\n]*:|,)",
         0.88,
+    ),
+    (
+        # Standalone Spanish street address without a label prefix.
+        # Anchored by a recognised street-type word at the start and a 5-digit
+        # postal code somewhere in the same line.  Covers the recipient-address
+        # block in resolucion_administrativa letters which have no "Dirección:" label.
+        # Score 0.82 — lower than labeled_field (0.97) so it only fires when no
+        # labeled pattern matches first.
+        "ADDRESS",
+        r"(?i)\b(?:calle|carrer|avinguda|avenida|plaza|pla[çc]a|paseo|passeig|carretera|camino|ronda|traves[íi]a|travessa|c/)[^\r\n,]*, *\d+[^\r\n]*\b(?:0[1-9]|[1-4]\d|5[0-2])\d{3}\b[^\r\n]*",
+        0.82,
+    ),
+    (
+        # Standalone postal code as a fallback for CP appearing without context
+        # words (e.g. embedded in an address line without a "Dirección:" label).
+        # Lower score (0.60) to avoid over-detecting bare 5-digit numbers.
+        "POSTAL_CODE",
+        r"\b(?:0[1-9]|[1-4]\d|5[0-2])\d{3}\b",
+        0.60,
     ),
     (
         "LICENSE_PLATE",
@@ -625,6 +658,10 @@ FIELD_LABEL_FALSE_POSITIVES = {
     "MATRÍCULA VEHÍCULO VISITA OBRA",
     "MATRICULA VEHICULO",
     "MATRÍCULA VEHÍCULO",
+    "COLEGIADO",
+    "COLEGIADA",
+    "COLEGIADO NUM",
+    "COLEGIADA NUM",
 }
 
 
@@ -715,6 +752,14 @@ GENERIC_FALSE_POSITIVES = {
     "TIPO",
     "EJEMPLO",
     "EJEMPLO FICTICIO",
+    # Role/job labels detected by NER as PERSON
+    "INVESTIGADOR",
+    "INVESTIGADORA",
+    "TESTIGO",
+    "FIRMA",
+    "REPRESENTANT",
+    "COLEGIADO",
+    "COLEGIADA",
 }
 
 

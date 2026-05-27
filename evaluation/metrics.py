@@ -115,8 +115,6 @@ class AggregatedMetrics:
 OUT_OF_SCOPE_GT_TYPES: frozenset[str] = frozenset({
     "LOCATION",
     "ORGANIZATION",
-    "URL",
-    "PHONE_NUMBER",
     "PROFESSIONAL_LICENSE",
 })
 
