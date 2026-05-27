@@ -147,61 +147,98 @@ def run_evaluation(
     workers: int = 1,
     iou_threshold: float = 0.5,
     verbose: bool = True,
+    checkpoint_path: Path | None = None,
+    resume: bool = False,
 ) -> list[DocResult]:
     """Evaluate all PDFs in pdfs_dir against labels_dir ground truth.
 
     workers=1 is the safe default (the API itself is already single-threaded
     per request; concurrency > 1 is only useful when the server can handle
     parallel requests without contention).
+
+    checkpoint_path: if set, append each DocResult as JSONL after completion.
+    resume: if True and checkpoint_path exists, skip already-evaluated docs.
     """
+    import dataclasses
+
     gt = load_ground_truth(labels_dir)
     pdf_files = sorted(pdfs_dir.glob("*.pdf"))
     if limit is not None:
         pdf_files = pdf_files[:limit]
 
-    total = len(pdf_files)
-    if verbose:
-        print(f"Evaluating {total} document(s) (workers={workers}, IoU>={iou_threshold})")
-
+    # Load existing checkpoint results and skip those doc_ids.
     results: list[DocResult] = []
+    done_ids: set[str] = set()
+    if resume and checkpoint_path and checkpoint_path.exists():
+        with open(checkpoint_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    r = DocResult(**{k: v for k, v in obj.items() if k in DocResult.__dataclass_fields__})
+                    results.append(r)
+                    done_ids.add(r.doc_id)
+                except Exception:
+                    pass
+        if verbose and done_ids:
+            print(f"Resuming: loaded {len(done_ids)} results from checkpoint.")
 
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = {
-            executor.submit(evaluate_single, pdf, gt, iou_threshold): pdf
-            for pdf in pdf_files
-        }
-        completed = 0
-        for future in as_completed(futures):
-            pdf = futures[future]
-            completed += 1
-            try:
-                result = future.result()
-            except Exception as exc:
+    pdf_files = [p for p in pdf_files if p.stem not in done_ids]
+    total = len(pdf_files) + len(done_ids)
+    if verbose:
+        remaining = len(pdf_files)
+        print(f"Evaluating {total} document(s) (workers={workers}, IoU>={iou_threshold})"
+              + (f", {remaining} remaining" if done_ids else ""))
+
+    ckpt_file = open(checkpoint_path, "a", encoding="utf-8") if checkpoint_path else None
+    completed = len(done_ids)
+
+    try:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(evaluate_single, pdf, gt, iou_threshold): pdf
+                for pdf in pdf_files
+            }
+            for future in as_completed(futures):
+                pdf = futures[future]
+                completed += 1
+                try:
+                    result = future.result()
+                except Exception as exc:
+                    if verbose:
+                        print(f"  [{completed}/{total}] EXCEPTION {pdf.stem}: {exc}")
+                    continue
+
+                if result is None:
+                    if verbose:
+                        print(f"  [{completed}/{total}] SKIP {pdf.stem} (no ground truth)")
+                    continue
+
+                results.append(result)
+
+                if ckpt_file:
+                    ckpt_file.write(json.dumps(dataclasses.asdict(result), ensure_ascii=False) + "\n")
+                    ckpt_file.flush()
+
                 if verbose:
-                    print(f"  [{completed}/{total}] EXCEPTION {pdf.stem}: {exc}")
-                continue
-
-            if result is None:
-                if verbose:
-                    print(f"  [{completed}/{total}] SKIP {pdf.stem} (no ground truth)")
-                continue
-
-            results.append(result)
-
-            if verbose:
-                p = result.precision()
-                r = result.recall()
-                f = result.f1()
-                tp = result.tp
-                fn = len(result.fn)
-                fp = len(result.fp)
-                ms = result.processing_ms
-                print(
-                    f"  [{completed}/{total}] {result.doc_id}"
-                    f"  P={p:.2f} R={r:.2f} F1={f:.2f}"
-                    f"  TP={tp} FN={fn} FP={fp}"
-                    f"  ({result.quality}/{result.language}, {ms}ms)"
-                )
+                    p = result.precision()
+                    r = result.recall()
+                    f = result.f1()
+                    tp = result.tp
+                    fn = len(result.fn)
+                    fp = len(result.fp)
+                    ms = result.processing_ms
+                    print(
+                        f"  [{completed}/{total}] {result.doc_id}"
+                        f"  P={p:.2f} R={r:.2f} F1={f:.2f}"
+                        f"  TP={tp} FN={fn} FP={fp}"
+                        f"  ({result.quality}/{result.language}, {ms}ms)"
+                    )
+    finally:
+        if ckpt_file:
+            ckpt_file.close()
 
     if verbose:
         print(f"\nFinished: {len(results)}/{total} documents evaluated.")

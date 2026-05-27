@@ -88,6 +88,14 @@ def main() -> None:
         "--iou-threshold", type=float, default=0.5,
         help="Minimum text IoU to count as a partial TP match.",
     )
+    parser.add_argument(
+        "--checkpoint", type=Path, default=None,
+        help="JSONL file to save results incrementally (enables resume on crash).",
+    )
+    parser.add_argument(
+        "--resume", action="store_true",
+        help="Skip documents already in --checkpoint file.",
+    )
     args = parser.parse_args()
 
     doc_results = run_evaluation(
@@ -96,6 +104,8 @@ def main() -> None:
         limit=args.limit,
         workers=args.workers,
         iou_threshold=args.iou_threshold,
+        checkpoint_path=args.checkpoint,
+        resume=args.resume,
     )
 
     if not doc_results:
