@@ -149,11 +149,21 @@ class DigitalPageSegmenter:
         # One FORM zone that carries all pre-computed structural rects.
         # Text is populated so collect_entities can report entities from form rows
         # (e.g. LICENSE_PLATE in table cells) even though layout handles redaction.
+        #
+        # Build a sparse representation: characters that belong to form words are kept;
+        # characters between form words (i.e. body text interspersed in the char range)
+        # are replaced with spaces so they never trigger PII patterns and cannot produce
+        # duplicate detections alongside the BODY zones that also cover that text.
         if form_rows and layout.redaction_rects:
             all_form_words = [w for row in form_rows for w in row]
             form_text_start = min(w.start for w in all_form_words)
             form_text_end = max(w.end for w in all_form_words)
-            form_text = page_text.text[form_text_start:form_text_end]
+            form_chars = list(' ' * (form_text_end - form_text_start))
+            for w in all_form_words:
+                rel_s = w.start - form_text_start
+                rel_e = w.end - form_text_start
+                form_chars[rel_s:rel_e] = list(page_text.text[w.start:w.end])
+            form_text = ''.join(form_chars)
             zones.append(PageZone(
                 zone_type=ZoneType.FORM,
                 rect=_rect_for_word_row(all_form_words),

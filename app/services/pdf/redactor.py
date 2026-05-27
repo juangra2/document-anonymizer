@@ -253,6 +253,19 @@ def _collect_redaction_rects(
                 text=zone.text[entity.start:entity.end],
             ))
 
+    # Deduplicate by (start, end, entity_type): the FORM zone text is a sparse
+    # reconstruction of form-word characters, but as a safety net remove any exact
+    # duplicates that might arise from overlapping zone text ranges.
+    if collect_entities and entities:
+        seen: set[tuple[int, int, str]] = set()
+        deduped: list[PiiEntity] = []
+        for e in entities:
+            key = (e.start, e.end, e.entity_type)
+            if key not in seen:
+                seen.add(key)
+                deduped.append(e)
+        entities = deduped
+
     return rects, entities, layout_count
 
 
