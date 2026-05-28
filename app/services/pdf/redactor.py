@@ -32,8 +32,9 @@ from app.services.pii.models import PiiEntity
 from app.services.vision.code_detector import detect_and_decode_visual_codes, detect_visual_code_rects
 
 # Render DPI used only for visual QR detection — not full-page OCR.
-# 200 DPI improves decode rate for small QR codes (contrato_laboral) vs 150.
-_QR_DETECT_DPI = 200
+# 300 DPI gives ~5–6 px/module for small QR codes (contrato_laboral, notificacion)
+# which improves decode rate significantly vs 200 DPI (3–4 px/module).
+_QR_DETECT_DPI = 300
 
 
 def redact_pdf_digital(

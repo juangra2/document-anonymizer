@@ -51,7 +51,7 @@ RedactionMode = Literal["strict", "balanced"]
 LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
     (
         "PERSON",
-        r"(?im)^[^\S\r\n]*(?:solicitante|interesado|titular|promotor(?:a)?|propietario(?:a)?|representante|arquitecto(?:a)?|t[eé]cnico(?:a)?|m[eé]dico[^\S\r\n]+responsable|doctor(?:a)?|nombre(?:[^\S\r\n]+completo)?|nombre(?:[^\S\r\n]+y[^\S\r\n]+apellidos)?|apellidos|persona)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:solicitante|interesado|titular|promotor(?:a)?|propietario(?:a)?|representante|arquitecto(?:a)?|t[eé]cnico(?:a)?|m[eé]dico[^\S\r\n]+responsable|doctor(?:a)?|nombre(?:[^\S\r\n]+completo)?|nombre(?:[^\S\r\n]+y[^\S\r\n]+apellidos)?|apellidos|persona|paciente(?:[^\S\r\n]+nombre)?|trabajador(?:a)?|empleado(?:a)?|notificado(?:a)?|destinatario(?:a)?|empadronado(?:a)?|persona[^\S\r\n]+empadronada)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
     ),
     (
         "DATE_OF_BIRTH",
@@ -83,7 +83,7 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "IBAN_CODE",
-        r"(?im)^[^\S\r\n]*(?:iban|cuenta[^\S\r\n]+bancaria|n[uú]mero[^\S\r\n]+de[^\S\r\n]+cuenta)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:iban|cuenta[^\S\r\n]+bancaria|n[uú]mero[^\S\r\n]+de[^\S\r\n]+cuenta|n[^\S\r\n]*[º°.]?[^\S\r\n]*de[^\S\r\n]+cuenta|num\.?[^\S\r\n]+cuenta)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
         # ES-specific IBAN colon: captures full IBAN including newline-split last group.
@@ -236,7 +236,7 @@ LABELED_FIELD_PATTERNS = LABELED_FIELD_PATTERNS + LABELED_FIELD_PATTERNS_VAL_CAT
 NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
     (
         "PERSON",
-        r"(?im)^[^\S\r\n]*(?:nombre[^\S\r\n]+completo|nombre|persona)[^\S\r\n]+(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:nombre[^\S\r\n]+completo|nombre|persona|trabajador(?:a)?|empleado(?:a)?)[^\S\r\n]+(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
     ),
     (
         "DATE_OF_BIRTH",
@@ -366,8 +366,9 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
     (
         "PHONE_NUMBER",
         # Spanish phones: +34 optional prefix, must start 6/7/8/9.
-        # Flexible separators allow OCR line-split groups.
-        r"(?<!\d)(?:\+34[ \t\n.\-]{0,3})?(?:6|7|8|9)(?:[ \t\n.\-]{0,3}\d){8}(?!\d)",
+        # Dot excluded from separators: IPs like 95.73.233.44 also start with 9x
+        # and would be incorrectly matched.
+        r"(?<!\d)(?:\+34[ \t\n\-]{0,3})?(?:6|7|8|9)(?:[ \t\n\-]{0,3}\d){8}(?!\d)",
         0.85,
     ),
     (
@@ -482,7 +483,14 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         # Score 0.82 — lower than labeled_field (0.97) so it only fires when no
         # labeled pattern matches first.
         "ADDRESS",
-        r"(?i)\b(?:calle|carrer|avinguda|avenida|plaza|pla[çc]a|paseo|passeig|carretera|camino|ronda|traves[íi]a|travessa|c/)[^\r\n,]*, *\d+[^\r\n]*\b(?:0[1-9]|[1-4]\d|5[0-2])\d{3}\b[^\r\n]*",
+        # Standalone street address with Spanish postal code.  The pattern ends
+        # at the 5-digit CP (no trailing [^\r\n]*) to avoid greedily swallowing
+        # case numbers, URLs, IBANs or phone numbers on the same line — which was
+        # causing ADDRESS FPs and blocking CASE_NUMBER/IBAN/URL detection.
+        # City name is deliberately omitted: text_iou still reaches ≥0.70 because
+        # the GT address is a substring of the detected span.
+        # Street-type abbreviations added: av., pza., pg., pl. (Av., Pza., Pg.).
+        r"(?i)\b(?:calle|carrer|avinguda|avenida|plaza|pla[çc]a|paseo|passeig|carretera|camino|ronda|traves[íi]a|travessa|av\.?|pza\.?|pg\.?|pl\.?|c/)[^\r\n,]*, *\d+[^\r\n]*\b(?:0[1-9]|[1-4]\d|5[0-2])\d{3}\b",
         0.82,
     ),
     (
@@ -539,11 +547,11 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         r"(?i)pasaporte[^\S\r\n]*:[^\S\r\n]*(?P<value>[A-Z]{2,5}\d{6,9})",
         0.95,
     ),
-    (
-        "CREDIT_CARD",
-        r"\b(?:\d{4}[ \t\-]){3}\d{4}\b(?:[ \t]*-[ \t]*cad\.?[ \t]*\d{2}/\d{2}[ \t]*-[ \t]*CVV?[ \t]*\d{3,4})?",
-        0.85,
-    ),
+    # CREDIT_CARD removed from DIRECT_REGEX_PATTERNS: the (\d{4}[ \t-]){3}\d{4}
+    # pattern matches IBAN fragments (e.g. "0128 4441 8867 9113" from ES92 0128…).
+    # When IBAN is not detected in a zone, the CC regex leaks through, causing FPs.
+    # Detection is kept via NO_COLON_FIELD_PATTERNS (tarjeta: <value>) which
+    # requires an explicit label and avoids IBAN fragment confusion.
     (
         "USER_ID",
         r"\busr-[a-z0-9][a-z0-9\-_.]{3,}\b",
@@ -1055,6 +1063,12 @@ class PiiAnalyzer:
                         elif _NIE_FULL_RE.fullmatch(v):
                             emit_type = "ES_NIE"
 
+                    # PHONE values must contain at least 7 digits — prevents
+                    # capturing label suffixes like "de contacto:" when the
+                    # no-colon PHONE pattern fires on "Teléfono de contacto:\n".
+                    if emit_type == "PHONE_NUMBER" and sum(c.isdigit() for c in value) < 7:
+                        continue
+
                     if not PiiAnalyzer._passes_validation(
                         entity_type=emit_type,
                         value=value,
@@ -1092,6 +1106,9 @@ class PiiAnalyzer:
                     continue
 
                 if PiiAnalyzer._looks_like_false_positive(entity_type, value):
+                    continue
+
+                if entity_type == "PHONE_NUMBER" and sum(c.isdigit() for c in value) < 7:
                     continue
 
                 if not PiiAnalyzer._passes_validation(
@@ -1533,6 +1550,12 @@ class PiiAnalyzer:
         result: list[PiiEntity] = []
         for e in entities:
             if e.entity_type != "ADDRESS":
+                continue
+            # Only extract from labeled-field ADDRESS spans.  Standalone ADDRESS
+            # (source=deterministic_regex) ends at the postal code boundary and
+            # generates POSTAL_CODE FPs when the GT annotates only the full address
+            # (not a separate CP entity).
+            if e.source not in {"labeled_field", "no_colon_labeled_field"}:
                 continue
             addr_text = text[e.start : e.end]
             for m in PiiAnalyzer._CP_IN_ADDRESS_RE.finditer(addr_text):
