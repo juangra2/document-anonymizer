@@ -55,7 +55,7 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "DATE_OF_BIRTH",
-        r"(?im)^[^\S\r\n]*(?:fecha[^\S\r\n]+de[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nac\.?)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:fecha[^\S\r\n]+de[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nac\.?|nacimiento)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
         "ES_DNI",
@@ -160,7 +160,7 @@ LABELED_FIELD_PATTERNS_VAL_CAT: list[tuple[str, str]] = [
     ),
     (
         "DATE_OF_BIRTH",
-        r"(?im)^[^\S\r\n]*(?:data[^\S\r\n]+de[^\S\r\n]+naixement|data[^\S\r\n]+naixement)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:data[^\S\r\n]+de[^\S\r\n]+naixement|data[^\S\r\n]+naixement|data[^\S\r\n]+nac\.?)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
         "ES_DNI",
@@ -240,7 +240,7 @@ NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "DATE_OF_BIRTH",
-        r"(?im)^[^\S\r\n]*(?:fecha[^\S\r\n]+de[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nac\.?)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:fecha[^\S\r\n]+de[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nac\.?|nacimiento)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
         "ES_DNI",
@@ -264,7 +264,7 @@ NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "ADDRESS",
-        r"(?im)^[^\S\r\n]*(?:direcci[oó]n[^\S\r\n]+postal|direccion[^\S\r\n]+postal|direcci[oó]n|direccion)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:direcci[oó]n[^\S\r\n]+postal|direccion[^\S\r\n]+postal|direcci[oó]n(?![^\S\r\n]+general)|direccion(?![^\S\r\n]+general))[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
         # ADDRESS next-line no-colon: "Domicilio\nCalle X, N, CP Ciudad"
@@ -451,9 +451,9 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
     ),
     (
         "DATE_OF_BIRTH",
-        # No-colon next-line: "Fecha de nacimiento\nDD/MM/YYYY" (formulario_medico).
+        # No-colon next-line: "Fecha de nacimiento\nDD/MM/YYYY" or "Nacimiento\nDD/MM/YYYY".
         # Requires DATE_OF_BIRTH in the newline-allowed set of _detect_direct_regex.
-        r"(?i)fecha[^\S\r\n]+de[^\S\r\n]+nacimiento[^\S\r\n]*\r?\n[^\S\r\n]*(?P<value>"
+        r"(?i)(?:fecha[^\S\r\n]+de[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nacimiento|nacimiento)[^\S\r\n]*\r?\n[^\S\r\n]*(?P<value>"
         r"(?:0?[1-9]|[12]\d|3[01])[/.\-](?:0?[1-9]|1[0-2])[/.\-](?:19|20)\d{2}"
         r"(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?)",
         0.95,
@@ -474,24 +474,6 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         "ADDRESS",
         r"(?i)domicili(?:o[^\S\r\n]+(?:a[^\S\r\n]+efectos[^\S\r\n]+de[^\S\r\n]+notificaciones[^\S\r\n]+en|en|a)|ado?|ada)[^\S\r\n]+(?P<value>[^\r\n:]+?\d{5}(?:[^\S\r\n]+[^\r\n,;:\d]+?)?)[^\S\r\n]*(?=\r?\n|$|[^\S\r\n]*[A-Za-záéíóúÁÉÍÓÚüÜñÑ]+[^\S\r\n]*:|,)",
         0.88,
-    ),
-    (
-        # Standalone Spanish street address without a label prefix.
-        # Anchored by a recognised street-type word at the start and a 5-digit
-        # postal code somewhere in the same line.  Covers the recipient-address
-        # block in resolucion_administrativa letters which have no "Dirección:" label.
-        # Score 0.82 — lower than labeled_field (0.97) so it only fires when no
-        # labeled pattern matches first.
-        "ADDRESS",
-        # Standalone street address with Spanish postal code.  The pattern ends
-        # at the 5-digit CP (no trailing [^\r\n]*) to avoid greedily swallowing
-        # case numbers, URLs, IBANs or phone numbers on the same line — which was
-        # causing ADDRESS FPs and blocking CASE_NUMBER/IBAN/URL detection.
-        # City name is deliberately omitted: text_iou still reaches ≥0.70 because
-        # the GT address is a substring of the detected span.
-        # Street-type abbreviations added: av., pza., pg., pl. (Av., Pza., Pg.).
-        r"(?i)\b(?:calle|carrer|avinguda|avenida|plaza|pla[çc]a|paseo|passeig|carretera|camino|ronda|traves[íi]a|travessa|av\.?|pza\.?|pg\.?|pl\.?|c/)[^\r\n,]*, *\d+[^\r\n]*\b(?:0[1-9]|[1-4]\d|5[0-2])\d{3}\b",
-        0.82,
     ),
     (
         # Standalone postal code as a fallback for CP appearing without context

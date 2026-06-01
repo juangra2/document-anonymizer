@@ -116,6 +116,7 @@ OUT_OF_SCOPE_GT_TYPES: frozenset[str] = frozenset({
     "LOCATION",
     "ORGANIZATION",
     "PROFESSIONAL_LICENSE",
+    "ROLE_TABLE_ROW",
 })
 
 
