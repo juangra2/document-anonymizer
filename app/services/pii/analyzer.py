@@ -54,8 +54,15 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
         r"(?im)^[^\S\r\n]*(?:solicitante|interesado|titular|promotor(?:a)?|propietario(?:a)?|representante|arquitecto(?:a)?|t[eé]cnico(?:a)?|m[eé]dico[^\S\r\n]+responsable|doctor(?:a)?|nombre(?:[^\S\r\n]+completo)?|nombre(?:[^\S\r\n]+y[^\S\r\n]+apellidos)?|apellidos|persona|paciente(?:[^\S\r\n]+nombre)?|trabajador(?:a)?|empleado(?:a)?|notificado(?:a)?|destinatario(?:a)?|empadronado(?:a)?|persona[^\S\r\n]+empadronada)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
     ),
     (
+        # Date-only value capture stops at the date token, not end-of-line.
+        # Prevents run-on lines like "Nacimiento: 12/03/1983 Domicilio:Calle X"
+        # from absorbing the address into the DOB value (IoU < 0.5 → FN).
+        # Abbreviations: "F. nac.", "F. nacim.", "F. nacimiento" cover
+        # form fields in notificacion_ayuntamiento, certificado_empadronamiento,
+        # and contrato_laboral.  Automatic next-line variant (_COLON_NL_SUFFIX)
+        # handles "F. nac.:\n31/05/1985" formats.
         "DATE_OF_BIRTH",
-        r"(?im)^[^\S\r\n]*(?:fecha[^\S\r\n]+de[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nac\.?|nacimiento)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:fecha[^\S\r\n]+de[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nac(?:im?)?\.?|f\.[^\S\r\n]*nac(?:im?)?\.?|f\.[^\S\r\n]+nacimiento|nacimiento)[^\S\r\n]*:[^\S\r\n]*(?P<value>(?:0?[1-9]|[12]\d|3[01])[/.\-](?:0?[1-9]|1[0-2])[/.\-](?:19|20)\d{2}(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?)",
     ),
     (
         "ES_DNI",
@@ -92,7 +99,7 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "ADDRESS",
-        r"(?im)^[^\S\r\n]*(?:direcci[oó]n(?:[^\S\r\n]+postal|[^\S\r\n]+de[^\S\r\n]+notificaci[oó]n|[^\S\r\n]+habitual|[^\S\r\n]+fiscal)?|domicilio(?:[^\S\r\n]+fiscal|[^\S\r\n]+habitual|[^\S\r\n]+de[^\S\r\n]+notificaci[oó]n|[^\S\r\n]+de[^\S\r\n]+empadronamiento)?|via[^\S\r\n]+notificaci[oó]n)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:direcci[oó]n(?:[^\S\r\n]+postal|[^\S\r\n]+de[^\S\r\n]+notificaci[oó]n|[^\S\r\n]+habitual|[^\S\r\n]+fiscal)?|domicilio(?:[^\S\r\n]+fiscal|[^\S\r\n]+habitual|[^\S\r\n]+de[^\S\r\n]+notificaci[oó]n|[^\S\r\n]+de[^\S\r\n]+empadronamiento)?|residencia|via[^\S\r\n]+notificaci[oó]n)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
         "POSTAL_CODE",
@@ -160,7 +167,7 @@ LABELED_FIELD_PATTERNS_VAL_CAT: list[tuple[str, str]] = [
     ),
     (
         "DATE_OF_BIRTH",
-        r"(?im)^[^\S\r\n]*(?:data[^\S\r\n]+de[^\S\r\n]+naixement|data[^\S\r\n]+naixement|data[^\S\r\n]+nac\.?)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:data[^\S\r\n]+de[^\S\r\n]+naixement|data[^\S\r\n]+naixement|data[^\S\r\n]+nac\.?)[^\S\r\n]*:[^\S\r\n]*(?P<value>(?:0?[1-9]|[12]\d|3[01])[/.\-](?:0?[1-9]|1[0-2])[/.\-](?:19|20)\d{2}(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?)",
     ),
     (
         "ES_DNI",
@@ -188,7 +195,7 @@ LABELED_FIELD_PATTERNS_VAL_CAT: list[tuple[str, str]] = [
     ),
     (
         "ADDRESS",
-        r"(?im)^[^\S\r\n]*(?:adre[cç]a(?:[^\S\r\n]+postal)?|domicili(?:[^\S\r\n]+fiscal|[^\S\r\n]+habitual)?|via[^\S\r\n]+notificaci[oó])[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:adre[cç]a(?:[^\S\r\n]+postal)?|domicili(?:[^\S\r\n]+fiscal|[^\S\r\n]+habitual)?|resid[eè]ncia|via[^\S\r\n]+notificaci[oó])[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
         "CASE_NUMBER",
@@ -240,7 +247,7 @@ NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "DATE_OF_BIRTH",
-        r"(?im)^[^\S\r\n]*(?:fecha[^\S\r\n]+de[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nac\.?|nacimiento)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:fecha[^\S\r\n]+de[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nac(?:im?)?\.?|f\.[^\S\r\n]*nac(?:im?)?\.?|f\.[^\S\r\n]+nacimiento|nacimiento)[^\S\r\n]+(?P<value>(?:0?[1-9]|[12]\d|3[01])[/.\-](?:0?[1-9]|1[0-2])[/.\-](?:19|20)\d{2}(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?)",
     ),
     (
         "ES_DNI",
@@ -264,7 +271,7 @@ NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "ADDRESS",
-        r"(?im)^[^\S\r\n]*(?:direcci[oó]n[^\S\r\n]+postal|direccion[^\S\r\n]+postal|direcci[oó]n(?![^\S\r\n]+general)|direccion(?![^\S\r\n]+general))[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:direcci[oó]n[^\S\r\n]+postal|direccion[^\S\r\n]+postal|direcci[oó]n(?![^\S\r\n]+general)|direccion(?![^\S\r\n]+general)|residencia)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
         # ADDRESS next-line no-colon: "Domicilio\nCalle X, N, CP Ciudad"
@@ -428,11 +435,12 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
     (
         "DATE_OF_BIRTH",
         # Context-aware birth date: "nacido/a el DATE", "nacida el DATE", etc.
+        # Also handles form-field variant "Nacido/a el:DATE" (colon separator
+        # used in compressed solicitud_generica form fields).
         # Named group "value" captures only the date so the prefix is not redacted.
-        # Covers numeric (DD/MM/YYYY) and written-out (DD de MES de YYYY) forms.
-        # "nacido/a" = Spanish gender-neutral shorthand for nacido/nacida.
-        r"(?i)nacid[ao](?:/[ao])?\s+(?:el\s+|la\s+)?(?P<value>"
+        r"(?i)nacid[ao](?:/[ao])?\s+(?:el[^\S\r\n]*:?|la[^\S\r\n]*:?)[^\S\r\n]*(?P<value>"
         r"(?:0?[1-9]|[12]\d|3[01])[/.\-][^\S\r\n]*(?:0?[1-9]|1[0-2])[/.\-][^\S\r\n]*(?:19|20)\d{2}"
+        r"(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?"
         r"|(?:0?[1-9]|[12]\d|3[01])\s+de\s+"
         r"(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre"
         r"|gener|febrer|mar[çc]|maig|juny|juliol|agost|setembre|novembre|desembre)"
@@ -441,38 +449,47 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
     ),
     (
         "DATE_OF_BIRTH",
-        # Split-label ("Fecha de\nnacimiento:VALUE") and run-on lines
-        # ("...Fecha de nacimiento:27/01/1954 Domicilio:..."). Non-anchored;
-        # score 0.95 beats DATE_TIME (0.90) to prevent type collision.
-        r"(?i)nacimiento[^\S\r\n]*:[^\S\r\n]*(?P<value>"
+        # Inline label + colon + date, non-anchored.
+        # Score 0.95 > DATE_TIME 0.90 ensures DOB wins in _merge_overlaps tie.
+        # Covers: "nacimiento:DATE", split-label "Fecha de\nnacimiento:DATE",
+        # and run-on "...Fecha nacimiento:27/01/1954 Domicilio:...".
+        # Abbreviated forms: "D.N." (Data de Naixement, Catalan),
+        # "F.N." (Fecha de Nacimiento), "F. nac.", "F. nacim.", "Fecha nacim."
+        # handle acuerdo_adscripcion, formulario_medico, contrato_laboral formats.
+        r"(?i)(?:nacimiento|D\.N\.|F\.N\.|F\.[^\S\r\n]*nac(?:im?)?\.?|F\.[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nac(?:im?)?\.?)[^\S\r\n]*:[^\S\r\n]*(?P<value>"
         r"(?:0?[1-9]|[12]\d|3[01])[/.\-](?:0?[1-9]|1[0-2])[/.\-](?:19|20)\d{2}"
         r"(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?)",
         0.95,
     ),
     (
         "DATE_OF_BIRTH",
-        # No-colon next-line: "Fecha de nacimiento\nDD/MM/YYYY" or "Nacimiento\nDD/MM/YYYY".
+        # No-colon next-line: "Fecha de nacimiento\nDD/MM/YYYY", "Nacimiento\nDD/MM/YYYY",
+        # "Data de naixement\nDD/MM/YYYY".
         # Requires DATE_OF_BIRTH in the newline-allowed set of _detect_direct_regex.
-        r"(?i)(?:fecha[^\S\r\n]+de[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nacimiento|nacimiento)[^\S\r\n]*\r?\n[^\S\r\n]*(?P<value>"
+        r"(?i)(?:fecha[^\S\r\n]+de[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nacimiento|nacimiento|data[^\S\r\n]+de[^\S\r\n]+naixement|data[^\S\r\n]+nac\.?)[^\S\r\n]*\r?\n[^\S\r\n]*(?P<value>"
         r"(?:0?[1-9]|[12]\d|3[01])[/.\-](?:0?[1-9]|1[0-2])[/.\-](?:19|20)\d{2}"
         r"(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?)",
         0.95,
     ),
     (
         # ADDRESS run-on (Format A): "...Domicilio:Calle X, N, CP Ciudad Teléfono:..."
-        # Non-anchored; fires when "Domicilio:" appears mid-line (^ anchor fails).
-        # Stops before the next "Word:" token via lookahead so subsequent fields
-        # are not absorbed into the address value.
+        # Extended to also cover "Residencia:Pza. X" and "Dirección:C/ X" inline
+        # form fields (contrato_laboral, solicitud_generica compressed forms).
+        # Negative lookahead on "dirección" prevents matching "Dirección General:".
+        # Non-anchored; fires when label appears mid-line (^ anchor fails).
+        # Stops before the next "Word:" token via lookahead.
         "ADDRESS",
-        r"(?i)domicilio[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*(?=\r?\n|$|[^\S\r\n]*[A-Za-záéíóúÁÉÍÓÚüÜñÑ]+[^\S\r\n]*:)",
+        r"(?i)(?:domicilio|residencia|dom\.|direcci[oó]n(?![^\S\r\n]+general))[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*(?=\r?\n|$|[^\S\r\n]*[A-Za-záéíóúÁÉÍÓÚüÜñÑ]+[^\S\r\n]*:)",
         0.88,
     ),
     (
         # ADDRESS prose (Format C): "con domicilio a efectos de notificaciones en
-        # Calle X, N, CP Ciudad" and "domicilio en / domiciliado/a en".
+        # Calle X, N, CP Ciudad", "domicilio en", and "domiciliado/a en".
+        # Fix: "domiciliado/a" uses "/a" gender suffix — handle with (?:/[ao])?.
+        # "en" connector after "domiciliado/a" consumed by optional group.
         # Requires an embedded 5-digit postal code to anchor the end of the value.
         "ADDRESS",
-        r"(?i)domicili(?:o[^\S\r\n]+(?:a[^\S\r\n]+efectos[^\S\r\n]+de[^\S\r\n]+notificaciones[^\S\r\n]+en|en|a)|ado?|ada)[^\S\r\n]+(?P<value>[^\r\n:]+?\d{5}(?:[^\S\r\n]+[^\r\n,;:\d]+?)?)[^\S\r\n]*(?=\r?\n|$|[^\S\r\n]*[A-Za-záéíóúÁÉÍÓÚüÜñÑ]+[^\S\r\n]*:|,)",
+        r"(?i)domicili(?:o[^\S\r\n]+(?:a[^\S\r\n]+efectos[^\S\r\n]+de[^\S\r\n]+notificaciones[^\S\r\n]+en|en|a)|ado?(?:/[ao])?(?:[^\S\r\n]+en)?|ada(?:[^\S\r\n]+en)?)[^\S\r\n]+(?P<value>[^\r\n:]+?\d{5}(?:[^\S\r\n]+[^\r\n,;:\d]+?)?)[^\S\r\n]*(?=\r?\n|$|[^\S\r\n]*[A-Za-záéíóúÁÉÍÓÚüÜñÑ]+[^\S\r\n]*:|,)",
         0.88,
     ),
     (
