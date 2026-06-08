@@ -62,7 +62,7 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
         # and contrato_laboral.  Automatic next-line variant (_COLON_NL_SUFFIX)
         # handles "F. nac.:\n31/05/1985" formats.
         "DATE_OF_BIRTH",
-        r"(?im)^[^\S\r\n]*(?:fecha[^\S\r\n]+de[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nac(?:im?)?\.?|f\.[^\S\r\n]*nac(?:im?)?\.?|f\.[^\S\r\n]+nacimiento|nacimiento)[^\S\r\n]*:[^\S\r\n]*(?P<value>(?:0?[1-9]|[12]\d|3[01])[/.\-](?:0?[1-9]|1[0-2])[/.\-](?:19|20)\d{2}(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?)",
+        r"(?im)^[^\S\r\n]*(?:fecha[^\S\r\n]+de[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nac(?:im?)?\.?|f\.[^\S\r\n]*nac(?:im?)?\.?|f\.[^\S\r\n]*naix\.?|f\.[^\S\r\n]+nacimiento|nacimiento)[^\S\r\n]*:[^\S\r\n]*(?P<value>(?:0?[1-9]|[12]\d|3[01])[/.\-](?:0?[1-9]|1[0-2])[/.\-](?:19|20)\d{2}(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?)",
     ),
     (
         "ES_DNI",
@@ -247,7 +247,7 @@ NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "DATE_OF_BIRTH",
-        r"(?im)^[^\S\r\n]*(?:fecha[^\S\r\n]+de[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nac(?:im?)?\.?|f\.[^\S\r\n]*nac(?:im?)?\.?|f\.[^\S\r\n]+nacimiento|nacimiento)[^\S\r\n]+(?P<value>(?:0?[1-9]|[12]\d|3[01])[/.\-](?:0?[1-9]|1[0-2])[/.\-](?:19|20)\d{2}(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?)",
+        r"(?im)^[^\S\r\n]*(?:fecha[^\S\r\n]+de[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nac(?:im?)?\.?|f\.[^\S\r\n]*nac(?:im?)?\.?|f\.[^\S\r\n]*naix\.?|f\.[^\S\r\n]+nacimiento|nacimiento)[^\S\r\n]+(?P<value>(?:0?[1-9]|[12]\d|3[01])[/.\-](?:0?[1-9]|1[0-2])[/.\-](?:19|20)\d{2}(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?)",
     ),
     (
         "ES_DNI",
@@ -438,7 +438,7 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         # Also handles form-field variant "Nacido/a el:DATE" (colon separator
         # used in compressed solicitud_generica form fields).
         # Named group "value" captures only the date so the prefix is not redacted.
-        r"(?i)nacid[ao](?:/[ao])?\s+(?:el[^\S\r\n]*:?|la[^\S\r\n]*:?)[^\S\r\n]*(?P<value>"
+        r"(?i)nacid[ao](?:/(?:[ao]|nacid[ao]))?\s+(?:el[^\S\r\n]*:?|la[^\S\r\n]*:?)[^\S\r\n]*(?P<value>"
         r"(?:0?[1-9]|[12]\d|3[01])[/.\-][^\S\r\n]*(?:0?[1-9]|1[0-2])[/.\-][^\S\r\n]*(?:19|20)\d{2}"
         r"(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?"
         r"|(?:0?[1-9]|[12]\d|3[01])\s+de\s+"
@@ -456,7 +456,7 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         # Abbreviated forms: "D.N." (Data de Naixement, Catalan),
         # "F.N." (Fecha de Nacimiento), "F. nac.", "F. nacim.", "Fecha nacim."
         # handle acuerdo_adscripcion, formulario_medico, contrato_laboral formats.
-        r"(?i)(?:nacimiento|D\.N\.|F\.N\.|F\.[^\S\r\n]*nac(?:im?)?\.?|F\.[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nac(?:im?)?\.?)[^\S\r\n]*:[^\S\r\n]*(?P<value>"
+        r"(?i)(?:nacimiento|D\.N\.|F\.N\.|F\.[^\S\r\n]*nac(?:im?)?\.?|F\.[^\S\r\n]*naix\.?|F\.[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nac(?:im?)?\.?)[^\S\r\n]*:[^\S\r\n]*(?P<value>"
         r"(?:0?[1-9]|[12]\d|3[01])[/.\-](?:0?[1-9]|1[0-2])[/.\-](?:19|20)\d{2}"
         r"(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?)",
         0.95,
@@ -492,14 +492,13 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         r"(?i)domicili(?:o[^\S\r\n]+(?:a[^\S\r\n]+efectos[^\S\r\n]+de[^\S\r\n]+notificaciones[^\S\r\n]+en|en|a)|ado?(?:/[ao])?(?:[^\S\r\n]+en)?|ada(?:[^\S\r\n]+en)?)[^\S\r\n]+(?P<value>[^\r\n:]+?\d{5}(?:[^\S\r\n]+[^\r\n,;:\d]+?)?)[^\S\r\n]*(?=\r?\n|$|[^\S\r\n]*[A-Za-záéíóúÁÉÍÓÚüÜñÑ]+[^\S\r\n]*:|,)",
         0.88,
     ),
-    (
-        # Standalone postal code as a fallback for CP appearing without context
-        # words (e.g. embedded in an address line without a "Dirección:" label).
-        # Lower score (0.60) to avoid over-detecting bare 5-digit numbers.
-        "POSTAL_CODE",
-        r"\b(?:0[1-9]|[1-4]\d|5[0-2])\d{3}\b",
-        0.60,
-    ),
+    # POSTAL_CODE standalone regex removed: it fired on institutional/signing
+    # location postal codes (e.g. "46022 València" in document footers) that
+    # GT does not annotate as personal PII, generating 600+ FPs.
+    # Postal codes are now extracted only from:
+    #   (a) labeled fields ("Código postal: XXXXX") via LABELED_FIELD_PATTERNS, and
+    #   (b) detected ADDRESS spans via _extract_postal_codes_from_addresses.
+
     (
         "LICENSE_PLATE",
         r"\b\d{4}[- \t]?[A-Z]{3}\b",
@@ -1550,11 +1549,17 @@ class PiiAnalyzer:
         for e in entities:
             if e.entity_type != "ADDRESS":
                 continue
-            # Only extract from labeled-field ADDRESS spans.  Standalone ADDRESS
-            # (source=deterministic_regex) ends at the postal code boundary and
-            # generates POSTAL_CODE FPs when the GT annotates only the full address
-            # (not a separate CP entity).
-            if e.source not in {"labeled_field", "no_colon_labeled_field"}:
+            # Extract postal codes from any ADDRESS span that was detected by a
+            # high-confidence source.  The old restriction to labeled_field only
+            # was needed when a standalone ADDRESS regex ended at the postal code
+            # boundary; the current prose patterns (domicilio:/domiciliado en)
+            # capture the full address including the city after the CP, so
+            # extracting the embedded CP is now safe for all sources.
+            if e.source not in {
+                "labeled_field",
+                "no_colon_labeled_field",
+                "deterministic_regex",
+            }:
                 continue
             addr_text = text[e.start : e.end]
             for m in PiiAnalyzer._CP_IN_ADDRESS_RE.finditer(addr_text):

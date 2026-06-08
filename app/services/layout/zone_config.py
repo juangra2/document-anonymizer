@@ -70,6 +70,10 @@ _REDACT_ZONE = ZoneDetectorConfig(entity_types=None, apply_layout_analysis=False
 
 # Cabecera: identifiers and actor names are plausible; full layout analysis
 # is not useful here because headers are rarely form-like.
+# PHONE_NUMBER excluded: institutional phones (Ayuntamiento, hospital,
+# university) appear in document letterheads/headers and the GT corpus
+# does not annotate them as personal PII, generating ~180 FPs.
+# Personal phones virtually never appear in document headers.
 _HEADER_CONFIG = ZoneDetectorConfig(
     entity_types=[
         "PERSON",
@@ -80,7 +84,6 @@ _HEADER_CONFIG = ZoneDetectorConfig(
         "DATE_OF_BIRTH",
         "DATE_TIME",
         "EMAIL_ADDRESS",
-        "PHONE_NUMBER",
     ],
     apply_layout_analysis=False,
 )
