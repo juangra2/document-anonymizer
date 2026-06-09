@@ -479,7 +479,7 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         # Non-anchored; fires when label appears mid-line (^ anchor fails).
         # Stops before the next "Word:" token via lookahead.
         "ADDRESS",
-        r"(?i)(?:domicilio|residencia|dom\.|direcci[oó]n(?![^\S\r\n]+general))[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*(?=\r?\n|$|[^\S\r\n]*[A-Za-záéíóúÁÉÍÓÚüÜñÑ]+[^\S\r\n]*:)",
+        r"(?i)(?:domicilio(?:[^\S\r\n]+(?:fiscal|social|habitual))?|residencia|dom\.|direcci[oó]n(?![^\S\r\n]+general))[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*(?=\r?\n|$|[^\S\r\n]*[A-Za-záéíóúÁÉÍÓÚüÜñÑ./°ºª]+[^\S\r\n]*:)",
         0.88,
     ),
     (
@@ -489,7 +489,15 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         # "en" connector after "domiciliado/a" consumed by optional group.
         # Requires an embedded 5-digit postal code to anchor the end of the value.
         "ADDRESS",
-        r"(?i)domicili(?:o[^\S\r\n]+(?:a[^\S\r\n]+efectos[^\S\r\n]+de[^\S\r\n]+notificaciones[^\S\r\n]+en|en|a)|ado?(?:/[ao])?(?:[^\S\r\n]+en)?|ada(?:[^\S\r\n]+en)?)[^\S\r\n]+(?P<value>[^\r\n:]+?\d{5}(?:[^\S\r\n]+[^\r\n,;:\d]+?)?)[^\S\r\n]*(?=\r?\n|$|[^\S\r\n]*[A-Za-záéíóúÁÉÍÓÚüÜñÑ]+[^\S\r\n]*:|,)",
+        (
+            r"(?i)domicili(?:"
+            r"o(?:[^\S\r\n]+(?:fiscal|social|habitual))?[^\S\r\n]+(?:a[^\S\r\n]+efectos[^\S\r\n]+de[^\S\r\n]+notificaciones[^\S\r\n]+en|en|a)"
+            r"|ado?(?:/[ao])?(?:[^\S\r\n]+en)?"
+            r"|ada(?:[^\S\r\n]+en)?"
+            r"|at(?:/da)?(?:[^\S\r\n]+a)?"
+            r"|[^\S\r\n]+a(?=[^\S\r\n])"
+            r")[^\S\r\n]*\r?\n?[^\S\r\n]*(?P<value>[^\r\n:]+?\d{5}(?:[^\S\r\n]*\r?\n?[^\S\r\n]*[^\r\n,;:\d]+?)?)[^\S\r\n]*(?=\r?\n|$|[^\S\r\n]*[A-Za-záéíóúÁÉÍÓÚüÜñÑ./°ºª]+[^\S\r\n]*:|,)"
+        ),
         0.88,
     ),
     # POSTAL_CODE standalone regex removed: it fired on institutional/signing
@@ -564,6 +572,43 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         "POLICY_NUMBER",
         r"\bPOLIZA-[A-Z0-9][A-Z0-9\-_.]{3,}\b",
         0.80,
+    ),
+    (
+        # ADDRESS work-location: "centro/centre habitual de trabajo/treball <Org>,
+        # <Dirección CP Ciudad>".  The org name may wrap a line so [\s\S]{0,140}?
+        # bounds the skip; full match contains \n → needs "ADDRESS" in newline-allowed set.
+        "ADDRESS",
+        (
+            r"(?i)(?:centro|centre)[^\S\r\n]+habitual[^\S\r\n]+de[^\S\r\n]+(?:trabajo|treball)[\s\S]{0,140}?,\s*"
+            r"(?P<value>(?:Calle|C/|Avd?a?\.?|Avinguda|Avenida|Plaza|Pla[çc]a|Pza\.?|Paseo|Passeig|Ronda|Carrer|Trav(?:essia|\.)?|Cam[ií](?:no)?|Carretera|Ctra\.?|Cno\.?)"
+            r"[^\r\n]*?\d{5}[^\S\r\n]*\r?\n?[^\S\r\n]*[^\r\n,.;:\d]+)"
+        ),
+        0.85,
+    ),
+    (
+        # PERSON run-on labeled: "Nombre y apellidos: Pedro Ramos Ruiz  DNI:..."
+        # Non-anchored; fires when label appears mid-line (^ anchor fails).
+        # Stops before the next "Word:" token via lookahead (extended char class
+        # to handle abbreviated labels: Tfno.: N.º: DNI/NIE:).
+        "PERSON",
+        r"(?i)(?:nombre[^\S\r\n]+y[^\S\r\n]+apellidos|nom[^\S\r\n]+i[^\S\r\n]+cognoms|apellidos[^\S\r\n]+y[^\S\r\n]+nombre|apellidos|representante[^\S\r\n]+legal|representant[^\S\r\n]+legal)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*(?=\r?\n|$|[^\S\r\n]*[A-Za-záéíóúÁÉÍÓÚüÜñÑ./°ºª]+[^\S\r\n]*:)",
+        0.88,
+    ),
+    (
+        # PERSON party-intro prose: "El/La trabajador/a, Pedro Ruiz," or
+        # "La persona contratada, Ana López,".  Fires in employment contracts.
+        "PERSON",
+        r"(?i)(?:el/la[^\S\r\n]+(?:trabajador|treballador)/a|la[^\S\r\n]+persona[^\S\r\n]+(?:contratada|empleada|trabajadora|contractada|treballadora))[^\S\r\n]*,?[^\S\r\n]+(?P<value>[A-ZÁÉÍÓÚÑÜ][\wÀ-ÿ''\-]+(?:[^\S\r\n]+[A-ZÁÉÍÓÚÑÜ][\wÀ-ÿ''\-]+){1,3})[^\S\r\n]*,",
+        0.85,
+    ),
+    (
+        # PERSON signature-block standalone name: a 2–4 capitalised-word name on
+        # its own line immediately followed by "Signatura" / "Firma" on the next
+        # line, or the same line suffixed by " | " (table-style signature blocks).
+        # Full match contains \n → needs "PERSON" in newline-allowed set.
+        "PERSON",
+        r"(?im)^[^\S\r\n]*(?P<value>[A-ZÁÉÍÓÚÑÜ][\wÀ-ÿ''\-]+(?:[^\S\r\n]+[A-ZÁÉÍÓÚÑÜ][\wÀ-ÿ''\-]+){1,3})[^\S\r\n]*(?:\r?\n[^\S\r\n]*(?:Signatura|Firma)|[^\S\r\n]*\|)",
+        0.88,
     ),
 ]
 
@@ -1193,11 +1238,13 @@ class PiiAnalyzer:
                     start = match.start()
                     end = match.end()
 
-                # Allow phone, IBAN, and date-of-birth to span OCR line breaks.
+                # Allow phone, IBAN, DOB, address, and person to span OCR line breaks.
                 if ("\n" in full_match or "\r" in full_match) and entity_type not in {
                     "PHONE_NUMBER",
                     "IBAN_CODE",
                     "DATE_OF_BIRTH",
+                    "ADDRESS",
+                    "PERSON",
                 }:
                     continue
 
