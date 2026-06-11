@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     #                  Spanish administrative text).  Falls back to spaCy if the
     #                  transformer stack is unavailable.  Model loads lazily.
     ner_engine: Literal["transformers", "spacy"] = "spacy"
-    ner_transformers_model: str = "PlanTL-GOB-ES/roberta-base-bne-capitel-ner"
+    ner_transformers_model: str = "mrm8488/bert-spanish-cased-finetuned-ner"
     ner_spacy_model: str = "es_core_news_md"
     ner_use_gpu: bool = True
 
