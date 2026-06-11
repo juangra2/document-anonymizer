@@ -1,7 +1,16 @@
 import os
 
-os.environ.setdefault("PRESIDIO_DEVICE", "cpu")
+from app.core.config import settings
 
+# Presidio reads PRESIDIO_DEVICE at import time to pick the NER device.  Drive it
+# from settings so the transformer NER can use the GPU when available; spaCy
+# degrades to CPU automatically if GPU support (cupy) is absent.
+os.environ.setdefault(
+    "PRESIDIO_DEVICE",
+    "cuda" if settings.ner_use_gpu else "cpu",
+)
+
+import logging
 import re
 from collections import defaultdict
 from typing import Literal
@@ -32,7 +41,6 @@ _INSTITUTION_NAME_RE = re.compile(
 from presidio_analyzer import AnalyzerEngine, RecognizerRegistry
 from presidio_analyzer.nlp_engine import NlpEngineProvider
 
-from app.core.config import settings
 from app.services.pii.models import PiiEntity
 from app.services.pii.recognizers_es import build_spanish_pattern_recognizers
 from app.services.pii.validators_es import (
@@ -42,6 +50,8 @@ from app.services.pii.validators_es import (
     is_valid_spanish_iban,
     looks_like_cadastral_reference,
 )
+
+logger = logging.getLogger(__name__)
 
 
 SUPPORTED_LANGUAGES = ["es"]
@@ -852,45 +862,39 @@ _COMPACT_ID_TYPES = {
 
 
 class PiiAnalyzer:
-    def __init__(self) -> None:
-        nlp_config = {
-            "nlp_engine_name": "spacy",
-            "models": [
-                {
-                    "lang_code": "es",
-                    "model_name": "es_core_news_md",
-                },
-            ],
-            "ner_model_configuration": {
-                "model_to_presidio_entity_mapping": {
-                    "PER": "PERSON",
-                    "PERSON": "PERSON",
-                    "LOC": "LOCATION",
-                    "GPE": "LOCATION",
-                    "ORG": "ORGANIZATION",
-                    "ORGANIZATION": "ORGANIZATION",
-                },
-                "low_confidence_score_multiplier": 0.4,
-                "labels_to_ignore": [
-                    "CARDINAL",
-                    "DATE",
-                    "EVENT",
-                    "LANGUAGE",
-                    "LAW",
-                    "MISC",
-                    "MONEY",
-                    "ORDINAL",
-                    "PERCENT",
-                    "PRODUCT",
-                    "QUANTITY",
-                    "TIME",
-                    "WORK_OF_ART",
-                ],
-            },
-        }
+    # Label → Presidio entity mapping shared by both NER backends.  Covers spaCy
+    # labels (PER/LOC/GPE/ORG) and CAPITEL transformer labels (PER/LOC/ORG/OTH).
+    _NER_ENTITY_MAPPING = {
+        "PER": "PERSON",
+        "PERSON": "PERSON",
+        "LOC": "LOCATION",
+        "GPE": "LOCATION",
+        "LOCATION": "LOCATION",
+        "ORG": "ORGANIZATION",
+        "ORGANIZATION": "ORGANIZATION",
+    }
 
-        provider = NlpEngineProvider(nlp_configuration=nlp_config)
-        nlp_engine = provider.create_engine()
+    _NER_LABELS_TO_IGNORE = [
+        "CARDINAL", "DATE", "EVENT", "LANGUAGE", "LAW", "MISC", "MONEY",
+        "ORDINAL", "OTH", "O", "PERCENT", "PRODUCT", "QUANTITY", "TIME",
+        "WORK_OF_ART",
+    ]
+
+    def __init__(self) -> None:
+        # Engine is built lazily on the first NER call so importing/constructing
+        # the analyzer never triggers a model download or load.
+        self._engine: AnalyzerEngine | None = None
+        self._ner_backend: str | None = None  # actual backend used after fallback
+
+    # ------------------------------------------------------------------
+    # Lazy engine construction
+    # ------------------------------------------------------------------
+
+    def _ensure_engine(self) -> None:
+        if self._engine is not None:
+            return
+
+        nlp_engine, backend = self._build_nlp_engine()
 
         registry = RecognizerRegistry(supported_languages=SUPPORTED_LANGUAGES)
         registry.add_nlp_recognizer(nlp_engine=nlp_engine)
@@ -903,6 +907,64 @@ class PiiAnalyzer:
             registry=registry,
             supported_languages=SUPPORTED_LANGUAGES,
         )
+        self._ner_backend = backend
+        logger.info("PiiAnalyzer NER backend: %s", backend)
+
+    def _build_nlp_engine(self):
+        """Build the NLP engine, falling back to spaCy if transformers fail."""
+        if settings.ner_engine == "transformers":
+            try:
+                return self._build_transformers_engine(), "transformers"
+            except Exception as exc:  # ImportError, model download/load, etc.
+                logger.warning(
+                    "Transformer NER unavailable (%s); falling back to spaCy.",
+                    exc,
+                )
+        return self._build_spacy_engine(), "spacy"
+
+    def _build_spacy_engine(self):
+        nlp_config = {
+            "nlp_engine_name": "spacy",
+            "models": [
+                {"lang_code": "es", "model_name": settings.ner_spacy_model},
+            ],
+            "ner_model_configuration": {
+                "model_to_presidio_entity_mapping": dict(self._NER_ENTITY_MAPPING),
+                "low_confidence_score_multiplier": 0.4,
+                "labels_to_ignore": list(self._NER_LABELS_TO_IGNORE),
+            },
+        }
+        return NlpEngineProvider(nlp_configuration=nlp_config).create_engine()
+
+    def _build_transformers_engine(self):
+        from presidio_analyzer.nlp_engine import TransformersNlpEngine
+
+        if not TransformersNlpEngine.is_available:
+            raise RuntimeError(
+                "spacy-huggingface-pipelines not installed "
+                "(pip install '.[transformers-ner]')."
+            )
+
+        nlp_config = {
+            "nlp_engine_name": "transformers",
+            "models": [
+                {
+                    "lang_code": "es",
+                    "model_name": {
+                        "spacy": settings.ner_spacy_model,
+                        "transformers": settings.ner_transformers_model,
+                    },
+                },
+            ],
+            "ner_model_configuration": {
+                "model_to_presidio_entity_mapping": dict(self._NER_ENTITY_MAPPING),
+                "low_confidence_score_multiplier": 0.4,
+                "labels_to_ignore": list(self._NER_LABELS_TO_IGNORE),
+                "aggregation_strategy": "max",
+                "alignment_mode": "expand",
+            },
+        }
+        return NlpEngineProvider(nlp_configuration=nlp_config).create_engine()
 
     def analyze(
         self,
@@ -961,6 +1023,9 @@ class PiiAnalyzer:
         # precision on form text is measured on a labelled corpus.
         if zone_type == "form":
             return []
+
+        # Build the NER engine on first use (lazy: no model load at import time).
+        self._ensure_engine()
 
         # Heuristic: spaCy es_core_news_md was trained on news text and produces
         # many false positives on dense legal prose, especially in Valencian.

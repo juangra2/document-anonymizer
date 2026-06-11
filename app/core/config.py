@@ -25,6 +25,17 @@ class Settings(BaseSettings):
     presidio_score_threshold: float = 0.55
     default_redaction_mode: Literal["strict", "balanced"] = "strict"
 
+    # NER backend for PERSON/LOCATION/ORGANIZATION detection.
+    # "spacy"        → es_core_news_md (default; fast, no download).
+    # "transformers" → a HuggingFace token-classification model wrapped by
+    #                  Presidio's TransformersNlpEngine (higher recall on
+    #                  Spanish administrative text).  Falls back to spaCy if the
+    #                  transformer stack is unavailable.  Model loads lazily.
+    ner_engine: Literal["transformers", "spacy"] = "spacy"
+    ner_transformers_model: str = "PlanTL-GOB-ES/roberta-base-bne-capitel-ner"
+    ner_spacy_model: str = "es_core_news_md"
+    ner_use_gpu: bool = True
+
     model_config = SettingsConfigDict(env_file=".env")
 
     # "auto" tries MinerU first and falls back to easyocr.

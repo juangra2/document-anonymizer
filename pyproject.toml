@@ -33,6 +33,13 @@ mineru = [
 magic-pdf = [
     "magic-pdf[full]>=0.9",
 ]
+# Transformer NER backend (Presidio TransformersNlpEngine).
+# Enable at runtime with NER_ENGINE=transformers.
+transformers-ner = [
+    "spacy-huggingface-pipelines",
+    "transformers>=4.40",
+    "torch",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
