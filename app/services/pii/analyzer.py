@@ -93,9 +93,10 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
         r"(?im)^[^\S\r\n]*(?:iban|cuenta[^\S\r\n]+bancaria|n[uú]mero[^\S\r\n]+de[^\S\r\n]+cuenta|n[^\S\r\n]*[º°.]?[^\S\r\n]*de[^\S\r\n]+cuenta|num\.?[^\S\r\n]+cuenta)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
-        # ES-specific IBAN colon: captures full IBAN including newline-split last group.
+        # ES-specific IBAN colon: captures full IBAN including newline-split groups.
+        # Flexible grouping (20 digits, any separators) covers irregular layouts.
         "IBAN_CODE",
-        r"(?im)^[^\S\r\n]*(?:iban|cuenta[^\S\r\n]+bancaria|n[uú]mero[^\S\r\n]+de[^\S\r\n]+cuenta)[^\S\r\n]*:[^\S\r\n]*(?P<value>ES\d{2}(?:[ \t\n\-]?\d{4}){5})",
+        r"(?im)^[^\S\r\n]*(?:iban|cuenta[^\S\r\n]+bancaria|n[uú]mero[^\S\r\n]+de[^\S\r\n]+cuenta)[^\S\r\n]*:[^\S\r\n]*(?P<value>ES\d{2}(?:[ \t\n\-]?\d){20})",
     ),
     (
         "ADDRESS",
@@ -285,7 +286,7 @@ NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
         # Removed the generic variant that captured arbitrary text like "pago"
         # from column headers such as "IBAN pago" in nómina documents.
         "IBAN_CODE",
-        r"(?im)^[^\S\r\n]*(?:iban)[^\S\r\n]+(?P<value>ES\d{2}(?:[ \t\n\-]?\d{4}){5})",
+        r"(?im)^[^\S\r\n]*(?:iban)[^\S\r\n]+(?P<value>ES\d{2}(?:[ \t\n\-]?\d){20})",
     ),
     (
         "CREDIT_CARD",
