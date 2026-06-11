@@ -28,9 +28,11 @@ class Settings(BaseSettings):
     # NER backend for PERSON/LOCATION/ORGANIZATION detection.
     # "spacy"        → es_core_news_md (default; fast, no download).
     # "transformers" → a HuggingFace token-classification model wrapped by
-    #                  Presidio's TransformersNlpEngine (higher recall on
-    #                  Spanish administrative text).  Falls back to spaCy if the
-    #                  transformer stack is unavailable.  Model loads lazily.
+    #                  Presidio's TransformersNlpEngine.  Falls back to spaCy if
+    #                  the transformer stack is unavailable.  Model loads lazily.
+    # Default is "spacy": BETO (mrm8488) was evaluated and regressed PERSON F1
+    # (0.80 vs 0.82) and mishandles Valencian/Catalan (span-alignment failures on
+    # D'UNA PART:, D.N.I.:).  Engine kept configurable for future opt-in.
     ner_engine: Literal["transformers", "spacy"] = "spacy"
     ner_transformers_model: str = "mrm8488/bert-spanish-cased-finetuned-ner"
     ner_spacy_model: str = "es_core_news_md"
