@@ -43,6 +43,7 @@ from app.services.layout._digital_analysis import (
     DigitalLayoutAnalysis,
     analyze_digital_layout,
 )
+from app.services.layout.reflow import group_logical_lines, normalize_inline_newlines
 from app.services.pdf.extractor import PageText, WordBox
 from app.services.pdf.table_layout import group_words_by_visual_row
 from app.services.vision.code_detector import detect_and_decode_visual_codes
@@ -182,13 +183,49 @@ class DigitalPageSegmenter:
                 page_text_offset=form_text_start,
             ))
 
-        # One BODY zone per row so page_text_offset maps directly.
-        for row in body_rows:
-            zone = self._row_to_zone(ZoneType.BODY, row, page_text)
+        # Reflow: merge soft-wrapped body rows into logical-line zones so the
+        # analyzer sees complete entities (addresses, prose) instead of fragments.
+        # Each group is a contiguous PageText slice → page_text_offset maps directly.
+        for group in group_logical_lines(body_rows, page_text):
+            zone = self._group_to_zone(ZoneType.BODY, group, page_text)
             if zone:
                 zones.append(zone)
 
         return zones
+
+    @staticmethod
+    def _group_to_zone(
+        zone_type: ZoneType,
+        group: list[WordBox],
+        page_text: PageText,
+    ) -> PageZone | None:
+        """Build a BODY zone from a logical-line group (one or more visual rows).
+
+        The text is the contiguous PageText slice with interior soft newlines
+        flattened to spaces (length-preserving), so entity offsets still map back
+        to the original word boxes and rects_for_span yields one rect per line.
+        """
+        if not group:
+            return None
+
+        text_start = min(w.start for w in group)
+        text_end = max(w.end for w in group)
+        text = normalize_inline_newlines(page_text.text[text_start:text_end])
+
+        if not text.strip():
+            return None
+
+        return PageZone(
+            zone_type=zone_type,
+            rect=_rect_for_word_row(group),
+            text=text,
+            tokens=[
+                ZoneToken(text=w.text, rect=w.rect)
+                for w in sorted(group, key=lambda w: (w.rect.y0, w.rect.x0))
+            ],
+            source="digital",
+            page_text_offset=text_start,
+        )
 
     @staticmethod
     def _row_to_zone(
@@ -444,12 +481,17 @@ def _build_ocr_zone_text_and_tokens(
             parts.append("\n")
             cursor += 1
 
+        # Flatten any newline inside a single block's text (MinerU paragraphs may
+        # carry internal wraps) so cross-line entities stay matchable.  Length is
+        # preserved, so text_offset and value_start remain valid.
+        token_text = normalize_inline_newlines(token.text)
+
         text_offset = cursor
-        parts.append(token.text)
-        cursor += len(token.text)
+        parts.append(token_text)
+        cursor += len(token_text)
 
         zone_tokens.append(ZoneToken(
-            text=token.text,
+            text=token_text,
             rect=token.rect,
             confidence=token.confidence,
             text_offset=text_offset,
