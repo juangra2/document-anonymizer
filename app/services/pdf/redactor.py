@@ -26,6 +26,7 @@ from app.services.layout.models import PageZone, ZoneType
 from app.services.layout.segmenters import DigitalPageSegmenter
 from app.services.layout.zone_config import get_detector_config
 from app.services.pdf.extractor import extract_page_text, rects_for_span
+from app.services.pdf._qr import qr_payload_entities
 from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services.pii.models import PiiEntity
@@ -191,6 +192,7 @@ def _collect_redaction_rects(
                     source="visual_qr",
                     text=zone.text,
                 ))
+                entities.extend(qr_payload_entities(analyzer, zone.text, mode))
             continue
 
         # FORM / TABLE with pre-computed structural rects (heuristic segmenter).
