@@ -519,6 +519,14 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         0.90,
     ),
     (
+        # Standalone IPv4 (octet-range validated) for access-log lines that carry
+        # no "IP:" label, e.g. "10.41.64.148" in resolución/notificación bodies.
+        # Moderate score so the labeled IP pattern (0.97) wins on overlap.
+        "IP_ADDRESS",
+        r"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b",
+        0.60,
+    ),
+    (
         "CASE_NUMBER",
         r"\b(?:EXP|REF|EXPDTE|EXPTE)[-/_.]?[A-Z0-9]{2,}(?:[-/_.][A-Z0-9]{2,})+\b",
         0.80,
