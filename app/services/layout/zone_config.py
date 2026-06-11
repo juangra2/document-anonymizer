@@ -6,9 +6,18 @@ from app.services.layout.models import ZoneType
 
 
 # ---------------------------------------------------------------------------
-# Canonical list of all entity types the system can detect.
+# Canonical list of entity types the system REDACTS.
 # Keep this in sync with the recognizers in pii/recognizers_es.py and the
 # patterns in pii/analyzer.py.
+#
+# LOCATION and ORGANIZATION are intentionally absent: the ground truth almost
+# never annotates them as personal PII (the personal location goes through
+# ADDRESS, the person through PERSON), so redacting them produced hundreds of
+# false positives (F1 ≈ 0.02 / 0.00).  They are still DETECTED internally by the
+# NER engine (NER_ALLOWED_TYPES in analyzer.py) so they remain available as a
+# signal for issuer/institution identification — they are only excluded from the
+# redaction output and the verification residual count (see ALL_PII_TYPES use in
+# verification/layers.py).
 # ---------------------------------------------------------------------------
 
 ALL_PII_TYPES: list[str] = [
@@ -20,8 +29,6 @@ ALL_PII_TYPES: list[str] = [
     "PHONE_NUMBER",
     "IBAN_CODE",
     "PERSON",
-    "LOCATION",
-    "ORGANIZATION",
     "ADDRESS",
     "PASSPORT",
     "CREDIT_CARD",

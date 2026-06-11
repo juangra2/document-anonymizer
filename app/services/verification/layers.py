@@ -25,10 +25,16 @@ from typing import TYPE_CHECKING
 
 import fitz
 
+from app.services.layout.zone_config import ALL_PII_TYPES
 from app.services.pii.analyzer import DIRECT_REGEX_PATTERNS, PiiAnalyzer
 from app.services.pii.models import PiiEntity
 from app.services.verification.models import LayerResult, VerificationLayer
 from app.services.verification.scorer import compute_layer_score
+
+# Types the system redacts.  Verification must only flag residual PII of these
+# types; LOCATION/ORGANIZATION are detected but never redacted, so counting them
+# would inflate the residual risk on every document.
+_REDACTABLE_TYPES = set(ALL_PII_TYPES)
 
 if TYPE_CHECKING:
     from app.services.ocr.base import OcrEngine
@@ -56,6 +62,7 @@ def check_textual(
         doc.close()
 
     entities = analyzer.analyze(text, mode=mode) if text.strip() else []
+    entities = [e for e in entities if e.entity_type in _REDACTABLE_TYPES]
 
     return LayerResult(
         layer=VerificationLayer.TEXTUAL,
@@ -209,6 +216,7 @@ def check_metadata(
         doc.close()
 
     # Deduplicate entities (same span may appear across multiple checks)
+    entities = [e for e in entities if e.entity_type in _REDACTABLE_TYPES]
     entities = _dedupe(entities)
 
     return LayerResult(
