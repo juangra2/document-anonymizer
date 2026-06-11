@@ -837,6 +837,19 @@ SOURCE_PRIORITY = {
 _DNI_FULL_RE = re.compile(r"^\d{8}[A-HJ-NP-TV-Z]$", re.IGNORECASE)
 _NIE_FULL_RE = re.compile(r"^[XYZ]\d{7}[A-HJ-NP-TV-Z]$", re.IGNORECASE)
 
+# Compact identifiers whose value never contains a comma/semicolon.  A labeled
+# value that swallowed following prose (e.g. after reflow merged a wrapped line:
+# "DNI: 12345678Z, domiciliada en …") is trimmed at the first such separator.
+_COMPACT_ID_TYPES = {
+    "ES_DNI",
+    "ES_NIE",
+    "ES_CIF",
+    "ES_NSS",
+    "POSTAL_CODE",
+    "IBAN_CODE",
+    "LICENSE_PLATE",
+}
+
 
 class PiiAnalyzer:
     def __init__(self) -> None:
@@ -1114,6 +1127,22 @@ class PiiAnalyzer:
                             emit_type = "ES_DNI"
                         elif _NIE_FULL_RE.fullmatch(v):
                             emit_type = "ES_NIE"
+
+                    # Trim compact identifiers at the first comma/semicolon: their
+                    # formats never contain one, so anything after it is run-on
+                    # prose absorbed when reflow merged a wrapped line.
+                    if emit_type in _COMPACT_ID_TYPES:
+                        cut = len(value)
+                        for sep in (",", ";"):
+                            i = value.find(sep)
+                            if i != -1:
+                                cut = min(cut, i)
+                        trimmed = value[:cut].rstrip()
+                        if cut < len(value):
+                            if not trimmed:
+                                continue
+                            value = trimmed
+                            span = (span[0], span[0] + len(trimmed))
 
                     # PHONE values must contain at least 7 digits — prevents
                     # capturing label suffixes like "de contacto:" when the
