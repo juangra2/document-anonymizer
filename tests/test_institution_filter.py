@@ -3,6 +3,7 @@ import fitz
 
 from app.services.layout.models import PageZone, ZonedPage, ZoneType
 from app.services.pii.institution_filter import (
+    filter_institutional,
     institution_name_spans,
     institutional_allowlist,
     letterhead_ranges,
@@ -88,3 +89,127 @@ def test_allowlist_ignores_body_only_values():
     entities = [PiiEntity("PHONE_NUMBER", tel_pos, tel_pos + 11, 0.9, text="600 123 456")]
     allow = institutional_allowlist(page_text, zoned, entities)
     assert "600123456" not in allow["PHONE_NUMBER"]
+
+
+# --- suppression decision (filter_institutional) -------------------------
+
+def _ent(page_text, entity_type, value):
+    pos = page_text.index(value)
+    return PiiEntity(entity_type, pos, pos + len(value), 0.9, text=value)
+
+
+def test_suppress_phone_in_header():  # case 1
+    page_text = "Ajuntament de Sueca Tel. 96 170 00 00\ncuerpo\nl3\nl4\nl5\n"
+    zoned = _zoned([_zone(ZoneType.HEADER, "Ajuntament de Sueca Tel. 96 170 00 00", 0)])
+    ents = [_ent(page_text, "PHONE_NUMBER", "96 170 00 00")]
+    assert filter_institutional(page_text, zoned, ents) == {0}
+
+
+def test_suppress_postal_in_header():  # case 2
+    page_text = "Ayuntamiento\nPlaza Mayor 1, 46410 Sueca\ncuerpo\nl4\nl5\n"
+    header = page_text[: page_text.index("\ncuerpo")]
+    zoned = _zoned([_zone(ZoneType.HEADER, header, 0)])
+    ents = [_ent(page_text, "POSTAL_CODE", "46410")]
+    assert filter_institutional(page_text, zoned, ents) == {0}
+
+
+def test_suppress_body_phone_matching_letterhead():  # case 3
+    page_text = (
+        "Hospital General Tel. 96 197 20 00\n"
+        "cuerpo del documento\nl3\nl4\nl5\n"
+        "Para citas llame al 96 197 20 00 en horario de mañana.\n"
+    )
+    header = page_text[: page_text.index("\ncuerpo")]
+    zoned = _zoned([_zone(ZoneType.HEADER, header, 0)])
+    first = page_text.index("96 197 20 00")
+    second = page_text.index("96 197 20 00", first + 1)
+    ents = [
+        PiiEntity("PHONE_NUMBER", first, first + 12, 0.9, text="96 197 20 00"),
+        PiiEntity("PHONE_NUMBER", second, second + 12, 0.9, text="96 197 20 00"),
+    ]
+    # both the letterhead occurrence and its body recurrence are institutional
+    assert filter_institutional(page_text, zoned, ents) == {0, 1}
+
+
+def test_suppress_address_after_institution_no_person():  # case 4
+    page_text = (
+        "Solicitud\nl2\nl3\nl4\nl5\n"
+        "La Conselleria de Sanitat, con domicilio en Carrer Misser Mascó 31, "
+        "atenderá la consulta.\n"
+    )
+    zoned = _zoned([_zone(ZoneType.BODY, page_text, 0)])
+    ents = [_ent(page_text, "ADDRESS", "Carrer Misser Mascó 31")]
+    assert filter_institutional(page_text, zoned, ents) == {0}
+
+
+def test_keep_phone_after_person():  # case 5
+    page_text = (
+        "Datos\nl2\nl3\nl4\nl5\n"
+        "El solicitante Juan Pérez García, con teléfono 600 123 456.\n"
+    )
+    zoned = _zoned([_zone(ZoneType.BODY, page_text, 0)])
+    ents = [
+        _ent(page_text, "PERSON", "Juan Pérez García"),
+        _ent(page_text, "PHONE_NUMBER", "600 123 456"),
+    ]
+    assert filter_institutional(page_text, zoned, ents) == set()
+
+
+def test_keep_phone_when_person_between_institution_and_datum():  # case 6
+    page_text = (
+        "Acta\nl2\nl3\nl4\nl5\n"
+        "El Ajuntament notifica a Cristina Delgado Navarro, teléfono 696 555 444.\n"
+    )
+    zoned = _zoned([_zone(ZoneType.BODY, page_text, 0)])
+    ents = [
+        _ent(page_text, "PERSON", "Cristina Delgado Navarro"),
+        _ent(page_text, "PHONE_NUMBER", "696 555 444"),
+    ]
+    assert filter_institutional(page_text, zoned, ents) == set()
+
+
+def test_keep_non_suppressible_type_in_header():  # case 7
+    page_text = "Ajuntament de Sueca NIF P4623400J\ncuerpo\nl3\nl4\nl5\n"
+    header = page_text[: page_text.index("\ncuerpo")]
+    zoned = _zoned([_zone(ZoneType.HEADER, header, 0)])
+    ents = [_ent(page_text, "ES_NIF", "P4623400J")]
+    assert filter_institutional(page_text, zoned, ents) == set()
+
+
+def test_keep_personal_phone_far_from_institution():  # case 8
+    page_text = (
+        "Solicitud\nl2\nl3\nl4\nl5\n"
+        "Mi número de contacto particular es 655 987 321 para cualquier aviso.\n"
+    )
+    zoned = _zoned([_zone(ZoneType.BODY, page_text, 0)])
+    ents = [_ent(page_text, "PHONE_NUMBER", "655 987 321")]
+    assert filter_institutional(page_text, zoned, ents) == set()
+
+
+def test_keep_datum_in_form_zone():  # case 9
+    page_text = "Teléfono: 91 123 45 67\n"
+    zoned = _zoned([_zone(ZoneType.FORM, page_text, 0)])
+    ents = [_ent(page_text, "PHONE_NUMBER", "91 123 45 67")]
+    assert filter_institutional(page_text, zoned, ents) == set()
+
+
+def test_keep_when_institution_beyond_window():  # case 10
+    filler = "x" * 200
+    page_text = (
+        "Ajuntament de Sueca\nl2\nl3\nl4\nl5\n"
+        f"{filler} teléfono 962 000 111.\n"
+    )
+    zoned = _zoned([_zone(ZoneType.BODY, page_text, 0)])
+    ents = [_ent(page_text, "PHONE_NUMBER", "962 000 111")]
+    assert filter_institutional(page_text, zoned, ents) == set()
+
+
+def test_suppress_address_in_first_lines_without_header_zone():  # case 11
+    page_text = (
+        "Universitat de València\n"
+        "Av. de Blasco Ibáñez 13, 46010 València\n"
+        "Ref.: 2026/001\nl4\nl5\nbody\n"
+    )
+    zoned = _zoned([_zone(ZoneType.BODY, page_text, 0)])
+    ents = [_ent(page_text, "ADDRESS", "Av. de Blasco Ibáñez 13")]
+    assert filter_institutional(page_text, zoned, ents) == {0}

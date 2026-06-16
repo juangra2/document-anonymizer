@@ -96,13 +96,21 @@ def institution_name_spans(page_text: str) -> list[tuple[int, int]]:
 
 
 def letterhead_ranges(page_text: str, zoned_page: ZonedPage) -> list[tuple[int, int]]:
-    """Char ranges considered letterhead: HEADER/FOOTER zones + first lines."""
-    ranges: list[tuple[int, int]] = []
+    """Char ranges considered letterhead: HEADER/FOOTER zones + first lines.
+
+    A masthead is the issuer's own header, so a candidate range only qualifies
+    as letterhead when it actually contains an institution name.  Without this
+    guard the top lines of an ordinary personal form (applicant name + phone)
+    would be mistaken for a letterhead and the citizen's contact data wrongly
+    suppressed.
+    """
+    inst_spans = institution_name_spans(page_text)
+    candidates: list[tuple[int, int]] = []
 
     for zone in zoned_page.zones:
         if zone.zone_type in (ZoneType.HEADER, ZoneType.FOOTER) and zone.text:
             start = zone.page_text_offset
-            ranges.append((start, start + len(zone.text)))
+            candidates.append((start, start + len(zone.text)))
 
     # First N lines of the page (covers letterheads below the HEADER Y-band).
     end = 0
@@ -116,9 +124,13 @@ def letterhead_ranges(page_text: str, zoned_page: ZonedPage) -> list[tuple[int, 
     else:
         end = len(page_text)
     if end > 0:
-        ranges.append((0, end))
+        candidates.append((0, end))
 
-    return ranges
+    return [
+        (r0, r1)
+        for r0, r1 in candidates
+        if any(r0 <= s < r1 for s, _ in inst_spans)
+    ]
 
 
 def _in_any_range(start: int, end: int, ranges: list[tuple[int, int]]) -> bool:
@@ -151,3 +163,94 @@ def institutional_allowlist(
             allowlist[e.entity_type].add(normalize_value(e.entity_type, value))
 
     return allowlist
+
+
+# ---------------------------------------------------------------------------
+# B3 — institutional suppression decision
+# ---------------------------------------------------------------------------
+
+def _form_ranges(zoned_page: ZonedPage) -> list[tuple[int, int]]:
+    """Char ranges covered by FORM/TABLE zones (structurally redacted elsewhere)."""
+    ranges: list[tuple[int, int]] = []
+    for zone in zoned_page.zones:
+        if zone.zone_type in (ZoneType.FORM, ZoneType.TABLE) and zone.text:
+            start = zone.page_text_offset
+            ranges.append((start, start + len(zone.text)))
+    return ranges
+
+
+def _person_in_range(start: int, end: int, person_spans: list[tuple[int, int]]) -> bool:
+    """True if any PERSON span overlaps the open interval (start, end)."""
+    for ps, pe in person_spans:
+        if ps < end and pe > start:
+            return True
+    return False
+
+
+def _is_institutional(
+    entity: PiiEntity,
+    page_text: str,
+    inst_spans: list[tuple[int, int]],
+    ranges: list[tuple[int, int]],
+    allowlist: dict[str, set[str]],
+    person_spans: list[tuple[int, int]],
+) -> bool:
+    """Whether *entity* is the issuer's contact datum (→ suppress, not PII)."""
+    value = entity.text or page_text[entity.start:entity.end]
+    norm = normalize_value(entity.entity_type, value)
+
+    # Strong signal: same value recurs in the letterhead → issuer's own datum.
+    if norm in allowlist.get(entity.entity_type, set()):
+        return True
+
+    # The datum itself sits in the letterhead.
+    if _in_any_range(entity.start, entity.end, ranges):
+        return True
+
+    # An institution name appears just before the datum with no person between
+    # them ("Ajuntament de Sueca, Plaça Major 1, 46410 Sueca").
+    window_start = entity.start - PROXIMITY_WINDOW
+    nearest_inst_end: int | None = None
+    for s, e in inst_spans:
+        if window_start <= e <= entity.start and (
+            nearest_inst_end is None or e > nearest_inst_end
+        ):
+            nearest_inst_end = e
+    if nearest_inst_end is not None and not _person_in_range(
+        nearest_inst_end, entity.start, person_spans
+    ):
+        return True
+
+    return False
+
+
+def filter_institutional(
+    page_text: str,
+    zoned_page: ZonedPage,
+    entities: list[PiiEntity],
+) -> set[int]:
+    """Indices of *entities* that are institutional contact data → suppress.
+
+    Only PHONE_NUMBER / ADDRESS / POSTAL_CODE are ever suppressed.  Data inside
+    FORM/TABLE zones is structurally redacted elsewhere and always kept here.
+    "Ante duda, conservar": a datum is suppressed only on a positive issuer
+    signal (allowlist match, letterhead position, or institution proximity with
+    no intervening person).
+    """
+    inst_spans = institution_name_spans(page_text)
+    ranges = letterhead_ranges(page_text, zoned_page)
+    allowlist = institutional_allowlist(page_text, zoned_page, entities)
+    form_ranges = _form_ranges(zoned_page)
+    person_spans = sorted(
+        (e.start, e.end) for e in entities if e.entity_type == "PERSON"
+    )
+
+    suppress: set[int] = set()
+    for i, e in enumerate(entities):
+        if e.entity_type not in SUPPRESSIBLE_TYPES:
+            continue
+        if _in_any_range(e.start, e.end, form_ranges):
+            continue
+        if _is_institutional(e, page_text, inst_spans, ranges, allowlist, person_spans):
+            suppress.add(i)
+    return suppress

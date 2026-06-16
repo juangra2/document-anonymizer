@@ -28,6 +28,7 @@ from app.services.layout.zone_config import get_detector_config
 from app.services.pdf.extractor import extract_page_text, rects_for_span
 from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pii.analyzer import PiiAnalyzer
+from app.services.pii.institution_filter import filter_institutional
 from app.services.pii.models import PiiEntity
 from app.services.vision.code_detector import detect_and_decode_visual_codes, detect_visual_code_rects
 
@@ -172,6 +173,10 @@ def _collect_redaction_rects(
     entities: list[PiiEntity] = []
     layout_count = 0
 
+    # BODY/HEADER/FOOTER entity rects are deferred so institutional contact data
+    # (issuer phone/address/CP) can be filtered out at page level before emission.
+    pii_entity_rects: dict[int, list[fitz.Rect]] = {}
+
     # Collect all protected rects across zones to filter entity-based rects
     all_protected: list[fitz.Rect] = []
     for zone in zoned_page.zones:
@@ -238,13 +243,13 @@ def _collect_redaction_rects(
             abs_start = zone.page_text_offset + entity.start
             abs_end = zone.page_text_offset + entity.end
 
-            entity_rects = rects_for_span(page_text, abs_start, abs_end)
+            entity_rects = [
+                r
+                for r in rects_for_span(page_text, abs_start, abs_end)
+                if not _center_in_any(r, all_protected)
+            ]
 
-            for r in entity_rects:
-                if _center_in_any(r, all_protected):
-                    continue
-                rects.append(r)
-
+            idx = len(entities)
             entities.append(PiiEntity(
                 entity_type=entity.entity_type,
                 start=abs_start,
@@ -253,6 +258,19 @@ def _collect_redaction_rects(
                 source=entity.source,
                 text=zone.text[entity.start:entity.end],
             ))
+            pii_entity_rects[idx] = entity_rects
+
+    # Suppress institutional contact data (issuer's own phone/address/CP) before
+    # emitting BODY/HEADER/FOOTER entity rects: it is not personal data under RGPD.
+    suppressed = filter_institutional(page_text.text, zoned_page, entities)
+
+    for idx, entity_rects in pii_entity_rects.items():
+        if idx in suppressed:
+            continue
+        rects.extend(entity_rects)
+
+    if suppressed:
+        entities = [e for i, e in enumerate(entities) if i not in suppressed]
 
     # Deduplicate by (start, end, entity_type): the FORM zone text is a sparse
     # reconstruction of form-word characters, but as a safety net remove any exact
