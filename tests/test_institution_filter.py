@@ -78,8 +78,10 @@ def test_allowlist_collects_letterhead_values():
         PiiEntity("PHONE_NUMBER", tel_pos, tel_pos + 12, 0.9, text="93 580 11 00"),
     ]
     allow = institutional_allowlist(page_text, zoned, entities)
-    assert "08193" in allow["POSTAL_CODE"]
+    # Only PHONE_NUMBER is allowlisted; header postal codes are not (they are
+    # usually personal/work-centre data on administrative documents).
     assert "935801100" in allow["PHONE_NUMBER"]
+    assert "08193" not in allow.get("POSTAL_CODE", set())
 
 
 def test_allowlist_ignores_body_only_values():
@@ -105,12 +107,15 @@ def test_suppress_phone_in_header():  # case 1
     assert filter_institutional(page_text, zoned, ents) == {0}
 
 
-def test_suppress_postal_in_header():  # case 2
-    page_text = "Ayuntamiento\nPlaza Mayor 1, 46410 Sueca\ncuerpo\nl4\nl5\n"
+def test_keep_postal_in_letterhead_far_from_institution():  # case 2 (new policy)
+    # Postal code in the letterhead but >120 chars from the institution name:
+    # letterhead position no longer suppresses ADDRESS/POSTAL → kept.
+    filler = "x" * 140
+    page_text = f"Universitat de València {filler} 46010 València\ncuerpo\nl3\nl4\nl5\n"
     header = page_text[: page_text.index("\ncuerpo")]
     zoned = _zoned([_zone(ZoneType.HEADER, header, 0)])
-    ents = [_ent(page_text, "POSTAL_CODE", "46410")]
-    assert filter_institutional(page_text, zoned, ents) == {0}
+    ents = [_ent(page_text, "POSTAL_CODE", "46010")]
+    assert filter_institutional(page_text, zoned, ents) == set()
 
 
 def test_suppress_body_phone_matching_letterhead():  # case 3
@@ -204,12 +209,23 @@ def test_keep_when_institution_beyond_window():  # case 10
     assert filter_institutional(page_text, zoned, ents) == set()
 
 
-def test_suppress_address_in_first_lines_without_header_zone():  # case 11
+def test_suppress_phone_in_letterhead_far_from_institution():  # case 11 (new policy)
+    # PHONE in the letterhead is still institutional even when far from the
+    # institution name (issuer switchboard) → suppressed.
+    filler = "x" * 140
+    page_text = f"Universitat de València {filler} tel. 96 386 40 00\ncuerpo\nl3\nl4\nl5\n"
+    header = page_text[: page_text.index("\ncuerpo")]
+    zoned = _zoned([_zone(ZoneType.HEADER, header, 0)])
+    ents = [_ent(page_text, "PHONE_NUMBER", "96 386 40 00")]
+    assert filter_institutional(page_text, zoned, ents) == {0}
+
+
+def test_suppress_address_adjacent_to_university():  # proximity still works
     page_text = (
-        "Universitat de València\n"
-        "Av. de Blasco Ibáñez 13, 46010 València\n"
-        "Ref.: 2026/001\nl4\nl5\nbody\n"
+        "Solicitud\nl2\nl3\nl4\nl5\n"
+        "La Universitat de València, con domicilio en Av. Blasco Ibáñez 13, "
+        "resuelve.\n"
     )
     zoned = _zoned([_zone(ZoneType.BODY, page_text, 0)])
-    ents = [_ent(page_text, "ADDRESS", "Av. de Blasco Ibáñez 13")]
+    ents = [_ent(page_text, "ADDRESS", "Av. Blasco Ibáñez 13")]
     assert filter_institutional(page_text, zoned, ents) == {0}

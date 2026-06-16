@@ -27,6 +27,16 @@ from app.services.pii.models import PiiEntity
 # Entity types subject to institutional suppression.
 SUPPRESSIBLE_TYPES = {"PHONE_NUMBER", "ADDRESS", "POSTAL_CODE"}
 
+# Only a switchboard *phone* reliably recurs in the letterhead and the body as
+# the issuer's own datum.  Letterhead-position and value-allowlist signals are
+# therefore restricted to PHONE_NUMBER: on administrative documents an address
+# or postal code sitting in the header is usually the citizen's / work-centre's
+# own (personal data to redact), not the issuer's, so those two signals only
+# add false negatives for ADDRESS/POSTAL_CODE.  Proximity to an issuer name
+# still applies to all three types.
+LETTERHEAD_SUPPRESS_TYPES = {"PHONE_NUMBER"}
+ALLOWLIST_TYPES = {"PHONE_NUMBER"}
+
 # Public-institution name roots.  Centralised here and imported by analyzer.py
 # (NER false-positive filtering).  Any span containing one of these roots names a
 # document-issuing institution, not personal data under RGPD Art. 4.
@@ -51,11 +61,34 @@ INSTITUTION_NAME_RE = re.compile(
     r")\b"
 )
 
-# Company legal forms (S.L., S.A., S.L.U., S.Coop) — used ONLY for the
-# institution-proximity rule, never for the analyzer's NER filtering, to avoid
-# clipping person names.
+# Company legal forms (S.L., S.A., S.L.U., S.Coop).  Kept for reference but no
+# longer used as a proximity anchor: on this corpus it produced only false
+# negatives (and bare-letter matches), never a correct suppression.
 COMPANY_FORM_RE = re.compile(
     r"(?i)\bS\.?\s?(?:L\.?(?:U\.?)?|A\.?|Coop\.?|L\.?L\.?)\b"
+)
+
+# Narrow issuer roots used ONLY for the proximity rule.  Deliberately excludes
+# the work-unit / ambiguous roots from INSTITUTION_NAME_RE — departament(o),
+# institut(o), clínica, tècnica, enginyeria/ingeniería — because those name the
+# *department / research group / work centre* a person belongs to and are
+# typically followed by that person's own address ("centro habitual de trabajo
+# Instituto X, Calle Y 1"), which is PII to redact, not the issuer's address.
+PROXIMITY_ISSUER_RE = re.compile(
+    r"(?i)\b(?:"
+    r"universi(?:tat|dad|dade)"
+    r"|ajuntament|ayuntamiento"
+    r"|escola\b|escuela"
+    r"|generalitat|govern\b|gobierno"
+    r"|diputaci[oó]|consell(?:eria)?|consej(?:ería|eria)|conselleria"
+    r"|patronat|patronato"
+    r"|fundaci[oó]"
+    r"|hospital"
+    r"|mancomunitat|mancomunidad|consorci|c[aà]mara"
+    r"|ag[èe]ncia|tresoreria|tesorer[ií]a"
+    r"|delegaci[oó]|ministeri[oo]?|direcci[oó]n\s+general"
+    r"|col[·.]?legi|colegio"
+    r")\b"
 )
 
 # How many characters before a contact datum to look for an institution name.
@@ -88,11 +121,19 @@ def normalize_value(entity_type: str, value: str) -> str:
 # ---------------------------------------------------------------------------
 
 def institution_name_spans(page_text: str) -> list[tuple[int, int]]:
-    """Char spans of institution names (public roots + company forms)."""
+    """Char spans of institution names (public roots + company forms).
+
+    Used to decide whether a header/first-lines range qualifies as letterhead.
+    """
     spans = [(m.start(), m.end()) for m in INSTITUTION_NAME_RE.finditer(page_text)]
     spans += [(m.start(), m.end()) for m in COMPANY_FORM_RE.finditer(page_text)]
     spans.sort()
     return spans
+
+
+def proximity_issuer_spans(page_text: str) -> list[tuple[int, int]]:
+    """Char spans of the narrow issuer roots used by the proximity rule."""
+    return [(m.start(), m.end()) for m in PROXIMITY_ISSUER_RE.finditer(page_text)]
 
 
 def letterhead_ranges(page_text: str, zoned_page: ZonedPage) -> list[tuple[int, int]]:
@@ -153,10 +194,10 @@ def institutional_allowlist(
     These values are the issuer's own and may be suppressed wherever they recur.
     """
     ranges = letterhead_ranges(page_text, zoned_page)
-    allowlist: dict[str, set[str]] = {t: set() for t in SUPPRESSIBLE_TYPES}
+    allowlist: dict[str, set[str]] = {t: set() for t in ALLOWLIST_TYPES}
 
     for e in entities:
-        if e.entity_type not in SUPPRESSIBLE_TYPES:
+        if e.entity_type not in ALLOWLIST_TYPES:
             continue
         if _in_any_range(e.start, e.end, ranges):
             value = e.text or page_text[e.start:e.end]
@@ -200,11 +241,15 @@ def _is_institutional(
     norm = normalize_value(entity.entity_type, value)
 
     # Strong signal: same value recurs in the letterhead → issuer's own datum.
+    # (allowlist only ever holds PHONE_NUMBER values; see ALLOWLIST_TYPES.)
     if norm in allowlist.get(entity.entity_type, set()):
         return True
 
-    # The datum itself sits in the letterhead.
-    if _in_any_range(entity.start, entity.end, ranges):
+    # The datum itself sits in the letterhead — only suppressed for PHONE_NUMBER;
+    # header addresses/postal codes are usually personal/work-centre data here.
+    if entity.entity_type in LETTERHEAD_SUPPRESS_TYPES and _in_any_range(
+        entity.start, entity.end, ranges
+    ):
         return True
 
     # An institution name appears just before the datum with no person between
@@ -237,7 +282,7 @@ def filter_institutional(
     signal (allowlist match, letterhead position, or institution proximity with
     no intervening person).
     """
-    inst_spans = institution_name_spans(page_text)
+    inst_spans = proximity_issuer_spans(page_text)
     ranges = letterhead_ranges(page_text, zoned_page)
     allowlist = institutional_allowlist(page_text, zoned_page, entities)
     form_ranges = _form_ranges(zoned_page)
