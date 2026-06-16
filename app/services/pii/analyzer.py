@@ -15,28 +15,10 @@ import re
 from collections import defaultdict
 from typing import Literal
 
-# Compiled once at import: institutional name root-words used to detect
-# document-issuing organisations that are context entities, not PII subjects.
-# Heuristic: any NER span containing these roots is a public institution name,
-# not personal data under RGPD Art. 4.
-# LEARNABLE: expand this list from a labelled corpus; or replace with a
-# NER model fine-tuned on Spanish administrative documents.
-_INSTITUTION_NAME_RE = re.compile(
-    r"(?i)\b(?:"
-    r"universitat|universidad|universidade"
-    r"|ajuntament|ayuntamiento"
-    r"|institut(?:o|ució|ución)?"
-    r"|escola\b|escuela"
-    r"|departament\b|departamento"
-    r"|generalitat|govern\b|gobierno"
-    r"|diputaci[oó]|consell(?:eria)?|consej(?:ería|eria)"
-    r"|patronat|patronato"
-    r"|fundaci[oó]"
-    r"|hospital|cl[ií]nica"
-    r"|enginyeria|ingenier[ií]a"
-    r"|t[eè]cnica?\b"
-    r")\b"
-)
+# Institutional name roots used to detect document-issuing organisations that are
+# context entities, not PII subjects (RGPD Art. 4).  Centralised in
+# institution_filter.py and reused here for NER false-positive filtering.
+from app.services.pii.institution_filter import INSTITUTION_NAME_RE as _INSTITUTION_NAME_RE
 
 from presidio_analyzer import AnalyzerEngine, RecognizerRegistry
 from presidio_analyzer.nlp_engine import NlpEngineProvider
