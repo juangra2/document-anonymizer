@@ -23,6 +23,7 @@ from app.services.pii.institution_filter import INSTITUTION_NAME_RE as _INSTITUT
 from presidio_analyzer import AnalyzerEngine, RecognizerRegistry
 from presidio_analyzer.nlp_engine import NlpEngineProvider
 
+from app.services.pii import gazetteer
 from app.services.pii.models import PiiEntity
 from app.services.pii.recognizers_es import build_spanish_pattern_recognizers
 from app.services.pii.validators_es import (
@@ -843,6 +844,30 @@ _COMPACT_ID_TYPES = {
 }
 
 
+# Spanish/Catalan street-type lexicon for the compositional ADDRESS extractor.
+_VIA_TYPES = (
+    r"(?:Calle|C/|Avenida|Avd?a?\.?|Av\.|Avinguda|Carrer|Plaza|Pla[çc]a|Pza\.?|"
+    r"Pl\.|Paseo|Passeig|Pg\.?|Ronda|Rda\.?|Camino|Cam[ií]|Cno\.?|Carretera|"
+    r"Ctra\.?|Traves[íi]a|Travessia|Trav\.?|Glorieta|Gran[ \t]+V[ií]a|V[ií]a|"
+    r"Pol[ií]gono|Pol\.|Urbanitzaci[oó]|Urbanizaci[oó]n|Urb\.|Barrio|Barri)"
+)
+
+# A street type, then up to ~80 chars of street name + number/floor (no sentence
+# break), then a province-valid 5-digit postal code, then an optional capitalised
+# municipality token.  Anchored on a capitalised street name to avoid prose.
+_ADDRESS_GAZETTEER_RE = re.compile(
+    r"(?P<addr>\b(?i:" + _VIA_TYPES + r")\.?[ \t]*"
+    r"(?i:de[ \t]+|del[ \t]+|de[ \t]+la[ \t]+|de[ \t]+les[ \t]+|d'|dels[ \t]+)?"
+    r"[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][^\n:;]{0,80}?"
+    r"\b(?P<cp>(?:0[1-9]|[1-4]\d|5[0-2])\d{3})\b"
+    r"(?:[ \t]+(?P<muni>[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][^\n,;:0-9]{1,38}))?"
+    r")"
+)
+
+# Tokenises the trailing municipality candidate.
+_MUNI_TOKEN_RE = re.compile(r"\S+")
+
+
 class PiiAnalyzer:
     # Label → Presidio entity mapping shared by both NER backends.  Covers spaCy
     # labels (PER/LOC/GPE/ORG) and CAPITEL transformer labels (PER/LOC/ORG/OTH).
@@ -975,6 +1000,7 @@ class PiiAnalyzer:
             entities.extend(self._detect_no_colon_labeled_fields(text, mode=mode))
             entities.extend(self._detect_case_table_rows(text))
             entities.extend(self._detect_role_table_rows(text))
+            entities.extend(self._detect_address_gazetteer(text))
 
         entities.extend(self._detect_direct_regex(text, mode=mode))
         entities.extend(self._detect_ner_entities(text, zone_type=zone_type))
@@ -1660,6 +1686,61 @@ class PiiAnalyzer:
         return parts
 
     # Spanish postal-code pattern (01000–52999) used to extract CP entities
+    @staticmethod
+    def _confirm_municipality(muni_text: str, province: str) -> int | None:
+        """End offset (within *muni_text*) of the longest leading municipality
+        whose INE province code equals *province*; None if none matches.
+        """
+        toks = list(_MUNI_TOKEN_RE.finditer(muni_text))
+        for k in range(min(len(toks), 5), 0, -1):
+            phrase = muni_text[toks[0].start():toks[k - 1].end()]
+            codes = gazetteer.municipality_province_codes(gazetteer.normalize(phrase))
+            if province in codes:
+                return toks[k - 1].end()
+        return None
+
+    @staticmethod
+    def _detect_address_gazetteer(text: str) -> list[PiiEntity]:
+        """Compositional ADDRESS detection: <street type> … <CP> [municipio].
+
+        Recovers unlabeled addresses (no "Domicilio:" anchor) that the
+        context-based patterns miss.  The postal code's first two digits must be
+        a valid province (01–52); when a recognised municipality follows whose
+        INE province matches the CP, the span is extended through it and scored
+        higher (boundary confirmed by the gazetteer).
+        """
+        if not settings.gazetteer_address:
+            return []
+
+        entities: list[PiiEntity] = []
+        for m in _ADDRESS_GAZETTEER_RE.finditer(text):
+            cp = m.group("cp")
+            province = cp[:2]
+            if province not in gazetteer.provinces():
+                continue
+
+            start = m.start("addr")
+            end = m.end("cp")
+            score = 0.62
+
+            muni = m.group("muni")
+            if muni:
+                muni_end = PiiAnalyzer._confirm_municipality(muni, province)
+                if muni_end is not None:
+                    end = m.start("muni") + muni_end
+                    score = 0.80
+
+            entities.append(
+                PiiEntity(
+                    entity_type="ADDRESS",
+                    start=start,
+                    end=end,
+                    score=score,
+                    source="deterministic_regex",
+                )
+            )
+        return entities
+
     # embedded inside ADDRESS spans after _merge_overlaps.
     _CP_IN_ADDRESS_RE = re.compile(r"\b(?:0[1-9]|[1-4]\d|5[0-2])\d{3}\b")
 

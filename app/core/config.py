@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     # Default is "spacy": BETO (mrm8488) was evaluated and regressed PERSON F1
     # (0.80 vs 0.82) and mishandles Valencian/Catalan (span-alignment failures on
     # D'UNA PART:, D.N.I.:).  Engine kept configurable for future opt-in.
+    # INE public gazetteers (surnames/given names + municipalities/provinces).
+    # gazetteer_address: compositional ADDRESS extractor with CP↔province↔
+    #   municipality validation.  gazetteer_person: reinforce low-confidence
+    #   PERSON NER on name/surname matches and drop toponym false positives.
+    gazetteer_address: bool = True
+    gazetteer_person: bool = True
+
     ner_engine: Literal["transformers", "spacy"] = "spacy"
     ner_transformers_model: str = "mrm8488/bert-spanish-cased-finetuned-ner"
     ner_spacy_model: str = "es_core_news_md"
