@@ -47,3 +47,6 @@ model/
 
 # Claude Code internal memory
 .claude/
+
+# INE raw downloads (inputs to scripts/build_gazetteers.py; artefacts are committed)
+data/ine_raw/

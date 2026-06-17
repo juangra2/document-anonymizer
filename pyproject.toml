@@ -41,6 +41,14 @@ transformers-ner = [
     "torch",
 ]
 
+# Build-time only: regenerate INE gazetteers via scripts/build_gazetteers.py.
+# Runtime uses the pre-built text artefacts in app/services/pii/gazetteers/.
+gazetteer-build = [
+    "pandas>=2.0",
+    "openpyxl>=3.1",
+    "xlrd>=2.0",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
