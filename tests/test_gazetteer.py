@@ -83,3 +83,27 @@ def test_address_prose_not_matched():
     # No street type → no spurious address from a bare 5-digit number.
     assert _addrs("según el artículo 28013 del reglamento vigente") == []
     assert _addrs("En Valencia, a 5 de marzo de 2026") == []
+
+
+# --- PERSON gazetteer helpers ---------------------------------------------
+
+def test_name_tokens_normalised():
+    from app.services.pii.analyzer import _name_tokens
+    assert _name_tokens("Juan Pérez García") == ["JUAN", "PEREZ", "GARCIA"]
+
+
+def test_looks_like_toponym():
+    f = PiiAnalyzer._looks_like_toponym
+    assert f("Madrid")            # municipality/province, not a given name
+    assert f("Albacete")
+    assert not f("Juan García")   # real person name
+    assert not f("Cervantes 96")  # not a clean toponym span
+    # Conservative: a toponym that is also a given name (León) is NOT dropped,
+    # so a person genuinely named like a place survives.
+    assert gz.is_toponym("León") and not f("León")
+
+
+def test_person_token_membership():
+    assert gz.is_person_token("GARCIA")
+    assert gz.is_person_token("JUAN")
+    assert not gz.is_person_token("ZZZQX")

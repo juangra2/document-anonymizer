@@ -867,6 +867,14 @@ _ADDRESS_GAZETTEER_RE = re.compile(
 # Tokenises the trailing municipality candidate.
 _MUNI_TOKEN_RE = re.compile(r"\S+")
 
+# Alphabetic word tokens (incl. accented) used for PERSON gazetteer matching.
+_NAME_TOKEN_RE = re.compile(r"[A-Za-zÁÉÍÓÚÑÜáéíóúñüÀÈÒÏÇàèòïç]{2,}")
+
+
+def _name_tokens(value: str) -> list[str]:
+    """Normalised alphabetic tokens of *value* for gazetteer name lookups."""
+    return [gazetteer.normalize(m.group()) for m in _NAME_TOKEN_RE.finditer(value)]
+
 
 class PiiAnalyzer:
     # Label → Presidio entity mapping shared by both NER backends.  Covers spaCy
@@ -1041,11 +1049,19 @@ class PiiAnalyzer:
         # LEARNABLE: optimal per-zone threshold should be calibrated on a labelled
         # corpus; a domain-adapted NER model would make this unnecessary.
         is_dense_body = zone_type == "body"
-        ner_threshold = (
-            max(settings.presidio_score_threshold, 0.75)
-            if is_dense_body
-            else settings.presidio_score_threshold
-        )
+        base_threshold = settings.presidio_score_threshold
+        # In dense body the effective PERSON/LOC/ORG threshold is 0.75 to cut FPs.
+        # When the person gazetteer is on we lower the engine threshold to base so
+        # low-confidence PERSON candidates surface; they are kept below 0.75 only
+        # when backed by an INE name/surname match (the 0.75 gate still applies to
+        # non-PERSON types and to PERSON spans with no gazetteer evidence).
+        if is_dense_body:
+            ner_threshold = (
+                base_threshold if settings.gazetteer_person
+                else max(base_threshold, 0.75)
+            )
+        else:
+            ner_threshold = base_threshold
 
         results = self._engine.analyze(
             text=text,
@@ -1117,13 +1133,36 @@ class PiiAnalyzer:
                 if result.entity_type in {"PERSON", "LOCATION"} and value and value[0].islower():
                     continue
 
-                # In BODY zones with dense legal prose, single-word NER
-                # detections are rarely genuine person/org/location names.
-                # Heuristic: require ≥2 words for NER entities in body text.
-                # LEARNABLE: min_words threshold per zone type.
+                # In BODY zones with dense legal prose, low-confidence and
+                # single-word NER detections are rarely genuine names.  Non-PERSON
+                # types keep the 0.75 threshold + the ≥2-word rule.  PERSON spans
+                # are reinforced with the INE gazetteer: a span below 0.75 or with
+                # a single token is kept only when matched against known Spanish
+                # given names / surnames (recovers low-confidence true positives
+                # without lowering the bar for unmatched spans).
                 if is_dense_body and result.entity_type in NER_ALLOWED_TYPES:
-                    if len(value.split()) < 2:
-                        continue
+                    if result.entity_type == "PERSON" and settings.gazetteer_person:
+                        tokens = _name_tokens(value)
+                        name_hits = sum(
+                            1 for t in tokens if gazetteer.is_person_token(t)
+                        )
+                        gaz_ok = name_hits >= (2 if len(tokens) >= 2 else 1)
+                        confident = result.score >= 0.75 and len(value.split()) >= 2
+                        if not (confident or gaz_ok):
+                            continue
+                    else:
+                        if result.score < 0.75 or len(value.split()) < 2:
+                            continue
+
+                # PERSON spans that are actually a municipality/province name
+                # (INE) are toponym false positives — drop them, unless a token is
+                # a known given name (a person genuinely named like a place).
+                if (
+                    settings.gazetteer_person
+                    and result.entity_type == "PERSON"
+                    and PiiAnalyzer._looks_like_toponym(value)
+                ):
+                    continue
 
                 # Institutional names are context entities (employers, issuers),
                 # not personal data under RGPD Art. 4.  Detected when NER
@@ -1698,6 +1737,15 @@ class PiiAnalyzer:
             if province in codes:
                 return toks[k - 1].end()
         return None
+
+    @staticmethod
+    def _looks_like_toponym(value: str) -> bool:
+        """True if *value* is a municipality/province name with no given-name
+        token — i.e. a place misclassified as PERSON (INE gazetteer)."""
+        norm = gazetteer.normalize(value)
+        if norm not in gazetteer.toponyms():
+            return False
+        return not any(t in gazetteer.given_names() for t in norm.split())
 
     @staticmethod
     def _detect_address_gazetteer(text: str) -> list[PiiEntity]:
