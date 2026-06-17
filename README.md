@@ -1,198 +1,204 @@
 # document-anonymizer
 
-API REST de **anonimización irreversible de documentos PDF** para la administración pública española. Detecta y redacta información personal (PII) de forma física y elimina todos los metadatos del archivo resultante.
+API REST de **anonimización irreversible de documentos PDF** para la administración pública española. Detecta información personal (PII), la **redacta físicamente** sobre el documento (no es un simple recuadro superpuesto) y elimina todos los metadatos del archivo resultante.
 
 ---
 
-## Arquitectura
+## Qué es
 
-El sistema sigue un pipeline **layout-first**: cada página se segmenta en zonas tipadas antes de ejecutar ningún detector de PII.
+Servicio HTTP que recibe un PDF (o imagen escaneada) y devuelve una versión anonimizada en la que los datos personales han sido eliminados de forma permanente del contenido y de los metadatos. Está diseñado para documentos administrativos españoles —resoluciones, notificaciones, certificados, contratos, formularios— en castellano y valenciano/catalán.
+
+---
+
+## Cómo funciona
+
+El sistema sigue un pipeline **layout-first**: cada página se segmenta en zonas tipadas *antes* de ejecutar ningún detector de PII, de modo que cada zona aplica su propia política de detección y redacción.
 
 ```
 PDF / imagen
      │
      ▼
-Inspector  →  ¿Digital / Escaneado / Híbrido?
+1. Inspección        ¿documento digital, escaneado o híbrido?
      │
      ▼
-Segmentador de zonas
-  HEADER · FOOTER · FORM · TABLE · BODY · SIGNATURE · QR_CODE
+2. Segmentación      HEADER · FOOTER · FORM · TABLE · BODY · SIGNATURE · QR_CODE
+   por zonas
      │
      ▼
-Redactor por zona
-  FORM / TABLE  →  redacción estructural (campos y celdas completas)
-  SIGNATURE / QR  →  redacción total automática de la zona
-  BODY / HEADER / FOOTER  →  PiiAnalyzer con tipos restringidos por zona
+3. Detección PII     • FORM / TABLE   → redacción estructural (campos y celdas)
+   y redacción       • SIGNATURE / QR → redacción total de la zona
+   por zona          • BODY/HEADER/…  → análisis PII con tipos restringidos por zona
      │
      ▼
-Verificación post-redacción (4 capas: textual · metadata · binary · OCR)
+4. Verificación      4 capas: textual · metadata · binary · OCR
+   post-redacción    (confirma que no queda PII residual)
      │
      ▼
-PDF anonimizado + informe JSON
+PDF anonimizado + metadatos eliminados
 ```
 
-### Modos de procesamiento
+**Modos de procesamiento** (seleccionados automáticamente según el documento):
 
-| Modo | Descripción |
-|------|-------------|
-| **Digital** | PDF con texto seleccionable — PyMuPDF extrae el texto directamente |
-| **OCR** | Documento escaneado — MinerU analiza el layout y extrae el texto |
-| **Híbrido** | Páginas mixtas — cada página se procesa por el modo que le corresponde |
+- **Digital** — texto extraíble con PyMuPDF; redacción a nivel de palabra mediante mapeo de offsets a rectángulos.
+- **Escaneado (OCR)** — páginas rasterizadas; el texto y su geometría se obtienen por OCR.
+- **Híbrido** — combina texto digital y OCR cuando el PDF mezcla ambos.
 
-### Motores OCR
+**Motores de OCR:** **MinerU** es el motor principal (entiende la estructura del documento: bloques, tablas, cabeceras), con **EasyOCR** como *fallback* automático cuando MinerU no está disponible.
 
-- **MinerU 2.5** (motor principal): analiza el layout completo antes de extraer texto y clasifica cada región en un tipo semántico (texto, título, tabla, cabecera, pie) que alimenta directamente el sistema de zonas.
-- **EasyOCR** (fallback): se activa automáticamente si MinerU no está disponible o falla.
+**Modos de redacción:** `strict` (todas las heurísticas, por defecto) y `balanced` (solo detecciones validadas, menos agresivo).
 
 ---
 
 ## Stack tecnológico
 
-| Capa | Tecnología |
-|------|-----------|
-| Framework web | FastAPI 0.115 + Uvicorn |
-| Detección de PII | Microsoft Presidio 2.2 + spaCy 3.7 (`es_core_news_md`) |
-| Manipulación de PDF | PyMuPDF (fitz) 1.24 |
-| OCR principal | MinerU 2.5 |
-| OCR fallback | EasyOCR |
-| Visión por computador | OpenCV (firmas, QR) |
-| Python | 3.11+ |
+| Componente | Uso |
+|---|---|
+| **Python 3.12** | Lenguaje base |
+| **FastAPI** + Uvicorn | API REST asíncrona |
+| **Microsoft Presidio** | Orquestación de reconocedores de PII |
+| **spaCy** (`es_core_news_md`) | NER de personas y entidades |
+| **PyMuPDF** | Extracción de texto/geometría y redacción física del PDF |
+| **MinerU** | Motor OCR principal con comprensión de layout |
+| **EasyOCR** | Motor OCR de respaldo |
+
+Datos públicos del **INE** (apellidos, nombres y municipios) se usan como *gazetteers* para reforzar la detección de direcciones y personas.
 
 ---
 
 ## Tipos de PII detectados
 
-| Tipo | Descripción |
-|------|-------------|
-| `ES_DNI` | DNI español (`12345678Z`) |
-| `ES_NIE` | NIE de extranjero residente (`X1234567Z`) |
-| `ES_CIF` | CIF de empresa u organismo público |
-| `ES_NSS` | Número de afiliación a la Seguridad Social |
-| `PERSON` | Nombre y apellidos (NER + patrones etiquetados en ES/CA/VAL) |
-| `EMAIL_ADDRESS` | Dirección de correo electrónico |
-| `PHONE_NUMBER` | Número de teléfono español (fijo y móvil) |
-| `IBAN_CODE` | Código IBAN español (`ES...`) |
-| `ADDRESS` | Dirección postal completa con código postal |
-| `POSTAL_CODE` | Código postal de 5 dígitos |
-| `DATE_OF_BIRTH` | Fecha de nacimiento en cualquier formato habitual |
-| `PASSPORT` | Número de pasaporte |
-| `CREDIT_CARD` | Número de tarjeta bancaria (solo con etiqueta explícita) |
-| `IP_ADDRESS` | Dirección IP versión 4 |
-| `LICENSE_PLATE` | Matrícula de vehículo española |
-| `CADASTRAL_REFERENCE` | Referencia catastral de inmueble |
-| `CASE_NUMBER` | Número de expediente administrativo |
-| `PROFESSIONAL_LICENSE` | Número de colegiado profesional |
-| `URL` | Enlace web |
+18 tipos activos sobre el corpus de evaluación:
 
-La detección combina tres mecanismos: **patrones etiquetados** (`DNI: 12345678Z`), **expresiones regulares** en texto libre y **NER** con spaCy para nombres propios. Las etiquetas en valenciano y catalán (`Nom:`, `Cognoms:`, `Adreça:`, `Data de naixement:`…) se detectan igual que en castellano.
+| Tipo | Descripción |
+|---|---|
+| `PERSON` | Nombres y apellidos de personas físicas |
+| `ES_DNI` | DNI español (8 dígitos + letra de control) |
+| `ES_NIE` | NIE de extranjeros (X/Y/Z + 7 dígitos + letra) |
+| `ES_CIF` | CIF de entidades jurídicas |
+| `ES_NSS` | Número de afiliación a la Seguridad Social |
+| `EMAIL_ADDRESS` | Direcciones de correo electrónico |
+| `PHONE_NUMBER` | Teléfonos fijos y móviles (formato español e internacional) |
+| `IBAN_CODE` | Cuentas bancarias IBAN (validación mod-97) |
+| `ADDRESS` | Direcciones postales (extractor compositivo con validación CP↔provincia↔municipio del INE) |
+| `POSTAL_CODE` | Códigos postales (01000–52999) |
+| `PASSPORT` | Números de pasaporte |
+| `IP_ADDRESS` | Direcciones IPv4 |
+| `LICENSE_PLATE` | Matrículas de vehículos |
+| `CASE_NUMBER` | Números de expediente / referencia administrativa |
+| `URL` | Direcciones web |
+| `DATE_OF_BIRTH` | Fecha de nacimiento |
+| `DATE_TIME` | Fechas y horas |
+| `QR_CODE` | Códigos QR / barras (redacción total + análisis del contenido) |
 
 ---
 
 ## Métricas
 
-Evaluadas sobre un corpus sintético de **400 documentos** administrativos en modo `strict`.
+Evaluación sobre un **corpus sintético de 400 documentos administrativos españoles** (castellano y valenciano).
 
-**Globales:** Precisión = 0.913 · Recall = 0.851 · **F1 = 0.881**
+| | Precision | Recall | F1 |
+|---|---|---|---|
+| **Baseline inicial** | 0.719 | 0.753 | 0.736 |
+| **Versión actual** | **0.924** | **0.909** | **0.916** |
 
-| Tipo | F1 | Precisión | Recall |
-|------|----|-----------|--------|
-| ES_CIF | 1.000 | 1.000 | 1.000 |
-| ES_NSS | 1.000 | 1.000 | 1.000 |
-| CASE_NUMBER | 1.000 | 1.000 | 1.000 |
-| ES_DNI | 0.986 | 0.987 | 0.984 |
-| ES_NIE | 0.973 | 0.979 | 0.968 |
-| URL | 0.957 | 1.000 | 0.918 |
-| EMAIL_ADDRESS | 0.950 | 0.939 | 0.961 |
-| PASSPORT | 0.930 | 0.922 | 0.939 |
-| IP_ADDRESS | 0.928 | 1.000 | 0.865 |
-| IBAN_CODE | 0.925 | 0.960 | 0.892 |
-| LICENSE_PLATE | 0.923 | 0.895 | 0.952 |
-| PERSON | 0.833 | 0.856 | 0.811 |
-| DATE_OF_BIRTH | 0.788 | 1.000 | 0.650 |
-| PHONE_NUMBER | 0.735 | 0.652 | 0.841 |
-| POSTAL_CODE | 0.680 | 0.926 | 0.537 |
-| ADDRESS | 0.636 | 0.813 | 0.522 |
+### Métricas actuales por tipo de entidad
 
-> Las métricas corresponden a un corpus sintético y pueden variar en documentos reales en función del tipo de formulario, la calidad del escaneado y las convenciones de redacción de cada organismo.
+| Tipo | Precision | Recall | F1 |
+|---|---|---|---|
+| `CASE_NUMBER` | 1.000 | 1.000 | 1.000 |
+| `ES_DNI` | 0.991 | 0.987 | 0.989 |
+| `ES_NSS` | 0.987 | 0.987 | 0.987 |
+| `ES_NIE` | 0.980 | 0.980 | 0.980 |
+| `ES_CIF` | 1.000 | 0.941 | 0.970 |
+| `EMAIL_ADDRESS` | 0.966 | 0.964 | 0.965 |
+| `IBAN_CODE` | 0.996 | 0.929 | 0.962 |
+| `URL` | 1.000 | 0.918 | 0.957 |
+| `DATE_TIME` | 0.920 | 0.970 | 0.944 |
+| `QR_CODE` | 1.000 | 0.877 | 0.934 |
+| `PASSPORT` | 0.922 | 0.939 | 0.930 |
+| `IP_ADDRESS` | 1.000 | 0.865 | 0.928 |
+| `POSTAL_CODE` | 0.942 | 0.872 | 0.906 |
+| `LICENSE_PLATE` | 0.917 | 0.873 | 0.894 |
+| `ADDRESS` | 0.882 | 0.844 | 0.863 |
+| `DATE_OF_BIRTH` | 0.972 | 0.775 | 0.862 |
+| `PHONE_NUMBER` | 0.855 | 0.829 | 0.842 |
+| `PERSON` | 0.803 | 0.820 | 0.811 |
+
+> El baseline inicial solo se registró a nivel global (F1=0.736); no existe desglose por tipo de aquella versión, por lo que la tabla por entidad refleja únicamente la versión actual.
 
 ---
 
 ## Instalación
 
-**Con MinerU (recomendado):**
+Requiere **Python 3.12**.
 
 ```bash
-git clone <repositorio>
-cd document-anonymizer
+# 1. Entorno virtual
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -e ".[mineru]"
-python -m spacy download es_core_news_md
-mineru-models-download -m pipeline   # descarga los modelos la primera vez
-```
 
-**Solo EasyOCR:**
-
-```bash
+# 2. Dependencias
 pip install -e .
+
+# 3. Modelo de spaCy en español
 python -m spacy download es_core_news_md
 ```
 
-Copia `.env.example` a `.env` y ajusta las variables si es necesario.
-
----
-
-## Arrancar el servidor
+MinerU es opcional (se usa EasyOCR como respaldo). Para habilitarlo:
 
 ```bash
-uvicorn app.main:app --reload
-# API disponible en http://localhost:8000
+pip install -e ".[mineru]"
 ```
+
+## Arranque
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+La API queda disponible en `http://localhost:8000`. Documentación interactiva en `http://localhost:8000/docs`.
 
 ---
 
 ## Uso
 
-### curl
+**Endpoint:** `POST /anonymize`
+
+| Parámetro | Tipo | Descripción |
+|---|---|---|
+| `file` | multipart | Documento a anonimizar (PDF, PNG, JPG/JPEG, TIFF) |
+| `mode` | query | `strict` (por defecto) o `balanced` |
+| `output` | query | `pdf` (por defecto) o `zip` (incluye `report.json`) |
+| `include_entities` | query | `true` para incluir la lista de entidades detectadas en el informe (auditoría) |
+
+**curl**
 
 ```bash
-# Devuelve el PDF anonimizado
-curl -X POST http://localhost:8000/anonymize \
+curl -X POST "http://localhost:8000/anonymize?mode=strict&output=pdf" \
   -F "file=@documento.pdf" \
-  --output documento_anonimizado.pdf
-
-# Devuelve un ZIP con el PDF + informe JSON de auditoría
-curl -X POST "http://localhost:8000/anonymize?output=zip" \
-  -F "file=@documento.pdf" \
-  --output resultado.zip
+  -o documento_anonimizado.pdf
 ```
 
-### Python
+**Python**
 
 ```python
-import httpx
+import requests
 
 with open("documento.pdf", "rb") as f:
-    r = httpx.post(
+    r = requests.post(
         "http://localhost:8000/anonymize",
-        params={"output": "zip"},
+        params={"mode": "strict", "output": "zip", "include_entities": True},
         files={"file": ("documento.pdf", f, "application/pdf")},
-        timeout=120,
     )
 
-print(r.headers["x-anonymization-status"])  # "completed"
-print(r.headers["x-entities-detected"])      # "18"
-print(r.headers["x-residual-entities"])      # "0"
+with open("resultado.zip", "wb") as out:
+    out.write(r.content)
 ```
-
-El parámetro `mode` controla la agresividad: `strict` (por defecto) acepta datos ficticios y no valida checksums; `balanced` valida DNI, NIE, CIF e IBAN matemáticamente para reducir falsos positivos.
 
 ---
 
 ## Limitaciones conocidas
 
-- **ADDRESS y POSTAL_CODE** tienen recall bajo (F1 ≈ 0.64–0.68): los saltos de línea introducidos por la extracción de texto PDF dificultan la detección de direcciones que se parten en dos líneas.
-- **PHONE_NUMBER** tiene precisión baja (P ≈ 0.65): algunos números de referencia o identificadores numéricos se detectan erróneamente como teléfonos.
-- **DATE_OF_BIRTH** tiene recall bajo (R = 0.65): etiquetas muy abreviadas o formatos de fecha poco convencionales pueden no detectarse.
-- El sistema está optimizado para documentos administrativos españoles en **castellano, valenciano y catalán**. Documentos en otros idiomas o con formatos muy heterodoxos tendrán peor rendimiento.
-- Los documentos escaneados con resolución inferior a 150 DPI pueden tener detección incompleta por errores de OCR.
+- **`PERSON` (F1=0.81)** es el tipo con menor precisión: la mayoría de sus falsos positivos provienen de nombres **institucionales** (organismos, empresas, cargos) que el NER confunde con personas físicas.
+- Sistema **optimizado para documentos administrativos españoles** en castellano y valenciano/catalán; otros dominios o idiomas no están garantizados.
+- Las **métricas se han obtenido sobre un corpus sintético** de 400 documentos; el rendimiento sobre documentos reales puede variar.
