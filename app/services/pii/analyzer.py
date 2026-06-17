@@ -490,7 +490,7 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
             r"|ada(?:[^\S\r\n]+en)?"
             r"|at(?:/da)?(?:[^\S\r\n]+a)?"
             r"|[^\S\r\n]+a(?=[^\S\r\n])"
-            r")[^\S\r\n]*\r?\n?[^\S\r\n]*(?P<value>[^\r\n:]+?\d{5}(?:[^\S\r\n]*\r?\n?[^\S\r\n]*[^\r\n,;:\d]+?)?)[^\S\r\n]*(?=\r?\n|$|[^\S\r\n]*[A-Za-záéíóúÁÉÍÓÚüÜñÑ./°ºª]+[^\S\r\n]*:|,)"
+            r")[^\S\r\n]*\r?\n?[^\S\r\n]*(?P<value>[^\r\n:]+?\d{5}(?:[^\S\r\n]*\r?\n?[^\S\r\n]*[^\r\n,;:.\d]{1,30}?)?)[^\S\r\n]*(?=\r?\n|$|[^\S\r\n]*[A-Za-záéíóúÁÉÍÓÚüÜñÑ./°ºª]+[^\S\r\n]*:|,|\.)"
         ),
         0.88,
     ),
@@ -866,6 +866,39 @@ _ADDRESS_GAZETTEER_RE = re.compile(
 
 # Tokenises the trailing municipality candidate.
 _MUNI_TOKEN_RE = re.compile(r"\S+")
+
+# Residential dwelling marker (floor + door): the strongest "personal address"
+# signal in the corpus (0 institutional FPs).  When present, the institutional-
+# context guards below never fire.
+_FLOOR_DOOR_RE = re.compile(
+    r"(?i)(?:\d{1,3}\s*[ºªo]\s*[A-D]\b|\bbaix(?:os)?\b|\bbajo\b|[àa]tico|[àa]tic|"
+    r"entresuelo|entresòl|\besc\.|\bpiso\b|\bpta\.|\bpuerta\b|\bporta\b|"
+    r"\bdcha\b|\bdcho\b|\bizq\b|\bizda\b|\besquerra\b)"
+)
+
+# "s/n" (sin número): used by institutional premises, never by a dwelling.
+_SN_RE = re.compile(r"(?i)\bs/n\b")
+
+# Signing-location tail: an address immediately followed by the signing date
+# ("…València, a 1 de junio de 2024") is where the document was signed — an
+# institutional location, not a data subject's home (272 FPs, 0 TPs).
+_SIGN_DATE_TAIL_RE = re.compile(
+    r"(?i)^[ \t]*[.,;]?[ \t]*\(?[^\n)]{0,18}\)?[ \t]*[.,;]?[ \t]*"
+    r"al?[ \t]+\d{1,2}[ \t]+d[e']"
+)
+
+# Institutional/issuer prefix immediately before the street type: signing
+# clauses ("…document/certificado en"), campus locators and issuer letterhead
+# lines ("Ajuntament de … · <address>").
+_ISSUER_PREFIX_RE = re.compile(
+    r"(?i)(?:"
+    r"document(?:o|os)?[ \t]+en|certificat[ \t]+en|certificado[ \t]+en|"
+    r"expedi[dt]o?[ \t]+en|emès?[ \t]+en|emitido[ \t]+en|"
+    r"signat[ \t]+(?:\w+[ \t]+){0,3}en|signen[ \t]+(?:\w+[ \t]+){0,4}en|"
+    r"f(?:i|e)rma[dt]o?[ \t]+en|firman[ \t]+(?:\w+[ \t]+){0,4}en|"
+    r"campus[ \t]+\w+|[·•]"
+    r")[ \t,]*$"
+)
 
 # Alphabetic word tokens (incl. accented) used for PERSON gazetteer matching.
 _NAME_TOKEN_RE = re.compile(r"[A-Za-zÁÉÍÓÚÑÜáéíóúñüÀÈÒÏÇàèòïç]{2,}")
@@ -1748,6 +1781,23 @@ class PiiAnalyzer:
         return not any(t in gazetteer.given_names() for t in norm.split())
 
     @staticmethod
+    def _is_institutional_address(text: str, start: int, end: int, addr_text: str) -> bool:
+        """True for issuer/signing-location addresses (no residential dwelling).
+
+        Caller guarantees the span has no floor/door marker.  Institutional iff:
+        followed by a signing date ("…, a 1 de junio de 2024"), uses "s/n" as the
+        number, or is preceded by a signing/issuer cue ("…documento en", a campus
+        locator, or an issuer letterhead "·" separator).
+        """
+        if _SIGN_DATE_TAIL_RE.match(text[end:end + 40]):
+            return True
+        if _SN_RE.search(addr_text):
+            return True
+        if _ISSUER_PREFIX_RE.search(text[max(0, start - 40):start]):
+            return True
+        return False
+
+    @staticmethod
     def _detect_address_gazetteer(text: str) -> list[PiiEntity]:
         """Compositional ADDRESS detection: <street type> … <CP> [municipio].
 
@@ -1756,6 +1806,11 @@ class PiiAnalyzer:
         a valid province (01–52); when a recognised municipality follows whose
         INE province matches the CP, the span is extended through it and scored
         higher (boundary confirmed by the gazetteer).
+
+        Institutional/issuer addresses (signing locations, ayuntamiento/hospital/
+        campus premises) are skipped: they are not personal data and the GT does
+        not annotate them.  A residential dwelling marker (floor + door) overrides
+        the institutional guards, as it never appears on institutional premises.
         """
         if not settings.gazetteer_address:
             return []
@@ -1777,6 +1832,12 @@ class PiiAnalyzer:
                 if muni_end is not None:
                     end = m.start("muni") + muni_end
                     score = 0.80
+
+            addr_text = text[start:end]
+            if not _FLOOR_DOOR_RE.search(addr_text) and PiiAnalyzer._is_institutional_address(
+                text, start, end, addr_text
+            ):
+                continue
 
             entities.append(
                 PiiEntity(

@@ -85,6 +85,60 @@ def test_address_prose_not_matched():
     assert _addrs("En Valencia, a 5 de marzo de 2026") == []
 
 
+# --- institutional-context guard (A) --------------------------------------
+
+def test_institutional_addresses_rejected():
+    for text in [
+        # signing location (followed by signing date)
+        "signen el present document en Campus Nord, Av. de la Ciència, s/n, "
+        "46022 València, a 1 de junio de 2024",
+        # issuer letterhead "·" separator
+        "Ajuntament de Bellaterra · Plaza de la Vila, 1, 08193 Cerdanyola",
+        # signing verb prefix + signing date
+        "expedido en Plaza del Hospital, 2, 46300 Utiel, a 5 de mayo",
+        "Paseo de España, 20, 15002 A Coruña, a 3 de marzo de 2025",
+    ]:
+        assert _addrs(text) == [], text
+
+
+def test_sn_without_dwelling_rejected():
+    assert _addrs("Carrer de la Universitat, 3, s/n, 43500 Tortosa") == []
+
+
+def test_floor_door_overrides_institutional_guard():
+    # A residential dwelling marker keeps the address even in a signing clause.
+    text = "firmado en Calle de Cervantes, 96, 5º C, 28013 Madrid, a 1 de junio"
+    out = _addrs(text)
+    assert len(out) == 1 and out[0][1].startswith("Calle de Cervantes")
+
+
+def test_personal_work_center_address_kept():
+    # No institutional cue → personal address kept (recall preserved).
+    out = _addrs("centro habitual de trabajo Instituto X, "
+                 "Paseo de la Merced, 109, 18002 Granada")
+    assert len(out) == 1 and "18002 Granada" in out[0][1]
+
+
+# --- prose-pattern over-extension bound (B) -------------------------------
+
+def test_format_c_does_not_overextend_into_prose():
+    a = PiiAnalyzer()
+    text = (
+        "El trabajador, con domicilio en Trav. de la Paz, 4, Bajo D, 30003 "
+        "Murcia. Reconociéndose capacidad legal para el otorgamiento del "
+        "presente documento."
+    )
+    spans = [
+        text[e.start:e.end]
+        for e in a.analyze(text, mode="strict", zone_type="body")
+        if e.entity_type == "ADDRESS"
+    ]
+    assert spans, "address should still be detected"
+    for s in spans:
+        assert "Reconociéndose" not in s
+        assert len(s) <= 45
+
+
 # --- PERSON gazetteer helpers ---------------------------------------------
 
 def test_name_tokens_normalised():
