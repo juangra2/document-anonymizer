@@ -893,6 +893,18 @@ _ADDRESS_GAZETTEER_RE = re.compile(
 # Tokenises the trailing municipality candidate.
 _MUNI_TOKEN_RE = re.compile(r"\S+")
 
+# Textual signature attribution: "Fdo.: NAME", "Signat (electrònicament) per
+# NAME", "Firmado (electrónicamente) por NAME".  The captured name is validated
+# against the INE gazetteer to drop role titles ("Fdo.: El Secretario") and
+# institutions ("Firmado por la Universitat …").
+_SIGNATURE_NAME_RE = re.compile(
+    r"(?i)(?:fdo\.?|signat(?:[^\S\r\n]+(?:electr[oò]nicament[^\S\r\n]+)?per)?|"
+    r"firmat(?:[^\S\r\n]+per)?|firmado(?:[^\S\r\n]+(?:electr[oó]nicamente[^\S\r\n]+)?por)?|"
+    r"firma)[^\S\r\n]*:?[^\S\r\n]*"
+    r"(?P<value>[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’\-]+"
+    r"(?:[^\S\r\n]+(?:de|del|la|les|dels|i|y)?[^\S\r\n]*[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’\-]+){1,4})"
+)
+
 # Administrative case-file number after an "Expedient/Expediente" label
 # (e.g. E-03001-2022-000074-00).  Only used when redact_case_file_number is on.
 _CASE_FILE_NUMBER_RE = re.compile(
@@ -1080,6 +1092,7 @@ class PiiAnalyzer:
             entities.extend(self._detect_case_table_rows(text))
             entities.extend(self._detect_role_table_rows(text))
             entities.extend(self._detect_address_gazetteer(text))
+            entities.extend(self._detect_signature_block_names(text))
 
         entities.extend(self._detect_direct_regex(text, mode=mode))
         entities.extend(self._detect_ner_entities(text, zone_type=zone_type))
@@ -1835,6 +1848,33 @@ class PiiAnalyzer:
             if province in codes:
                 return toks[k - 1].end()
         return None
+
+    @staticmethod
+    def _detect_signature_block_names(text: str) -> list[PiiEntity]:
+        """PERSON names in textual signature attributions ("Fdo.: NAME").
+
+        Gated by the INE gazetteer for precision: the captured value must contain
+        a known Spanish given name or surname and must not be an institution
+        name — this drops role titles and "Firmado por la <organismo>".
+        """
+        entities: list[PiiEntity] = []
+        for m in _SIGNATURE_NAME_RE.finditer(text):
+            value = m.group("value")
+            if _INSTITUTION_NAME_RE.search(value):
+                continue
+            tokens = _name_tokens(value)
+            if not tokens or not any(gazetteer.is_person_token(t) for t in tokens):
+                continue
+            entities.append(
+                PiiEntity(
+                    entity_type="PERSON",
+                    start=m.start("value"),
+                    end=m.end("value"),
+                    score=0.90,
+                    source="deterministic_regex",
+                )
+            )
+        return entities
 
     @staticmethod
     def _looks_like_toponym(value: str) -> bool:
