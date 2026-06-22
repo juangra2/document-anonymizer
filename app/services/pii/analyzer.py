@@ -533,6 +533,32 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         0.80,
     ),
     (
+        # REGISTRY_NUMBER — output/input register ("N. Eixida / N. Salida":
+        # 00128-2022-093281).  Identifies the specific communication addressed to
+        # a citizen, so it is always redacted.  Distinct from CASE_NUMBER (which
+        # requires a 2–5 letter prefix); here the leading group is purely numeric
+        # and the middle group is a 4-digit year.
+        "REGISTRY_NUMBER",
+        r"\b\d{4,6}-(?:19|20)\d{2}-\d{5,8}\b",
+        0.85,
+    ),
+    (
+        # CERT_SERIAL — digital-certificate serial number bound to an electronic
+        # signature (e.g. 10657193681292795182).  Standalone 18–22 digit run;
+        # other Spanish identifiers in this length range (IBAN, NSS, phone) carry
+        # letters or are shorter, so this does not collide with them.
+        "CERT_SERIAL",
+        r"\b\d{18,22}\b",
+        0.80,
+    ),
+    (
+        # CERT_SERIAL — context-anchored form ("Núm. sèrie cert: <hex/dec>")
+        # for serials shorter than 18 digits or written in hexadecimal.
+        "CERT_SERIAL",
+        r"(?i)(?:n[uú]m\.?[^\S\r\n]*s[eè]rie|n[uú]mero[^\S\r\n]+de[^\S\r\n]+serie|s[eè]rie[^\S\r\n]+(?:del[^\S\r\n]+)?cert\w*)[^\n:]{0,20}[:\s][^\S\r\n]*(?P<value>[0-9A-Fa-f]{8,40})\b",
+        0.85,
+    ),
+    (
         "PROFESSIONAL_LICENSE",
         r"\b(?:COACV[-/_.]?\d{3,}|COA[-/_.]?[A-Z0-9]{3,}|COL[-/_.][A-Z0-9]{3,}|COLEG[-/_.][A-Z0-9]{3,})\b",
         0.80,
@@ -867,6 +893,18 @@ _ADDRESS_GAZETTEER_RE = re.compile(
 # Tokenises the trailing municipality candidate.
 _MUNI_TOKEN_RE = re.compile(r"\S+")
 
+# Administrative case-file number after an "Expedient/Expediente" label
+# (e.g. E-03001-2022-000074-00).  Only used when redact_case_file_number is on.
+_CASE_FILE_NUMBER_RE = re.compile(
+    r"(?i)expedient(?:e)?[^\n:]{0,12}:[^\S\r\n]*"
+    r"(?P<value>[A-Z]-\d{4,6}-\d{4}-\d{4,8}(?:-\d{2})?)"
+)
+
+# Value shape of the municipal case-file number (single letter + dashed groups).
+# Used to keep it out of redaction when redact_case_file_number is off, without
+# affecting the corpus's letter-prefixed/slash CASE_NUMBER formats.
+_CASE_FILE_VALUE_RE = re.compile(r"(?i)^[A-Z]-\d{4,6}-\d{4}-\d{4,8}(?:-\d{2})?$")
+
 # Residential dwelling marker (floor + door): the strongest "personal address"
 # signal in the corpus (0 institutional FPs).  When present, the institutional-
 # context guards below never fire.
@@ -1048,6 +1086,18 @@ class PiiAnalyzer:
 
         merged = self._merge_overlaps(entities)
         merged.extend(self._extract_postal_codes_from_addresses(text, merged))
+
+        # Policy: the administrative case-file number (E-03001-2022-000074-00) is
+        # a public reference; keep it unless explicitly enabled.  The output
+        # register number is a different type (REGISTRY_NUMBER) and unaffected.
+        if not settings.redact_case_file_number:
+            merged = [
+                e for e in merged
+                if not (
+                    e.entity_type == "CASE_NUMBER"
+                    and _CASE_FILE_VALUE_RE.match(text[e.start:e.end])
+                )
+            ]
         return merged
 
     @staticmethod
@@ -1456,6 +1506,21 @@ class PiiAnalyzer:
                         start=start,
                         end=end,
                         score=score,
+                        source="deterministic_regex",
+                    )
+                )
+
+        # Administrative case-file number ("Expedient/Expediente: E-03001-2022-
+        # 000074-00").  Public reference by policy → only redacted when explicitly
+        # enabled.  The leading single letter means it never matches CASE_NUMBER.
+        if settings.redact_case_file_number:
+            for match in re.finditer(_CASE_FILE_NUMBER_RE, text):
+                entities.append(
+                    PiiEntity(
+                        entity_type="CASE_NUMBER",
+                        start=match.start("value"),
+                        end=match.end("value"),
+                        score=0.85,
                         source="deterministic_regex",
                     )
                 )

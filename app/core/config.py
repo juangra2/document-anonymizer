@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     gazetteer_address: bool = True
     gazetteer_person: bool = True
 
+    # Redact the administrative case-file number (e.g. E-03001-2022-000074-00).
+    # Off by default: the expediente is a public administrative reference.  The
+    # output-register / "número de salida" is always redacted (it identifies the
+    # specific communication addressed to a citizen).
+    redact_case_file_number: bool = False
+
     ner_engine: Literal["transformers", "spacy"] = "spacy"
     ner_transformers_model: str = "mrm8488/bert-spanish-cased-finetuned-ner"
     ner_spacy_model: str = "es_core_news_md"

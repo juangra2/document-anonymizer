@@ -39,6 +39,8 @@ ALL_PII_TYPES: list[str] = [
     "LICENSE_PLATE",
     "CADASTRAL_REFERENCE",
     "CASE_NUMBER",
+    "REGISTRY_NUMBER",
+    "CERT_SERIAL",
     "PROFESSIONAL_LICENSE",
     "POSTAL_CODE",
     "URL",
@@ -95,9 +97,12 @@ _HEADER_CONFIG = ZoneDetectorConfig(
     apply_layout_analysis=False,
 )
 
-# Pie de página: mostly case references and URLs.
+# Pie de página: case references, URLs, and the electronic-signature block
+# (certificate serials and output-register numbers).  CERT_SERIAL and
+# REGISTRY_NUMBER are high-precision deterministic patterns, so enabling them in
+# the footer does not add false positives.
 _FOOTER_CONFIG = ZoneDetectorConfig(
-    entity_types=["CASE_NUMBER", "URL"],
+    entity_types=["CASE_NUMBER", "URL", "CERT_SERIAL", "REGISTRY_NUMBER"],
     apply_layout_analysis=False,
 )
 
