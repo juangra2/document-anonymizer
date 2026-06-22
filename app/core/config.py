@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     # specific communication addressed to a citizen).
     redact_case_file_number: bool = False
 
+    # Detect and redact handwritten signatures (embedded images / ink) in the
+    # digital PDF path, anchored to a signature cue ("Fdo.", "Firma", …).
+    detect_visual_signatures: bool = True
+
     ner_engine: Literal["transformers", "spacy"] = "spacy"
     ner_transformers_model: str = "mrm8488/bert-spanish-cased-finetuned-ner"
     ner_spacy_model: str = "es_core_news_md"

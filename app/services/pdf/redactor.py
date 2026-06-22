@@ -31,6 +31,7 @@ from app.services.pii.analyzer import PiiAnalyzer
 from app.services.pii.institution_filter import filter_institutional
 from app.services.pii.models import PiiEntity
 from app.services.vision.code_detector import detect_and_decode_visual_codes, detect_visual_code_rects
+from app.services.vision.signature_region import detect_signature_rects
 
 # Render DPI used only for visual QR detection — not full-page OCR.
 # 300 DPI gives ~5–6 px/module for small QR codes (contrato_laboral, notificacion)
@@ -65,6 +66,10 @@ def redact_pdf_digital(
             # DigitalPageSegmenter works on text only and cannot detect visual codes;
             # we render the page at low DPI and scan for QR codes separately.
             _add_visual_qr_zones(page, zoned_page)
+
+            # Add SIGNATURE zones for handwritten signatures (images / ink).
+            if settings.detect_visual_signatures:
+                _add_signature_zones(page, zoned_page, page_text)
 
             page_rects, page_entities, page_layout_count = _collect_redaction_rects(
                 zoned_page=zoned_page,
@@ -295,6 +300,20 @@ def _center_in_any(rect: fitz.Rect, containers: list[fitz.Rect]) -> bool:
         if c.x0 - 1.5 <= cx <= c.x1 + 1.5 and c.y0 - 1.5 <= cy <= c.y1 + 1.5:
             return True
     return False
+
+
+def _add_signature_zones(page: fitz.Page, zoned_page, page_text) -> None:
+    """Append SIGNATURE zones for handwritten signatures (in-place).
+
+    SIGNATURE zones are auto-redacted (whole rect), like QR_CODE zones.
+    """
+    for rect in detect_signature_rects(page, page_text):
+        zoned_page.zones.append(PageZone(
+            zone_type=ZoneType.SIGNATURE,
+            rect=rect,
+            text="",
+            source="digital",
+        ))
 
 
 def _add_visual_qr_zones(page: fitz.Page, zoned_page) -> None:
