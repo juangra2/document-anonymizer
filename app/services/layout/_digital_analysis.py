@@ -30,11 +30,48 @@ SENSITIVE_TABLE_HEADER_KEYWORDS = {
     "contacto", "email", "correo", "telefono", "teléfono",
     "direccion", "dirección", "datos", "anonimizar",
     "valor", "ejemplo", "ip", "token", "usuario", "iban", "tarjeta",
+    "apellido", "cognom",
 }
 
 FULL_CELL_REDACTION_HEADER_KEYWORDS = SENSITIVE_TABLE_HEADER_KEYWORDS
 
-NON_SENSITIVE_TABLE_HEADER_KEYWORDS = {"id caso", "id", "caso"}
+# Short/ambiguous headers matched by EXACT normalized equality.  A substring
+# match would over-trigger ("nom" inside "nomina"), so these are sensitive only
+# when the whole cell equals one of them.  Covers the fragmented person-name
+# columns and the electronic-signature footer table.
+EXACT_SENSITIVE_HEADERS = {
+    "nom", "data", "fecha",
+    "primer apellido", "segundo apellido", "primer cognom", "segon cognom",
+    "nom complet", "nom i cognoms",
+}
+
+# Person-identity headers: recognise a name split across columns even without a
+# "persona/datos" shape word.
+IDENTITY_HEADERS = {
+    "nombre", "nom", "nom complet", "nom i cognoms", "apellidos", "cognoms",
+    "primer apellido", "segundo apellido", "primer cognom", "segon cognom",
+}
+
+# Headers in the "Signat electrònicament per" footer table that are NOT personal
+# data: the role prefix (Antefirma) and the certificate issuer (e.g. ACCV).
+NON_SENSITIVE_TABLE_HEADER_KEYWORDS = {
+    "id caso", "id", "caso",
+    "antefirma", "emissor", "emisor", "emissor cert", "emisor cert",
+    "emissor del certificat", "emisor del certificado", "expedidor",
+}
+
+# Field labels that, when they occupy a whole row on their own, carry their
+# value on the row immediately below (vertical label→value layout, common in the
+# address sub-form: "Nombre" / "paseo de la castellana").
+VERTICAL_VALUE_LABELS = {
+    "nombre", "nom", "nombre de la via", "nom de la via",
+    "tipo de via", "tipus de via",
+    "primer apellido", "segundo apellido", "apellidos", "apellido",
+    "primer cognom", "segon cognom", "cognoms", "cognom",
+    "domicilio", "direccion", "adreca", "adreça",
+    "poblacion", "municipio", "localidad", "provincia",
+    "codigo postal", "codi postal",
+}
 
 TABLE_STOP_PREFIXES = {
     "observacion", "observación", "nota",
@@ -50,6 +87,7 @@ def analyze_digital_layout(page_text: PageText) -> DigitalLayoutAnalysis:
     layout_zone_rects: list[fitz.Rect] = []
 
     _collect_field_value_rows(rows, redaction_rects, protected_rects, layout_zone_rects)
+    _collect_vertical_field_value_rows(rows, redaction_rects, protected_rects, layout_zone_rects)
     _collect_multicolumn_tables(rows, redaction_rects, protected_rects, layout_zone_rects)
 
     return DigitalLayoutAnalysis(
@@ -87,6 +125,54 @@ def _collect_field_value_rows(
         protected_rects.append(_rect_for_words(label_words, padding=0.8))
         redaction_rects.append(_rect_for_words(value_words, padding=0.8))
         layout_zone_rects.append(_rect_for_words(row, padding=1.2))
+
+
+def _collect_vertical_field_value_rows(
+    rows: list[list[WordBox]],
+    redaction_rects: list[fitz.Rect],
+    protected_rects: list[fitz.Rect],
+    layout_zone_rects: list[fitz.Rect],
+) -> None:
+    """Redact values laid out *below* their label (vertical label→value).
+
+    Handles the address sub-form where a label occupies a whole row and its
+    value is on the next row ("Nombre" / "paseo de la castellana").  The label
+    row is protected and the value row redacted, with strict adjacency and
+    horizontal-overlap guards to avoid redacting unrelated rows.
+    """
+    for i in range(len(rows) - 1):
+        row = rows[i]
+        if not row:
+            continue
+        if normalize_token(_row_text(row)) not in VERTICAL_VALUE_LABELS:
+            continue
+
+        label_rect = _rect_for_words(row)
+        next_row = rows[i + 1]
+        if not next_row:
+            continue
+
+        next_rect = _rect_for_words(next_row)
+        gap = next_rect.y0 - label_rect.y1
+        if gap < -2.0 or gap > max(20.0, label_rect.height * 2.2):
+            continue
+        # The value must sit roughly under the label's column.
+        if next_rect.x1 < label_rect.x0 - 4.0 or next_rect.x0 > label_rect.x1 + 60.0:
+            continue
+
+        value_text = normalize_token(_row_text(next_row))
+        if not value_text or value_text in VERTICAL_VALUE_LABELS:
+            continue
+        if _looks_like_header_or_static_text(value_text):
+            continue
+        # Don't fire when the value row is itself a label:value row (handled
+        # horizontally) — i.e. it already starts with a recognised label.
+        if find_label_length_at_row_start([normalize_token(w.text) for w in next_row]):
+            continue
+
+        protected_rects.append(label_rect)
+        redaction_rects.append(_rect_for_words(next_row, padding=0.8))
+        layout_zone_rects.append(_rect_for_words(row + next_row, padding=1.2))
 
 
 def _collect_multicolumn_tables(
@@ -227,13 +313,39 @@ def _is_sensitive_multicolumn_header(cells: list[list[WordBox]]) -> bool:
     has_shape = any(
         kw in joined for kw in ("persona", "documento", "contacto", "direccion", "datos")
     )
-    return hits >= 3 and has_shape
+    if hits >= 3 and has_shape:
+        return True
+
+    # A person name split across columns (Nombre | Primer apellido | Segundo
+    # apellido) has no "persona/datos" shape word but is clearly sensitive.
+    identity_hits = sum(
+        1 for t in cell_texts
+        if t in IDENTITY_HEADERS or "apellido" in t or "cognom" in t
+    )
+    if identity_hits >= 2:
+        return True
+
+    # Electronic-signature footer table: Antefirma | Nom | Data | Emissor cert |
+    # Núm. sèrie cert.  Recognised by the Nom+Data pair or a cert-serial header.
+    esig = (
+        ("nom" in cell_texts and any(t in ("data", "fecha") for t in cell_texts))
+        or any("serie" in t and ("cert" in t or "certificat" in t) for t in cell_texts)
+    )
+    if esig and hits >= 2:
+        return True
+
+    return False
 
 
 def _is_sensitive_header_cell(text: str) -> bool:
     normalized = normalize_token(text)
     if normalized in NON_SENSITIVE_TABLE_HEADER_KEYWORDS:
         return False
+    if normalized in EXACT_SENSITIVE_HEADERS:
+        return True
+    # Certificate serial number column ("Núm. sèrie cert", "Número de serie").
+    if "serie" in normalized and ("cert" in normalized or "certificat" in normalized):
+        return True
     return any(kw in normalized for kw in SENSITIVE_TABLE_HEADER_KEYWORDS)
 
 

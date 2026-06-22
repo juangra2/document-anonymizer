@@ -9,6 +9,10 @@ from app.services.pdf.extractor import PageText, WordBox
 FIELD_LABELS: list[list[str]] = [
     ["nombre", "completo"],
     ["nombre"],
+    ["primer", "apellido"],
+    ["segundo", "apellido"],
+    ["apellidos"],
+    ["apellido"],
     ["persona"],
 
     ["fecha", "de", "nacimiento"],
@@ -112,7 +116,10 @@ FIELD_LABELS: list[list[str]] = [
     ["nom", "complet"],
     ["nom", "i", "cognoms"],
     ["nom"],
+    ["primer", "cognom"],
+    ["segon", "cognom"],
     ["cognoms"],
+    ["cognom"],
     ["sollicitant"],
     ["data", "de", "naixement"],
     ["data", "naixement"],
