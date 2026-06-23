@@ -559,6 +559,15 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         0.85,
     ),
     (
+        # CSV — Código Seguro de Verificación / Codi Segur de Verificació.
+        # Context-anchored: a per-document identifier that links the document to
+        # the citizen.  Anchored to the label to avoid matching arbitrary codes.
+        "CSV",
+        r"(?i)(?:CSV|c[oó]di(?:go|)[^\S\r\n]+seg(?:uro|ur)[^\S\r\n]+de[^\S\r\n]+verificaci[oó]n?)"
+        r"[^\S\r\n]*[:\-]?[^\S\r\n]*(?P<value>[A-Z0-9]{8,44})\b",
+        0.90,
+    ),
+    (
         "PROFESSIONAL_LICENSE",
         r"\b(?:COACV[-/_.]?\d{3,}|COA[-/_.]?[A-Z0-9]{3,}|COL[-/_.][A-Z0-9]{3,}|COLEG[-/_.][A-Z0-9]{3,})\b",
         0.80,
@@ -893,6 +902,13 @@ _ADDRESS_GAZETTEER_RE = re.compile(
 # Tokenises the trailing municipality candidate.
 _MUNI_TOKEN_RE = re.compile(r"\S+")
 
+# OCR-tolerant labelled IBAN: an IBAN/cuenta/compte label followed by an ES code
+# where digits may have been misread as O/I/L.  Validated by mod-97 afterwards.
+_OCR_IBAN_RE = re.compile(
+    r"(?i)\b(?:iban|cuenta|compte|c\.?c\.?c\.?)\b[^\n:]{0,12}[:\s][^\S\r\n]*"
+    r"(?P<value>ES[0-9OIL][0-9OIL](?:[ \-]?[0-9OIL]){18,22})"
+)
+
 # Textual signature attribution: "Fdo.: NAME", "Signat (electrònicament) per
 # NAME", "Firmado (electrónicamente) por NAME".  The captured name is validated
 # against the INE gazetteer to drop role titles ("Fdo.: El Secretario") and
@@ -1095,6 +1111,7 @@ class PiiAnalyzer:
             entities.extend(self._detect_signature_block_names(text))
 
         entities.extend(self._detect_direct_regex(text, mode=mode))
+        entities.extend(self._detect_ocr_iban(text))
         entities.extend(self._detect_ner_entities(text, zone_type=zone_type))
 
         merged = self._merge_overlaps(entities)
@@ -1848,6 +1865,37 @@ class PiiAnalyzer:
             if province in codes:
                 return toks[k - 1].end()
         return None
+
+    @staticmethod
+    def _detect_ocr_iban(text: str) -> list[PiiEntity]:
+        """Recover OCR-mangled Spanish IBANs in a labelled context.
+
+        Scanned OCR confuses O↔0 and I/l↔1, so a valid IBAN may fail the strict
+        regex.  Anchored to an IBAN/cuenta/compte label (to stay precise), this
+        normalises those confusions and keeps the span only if mod-97 passes.
+        """
+        entities: list[PiiEntity] = []
+        for m in _OCR_IBAN_RE.finditer(text):
+            raw = m.group("value")
+            normalized = (
+                raw.upper().replace(" ", "").replace("-", "")
+                .replace("O", "0").replace("I", "1").replace("L", "1")
+            )
+            # Keep the ES country prefix letters, normalise the rest to digits.
+            if not normalized.startswith("ES"):
+                continue
+            candidate = "ES" + normalized[2:]
+            if is_valid_spanish_iban(candidate):
+                entities.append(
+                    PiiEntity(
+                        entity_type="IBAN_CODE",
+                        start=m.start("value"),
+                        end=m.end("value"),
+                        score=0.92,
+                        source="deterministic_regex",
+                    )
+                )
+        return entities
 
     @staticmethod
     def _detect_signature_block_names(text: str) -> list[PiiEntity]:

@@ -41,6 +41,7 @@ ALL_PII_TYPES: list[str] = [
     "CASE_NUMBER",
     "REGISTRY_NUMBER",
     "CERT_SERIAL",
+    "CSV",
     "PROFESSIONAL_LICENSE",
     "POSTAL_CODE",
     "URL",
@@ -102,7 +103,7 @@ _HEADER_CONFIG = ZoneDetectorConfig(
 # REGISTRY_NUMBER are high-precision deterministic patterns, so enabling them in
 # the footer does not add false positives.
 _FOOTER_CONFIG = ZoneDetectorConfig(
-    entity_types=["CASE_NUMBER", "URL", "CERT_SERIAL", "REGISTRY_NUMBER"],
+    entity_types=["CASE_NUMBER", "URL", "CERT_SERIAL", "REGISTRY_NUMBER", "CSV"],
     apply_layout_analysis=False,
 )
 
