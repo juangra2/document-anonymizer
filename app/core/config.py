@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     # digital PDF path, anchored to a signature cue ("Fdo.", "Firma", …).
     detect_visual_signatures: bool = True
 
+    # Detect and redact stamp/seal graphics (circular/elliptical marks, e.g.
+    # notarial seals carrying an ID number) in the scanned/OCR path.
+    detect_visual_stamps: bool = True
+
     ner_engine: Literal["transformers", "spacy"] = "spacy"
     ner_transformers_model: str = "mrm8488/bert-spanish-cased-finetuned-ner"
     ner_spacy_model: str = "es_core_news_md"

@@ -37,6 +37,7 @@ from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services.pii.models import PiiEntity
 from app.services.vision.code_detector import detect_visual_code_rects
+from app.services.vision.scanned_marks import detect_stamp_rects
 
 logger = logging.getLogger(__name__)
 
@@ -228,6 +229,8 @@ def redact_pdf_scanned(
                         page_index,
                     )
                     code_rects = detect_visual_code_rects(image)
+                    if settings.detect_visual_stamps:
+                        code_rects = code_rects + detect_stamp_rects(image)
                     draw = ImageDraw.Draw(image)
                     for rect in code_rects:
                         draw.rectangle(

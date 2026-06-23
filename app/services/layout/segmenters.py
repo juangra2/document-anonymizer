@@ -37,7 +37,7 @@ from PIL import Image
 from app.services.layout.models import PageZone, ZoneToken, ZonedPage, ZoneType
 from app.services.ocr.form_layout import OcrFormLayoutAnalyzer, padded_rect
 from app.services.ocr.models import OcrPage, OcrToken
-from app.services.ocr.signature_detector import detect_signature_rect
+from app.services.vision.scanned_marks import detect_signature_rects, detect_stamp_rects
 from app.services.ocr.table_layout import OcrTableLayoutAnalyzer
 from app.services.layout._digital_analysis import (
     DigitalLayoutAnalysis,
@@ -306,8 +306,14 @@ class OcrPageSegmenter:
         # Visual zones (engine-agnostic — always require image)
         visual_zones: list[PageZone] = []
         if image is not None:
-            sig_rect = detect_signature_rect(image=image, tokens=tokens)
-            if sig_rect is not None:
+            from app.core.config import settings
+
+            sig_rects: list[fitz.Rect] = []
+            if settings.detect_visual_signatures:
+                sig_rects = detect_signature_rects(image=image, tokens=tokens)
+            if settings.detect_visual_stamps:
+                sig_rects = sig_rects + detect_stamp_rects(image=image)
+            for sig_rect in sig_rects:
                 visual_zones.append(PageZone(
                     zone_type=ZoneType.SIGNATURE,
                     rect=sig_rect,
