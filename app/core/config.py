@@ -77,6 +77,22 @@ class Settings(BaseSettings):
     ocr_pdf_render_dpi: int = 200
     ocr_second_pass_verification: bool = True
 
+    # Per-page OCR budget (seconds).  A page that exceeds it (e.g. a very large
+    # blueprint that stalls the OCR engine) is skipped, logged, and flagged for
+    # manual review instead of hanging the whole job.
+    ocr_page_timeout_s: int = 180
+
+    # "Image-dominant" page fast path: a page whose largest embedded image covers
+    # at least this fraction of the page AND exceeds this pixel count is treated
+    # as a plan/photo — heavy text OCR is skipped (only visual codes/signatures
+    # are redacted), avoiding multi-minute stalls.  The megapixel floor is set
+    # well above a normal A4 scan (~9 MP at 300 DPI) so ordinary scanned text
+    # pages still get full OCR.  The megapixel floor (25 MP) clears a 600-DPI A4
+    # scan, so only oversized plans (A1/A0, tens of MP) take the fast path; the
+    # per-page timeout is the safety net for everything in between.
+    ocr_image_dominant_area_frac: float = 0.70
+    ocr_image_dominant_megapixels: float = 25.0
+
     # Post-redaction verification thresholds [0.0–1.0].
     # review  : risk >= threshold → manual_review_required = True.
     # reject  : risk >= threshold → RedactionVerificationError raised.

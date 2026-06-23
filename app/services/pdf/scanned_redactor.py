@@ -15,7 +15,9 @@ Flow per page
 """
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -34,6 +36,55 @@ from app.services.ocr.models import OcrPage
 from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services.pii.models import PiiEntity
+from app.services.vision.code_detector import detect_visual_code_rects
+
+logger = logging.getLogger(__name__)
+
+
+def _run_with_timeout(fn, timeout_s: int):
+    """Run *fn* in a worker thread, returning its result or raising on timeout.
+
+    On timeout the worker thread is abandoned (Python cannot force-kill it); the
+    caller skips the page so the overall job still completes.
+    """
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(fn)
+    try:
+        return future.result(timeout=timeout_s)
+    finally:
+        executor.shutdown(wait=False)
+
+
+def _is_image_dominant_page(page: fitz.Page) -> bool:
+    """True for plan/photo pages: a very large image covering most of the page.
+
+    Distinguishes high-resolution blueprints (which stall the OCR engine) from
+    ordinary scanned text pages by requiring a high pixel count, not just area.
+    """
+    page_rect = page.rect
+    page_area = page_rect.width * page_rect.height
+    if page_area <= 0:
+        return False
+
+    try:
+        images = page.get_images(full=True)
+    except Exception:
+        return False
+
+    for im in images:
+        xref = im[0]
+        w_px = im[2] if len(im) > 2 else 0
+        h_px = im[3] if len(im) > 3 else 0
+        if (w_px * h_px) / 1_000_000.0 < settings.ocr_image_dominant_megapixels:
+            continue
+        try:
+            rects = page.get_image_rects(xref)
+        except Exception:
+            continue
+        for r in rects:
+            if (r.width * r.height) / page_area >= settings.ocr_image_dominant_area_frac:
+                return True
+    return False
 
 
 def redact_pdf_scanned(
@@ -58,6 +109,7 @@ def redact_pdf_scanned(
     redacted_count = 0
     confidence_values: list[float] = []
     low_confidence_pages: list[int] = []
+    skipped_pages: list[int] = []
     warnings: list[str] = []
 
     try:
@@ -71,13 +123,18 @@ def redact_pdf_scanned(
                 try:
                     native_ocr_pages = ocr_engine.analyze_pdf(input_path)
                 except Exception as exc:
-                    import logging
-                    logging.getLogger(__name__).warning(
+                    logger.warning(
                         "Native PDF analysis failed (%s); falling back to raster OCR", exc
                     )
 
-            for page_index, page in enumerate(source_doc):
-                image = _render_page_to_image(page, dpi=settings.ocr_pdf_render_dpi)
+            def _process_page_heavy(page_index: int, image: Image.Image) -> dict:
+                """OCR + segment + collect + draw + second pass for one page.
+
+                Runs under a per-page timeout; draws on a copy so the caller can
+                fall back to the un-redacted original if it times out.
+                """
+                page = source_doc[page_index]
+                work_image = image.copy()
 
                 if native_ocr_pages is not None and page_index < len(native_ocr_pages):
                     ocr_page = native_ocr_pages[page_index]
@@ -85,17 +142,10 @@ def redact_pdf_scanned(
                     page_image_path = tmp_dir / f"page_{page_index + 1}.png"
                     image.save(page_image_path)
                     ocr_page = ocr_engine.analyze_image(
-                        image_path=page_image_path,
-                        page_index=page_index,
+                        image_path=page_image_path, page_index=page_index,
                     )
 
-                if ocr_page.avg_confidence is not None:
-                    confidence_values.append(ocr_page.avg_confidence)
-                    if ocr_page.avg_confidence < 0.75:
-                        low_confidence_pages.append(page_index)
-
-                zoned_page = segmenter.segment(ocr_page, image=image)
-
+                zoned_page = segmenter.segment(ocr_page, image=work_image)
                 page_rects, page_entities = _collect_redaction_rects(
                     zoned_page=zoned_page,
                     analyzer=analyzer,
@@ -103,33 +153,80 @@ def redact_pdf_scanned(
                     collect_entities=collect_entities,
                 )
 
-                all_entities.extend(page_entities)
-                redacted_count += len(page_rects)
-
-                draw = ImageDraw.Draw(image)
+                draw = ImageDraw.Draw(work_image)
                 for rect in page_rects:
                     draw.rectangle(
                         [int(rect.x0), int(rect.y0), int(rect.x1), int(rect.y1)],
                         fill="black",
                     )
 
+                residuals: list[PiiEntity] = []
                 if settings.ocr_second_pass_verification:
                     redacted_path = tmp_dir / f"page_{page_index + 1}_redacted.png"
-                    image.save(redacted_path)
-
+                    work_image.save(redacted_path)
                     residual_ocr = ocr_engine.analyze_image(
-                        image_path=redacted_path,
-                        page_index=page_index,
+                        image_path=redacted_path, page_index=page_index,
                     )
                     residual_zoned = segmenter.segment(residual_ocr)
-                    _, residual_entities = _collect_redaction_rects(
-                        zoned_page=residual_zoned,
-                        analyzer=analyzer,
-                        mode=mode,
+                    _, residuals = _collect_redaction_rects(
+                        zoned_page=residual_zoned, analyzer=analyzer, mode=mode,
                     )
-                    all_residual_entities.extend(residual_entities)
 
-                _append_image_as_pdf_page(output_doc, image, page.rect)
+                return {
+                    "image": work_image,
+                    "entities": page_entities,
+                    "residuals": residuals,
+                    "rect_count": len(page_rects),
+                    "confidence": ocr_page.avg_confidence,
+                }
+
+            for page_index, page in enumerate(source_doc):
+                image = _render_page_to_image(page, dpi=settings.ocr_pdf_render_dpi)
+
+                # Fast path: oversized plan/photo page → skip heavy text OCR and
+                # redact only visual codes (and, later, signatures/stamps).
+                if _is_image_dominant_page(page):
+                    logger.warning(
+                        "Page %d is image-dominant (plan/photo); skipping full OCR.",
+                        page_index,
+                    )
+                    code_rects = detect_visual_code_rects(image)
+                    draw = ImageDraw.Draw(image)
+                    for rect in code_rects:
+                        draw.rectangle(
+                            [int(rect.x0), int(rect.y0), int(rect.x1), int(rect.y1)],
+                            fill="black",
+                        )
+                    redacted_count += len(code_rects)
+                    skipped_pages.append(page_index)
+                    _append_image_as_pdf_page(output_doc, image, page.rect)
+                    continue
+
+                # Per-page timeout: a stalled page is skipped (un-redacted) and
+                # flagged for manual review rather than hanging the whole job.
+                try:
+                    result = _run_with_timeout(
+                        lambda: _process_page_heavy(page_index, image),
+                        settings.ocr_page_timeout_s,
+                    )
+                except FuturesTimeout:
+                    logger.warning(
+                        "Page %d exceeded the %ds OCR budget; skipping (manual review).",
+                        page_index, settings.ocr_page_timeout_s,
+                    )
+                    skipped_pages.append(page_index)
+                    _append_image_as_pdf_page(output_doc, image, page.rect)
+                    continue
+
+                all_entities.extend(result["entities"])
+                all_residual_entities.extend(result["residuals"])
+                redacted_count += result["rect_count"]
+                if result["confidence"] is not None:
+                    confidence_values.append(result["confidence"])
+                    if result["confidence"] < 0.75:
+                        low_confidence_pages.append(page_index)
+
+                _append_image_as_pdf_page(output_doc, result["image"], page.rect)
 
         output_doc.set_metadata({})
         try:
@@ -158,6 +255,11 @@ def redact_pdf_scanned(
         warnings.append(
             "Residual PII-like entities detected after OCR redaction. Manual review required."
         )
+    if skipped_pages:
+        warnings.append(
+            "Pages skipped (image-dominant or OCR timeout) and not fully redacted: "
+            f"{sorted(skipped_pages)}. Manual review required."
+        )
 
     confidence_avg = (
         sum(confidence_values) / len(confidence_values) if confidence_values else None
@@ -174,7 +276,9 @@ def redact_pdf_scanned(
         entities_by_type=analyzer.count_by_type(all_entities),
         residual_entities=residual_count,
         residual_entities_by_type=residual_by_type,
-        manual_review_required=bool(low_confidence_pages) or residual_count > 0,
+        manual_review_required=(
+            bool(low_confidence_pages) or residual_count > 0 or bool(skipped_pages)
+        ),
         warnings=warnings,
         redaction_mode=mode,
         limits=ProcessingLimits(
