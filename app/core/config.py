@@ -48,11 +48,14 @@ class Settings(BaseSettings):
 
     # Detect and redact handwritten signatures (embedded images / ink) in the
     # digital PDF path, anchored to a signature cue ("Fdo.", "Firma", …).
-    detect_visual_signatures: bool = True
+    # Off by default: the current heuristics over-redact (legitimate text/logos);
+    # re-enable per deployment once thresholds are calibrated.
+    detect_visual_signatures: bool = False
 
     # Detect and redact stamp/seal graphics (circular/elliptical marks, e.g.
     # notarial seals carrying an ID number) in the scanned/OCR path.
-    detect_visual_stamps: bool = True
+    # Off by default for the same reason (circular logos were over-redacted).
+    detect_visual_stamps: bool = False
 
     ner_engine: Literal["transformers", "spacy"] = "spacy"
     ner_transformers_model: str = "mrm8488/bert-spanish-cased-finetuned-ner"

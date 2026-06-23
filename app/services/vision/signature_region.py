@@ -155,7 +155,9 @@ def _ink_region(image: Image.Image, band: fitz.Rect, scale: float) -> fitz.Rect 
             continue
         comps.append((x, y, cw, ch))
 
-    if len(comps) < 2:    # a single blob is more likely printed text/noise
+    # A handwritten signature is a few connected strokes: <2 is noise/a printed
+    # word, >12 is a block of printed text — neither is a signature.
+    if not 2 <= len(comps) <= 12:
         return None
 
     min_x = min(c[0] for c in comps)

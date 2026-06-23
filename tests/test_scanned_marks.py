@@ -50,12 +50,17 @@ def test_signature_cue_in_header_excluded():
 # --- stamps ---------------------------------------------------------------
 
 def test_stamp_circle_detected():
+    # A realistic seal: thick concentric rings plus several text lines / marks
+    # inside (the tightened detector requires this internal structure).
     img = _blank()
     d = ImageDraw.Draw(img)
     cx, cy, r = 300, 430, 70
-    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline="black", width=4)
-    d.ellipse([cx - r + 12, cy - r + 12, cx + r - 12, cy + r - 12], outline="black", width=2)
-    d.text((cx - 45, cy - 6), "SELLO 0247235145", fill="black")
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline="black", width=8)
+    d.ellipse([cx - r + 10, cy - r + 10, cx + r - 10, cy + r - 10], outline="black", width=4)
+    d.text((cx - 55, cy - 30), "AYUNTAMIENTO DE", fill="black")
+    d.text((cx - 35, cy - 12), "VALENCIA", fill="black")
+    d.text((cx - 50, cy + 6), "SELLO 0247235145", fill="black")
+    d.text((cx - 30, cy + 24), "REGISTRO", fill="black")
     rects = detect_stamp_rects(img)
     assert rects, "stamp circle should be detected"
     r0 = rects[0]
@@ -64,3 +69,35 @@ def test_stamp_circle_detected():
 
 def test_blank_page_no_stamp():
     assert detect_stamp_rects(_blank()) == []
+
+
+# --- default-off gating at the segmenter level ----------------------------
+
+def test_visual_detectors_off_by_default():
+    from app.core.config import settings
+    assert settings.detect_visual_signatures is False
+    assert settings.detect_visual_stamps is False
+
+
+def test_segmenter_skips_visual_marks_when_disabled(monkeypatch):
+    import fitz as _fitz
+    from app.core.config import settings
+    from app.services.layout.models import ZoneType
+    from app.services.layout.segmenters import OcrPageSegmenter
+    from app.services.ocr.models import OcrPage, OcrToken
+
+    img = _blank()
+    _draw_ink(img, 170, 395)
+    page = OcrPage(0, 600, 800, [
+        OcrToken("Firma", 0.9, _fitz.Rect(100, 400, 140, 415)),
+        OcrToken("cuerpo", 0.9, _fitz.Rect(100, 200, 200, 215)),
+    ])
+
+    monkeypatch.setattr(settings, "detect_visual_signatures", False)
+    monkeypatch.setattr(settings, "detect_visual_stamps", False)
+    zoned = OcrPageSegmenter().segment(page, image=img)
+    assert not any(z.zone_type == ZoneType.SIGNATURE for z in zoned.zones)
+
+    monkeypatch.setattr(settings, "detect_visual_signatures", True)
+    zoned_on = OcrPageSegmenter().segment(page, image=img)
+    assert any(z.zone_type == ZoneType.SIGNATURE for z in zoned_on.zones)

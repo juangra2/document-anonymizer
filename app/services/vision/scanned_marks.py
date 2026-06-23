@@ -66,10 +66,16 @@ def detect_signature_rects(
             int(min(w, a.x0 + w * 0.42)),
             int(min(h, a.y1 + h * 0.05)),
         )
-        ink = _ink_bbox(bgr, band, max_w=w * 0.35, max_h=h * 0.12)
+        ink = _ink_bbox(bgr, band, max_w=w * 0.30, max_h=h * 0.10)
         if ink is not None:
             rects.append(ink)
     return _dedupe(rects)
+
+
+# A handwritten signature is a few connected strokes; a block of printed text
+# yields many small components.  Above this count the region is treated as text
+# and not redacted.
+_MAX_SIGNATURE_COMPONENTS = 12
 
 
 def _ink_bbox(
@@ -99,7 +105,8 @@ def _ink_bbox(
             continue
         comps.append((x, y, cw, ch))
 
-    if len(comps) < 2:    # a single blob is usually printed text or noise
+    if not 2 <= len(comps) <= _MAX_SIGNATURE_COMPONENTS:
+        # <2: single blob (noise / a printed word); >max: a block of printed text.
         return None
 
     min_x = min(c[0] for c in comps)
@@ -140,9 +147,11 @@ def detect_stamp_rects(image: Image.Image) -> list[fitz.Rect]:
     if max_r <= min_r:
         return []
 
+    # param2 raised (60 → 90: stronger accumulator) so only well-defined
+    # circular seals pass — not every faint or partial round shape.
     circles = cv2.HoughCircles(
-        gray, cv2.HOUGH_GRADIENT, dp=1.2, minDist=int(min(w, h) * 0.10),
-        param1=120, param2=60, minRadius=min_r, maxRadius=max_r,
+        gray, cv2.HOUGH_GRADIENT, dp=1.2, minDist=int(min(w, h) * 0.12),
+        param1=140, param2=90, minRadius=min_r, maxRadius=max_r,
     )
     if circles is None:
         return []
@@ -152,7 +161,7 @@ def detect_stamp_rects(image: Image.Image) -> list[fitz.Rect]:
     for cx, cy, r in np.round(circles[0]).astype(int):
         if cy - r < header_cut:        # header logo band
             continue
-        if not _has_ink_inside(gray, cx, cy, r):
+        if not _looks_like_seal(gray, cx, cy, r):
             continue
         rects.append(fitz.Rect(
             max(0, cx - r), max(0, cy - r),
@@ -161,16 +170,19 @@ def detect_stamp_rects(image: Image.Image) -> list[fitz.Rect]:
     return _dedupe(rects)
 
 
-def _has_ink_inside(gray: np.ndarray, cx: int, cy: int, r: int) -> bool:
-    """True when the disc has a moderate amount of dark pixels (text/marks)."""
+def _looks_like_seal(gray: np.ndarray, cx: int, cy: int, r: int) -> bool:
+    """True when the disc carries seal-like ink: a moderate dark fraction.
+
+    A blank outlined circle has too little ink (< 0.08); a solid blob, photo or
+    filled logo has too much (> 0.45).  A seal (rings + text) sits in between.
+    """
     h, w = gray.shape[:2]
     x0, y0, x1, y1 = max(0, cx - r), max(0, cy - r), min(w, cx + r), min(h, cy + r)
     patch = gray[y0:y1, x0:x1]
     if patch.size == 0:
         return False
     dark_frac = float(np.mean(patch < 128))
-    # A seal has rings + text: enough ink, but not a solid black blob.
-    return 0.04 <= dark_frac <= 0.60
+    return 0.08 <= dark_frac <= 0.45
 
 
 def _dedupe(rects: list[fitz.Rect], tol: float = 4.0) -> list[fitz.Rect]:
