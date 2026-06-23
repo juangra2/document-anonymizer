@@ -31,7 +31,7 @@ from app.services.layout.models import PageZone, ZoneToken, ZoneType
 from app.services.layout.segmenters import OcrPageSegmenter
 from app.services.layout.zone_config import get_detector_config
 from app.services.ocr.base import OcrEngine
-from app.services.ocr.factory import get_ocr_engine
+from app.services.ocr.factory import get_ocr_engine, get_word_ocr_engine
 from app.services.ocr.models import OcrPage
 from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pii.analyzer import PiiAnalyzer
@@ -53,6 +53,26 @@ def _run_with_timeout(fn, timeout_s: int):
         return future.result(timeout=timeout_s)
     finally:
         executor.shutdown(wait=False)
+
+
+def _assign_hints_from_layout(word_page: OcrPage, layout_page: OcrPage) -> None:
+    """Copy each layout block's zone_hint onto the word tokens it contains.
+
+    Geometry comes from word-level OCR (tight boxes); zone classification comes
+    from the layout engine (MinerU).  Both run on the same rendered image, so a
+    word's centre falling inside a block inherits that block's hint.
+    """
+    blocks = [b for b in layout_page.tokens if b.zone_hint]
+    if not blocks:
+        return
+    for word in word_page.tokens:
+        cx = (word.rect.x0 + word.rect.x1) / 2
+        cy = (word.rect.y0 + word.rect.y1) / 2
+        for block in blocks:
+            r = block.rect
+            if r.x0 <= cx <= r.x1 and r.y0 <= cy <= r.y1:
+                word.zone_hint = block.zone_hint
+                break
 
 
 def _is_image_dominant_page(page: fitz.Page) -> bool:
@@ -99,6 +119,12 @@ def redact_pdf_scanned(
     inspection = inspect_pdf_for_phase1(input_path)
 
     ocr_engine = get_ocr_engine()
+    # Redaction geometry uses word/line-level OCR for tight, aligned boxes; the
+    # primary engine (e.g. MinerU) is used only for zone classification when it
+    # provides layout.  When the primary already is EasyOCR, the same instance is
+    # reused (single OCR pass).
+    word_engine = get_word_ocr_engine(ocr_engine)
+    provides_layout = ocr_engine.provides_layout
     segmenter = OcrPageSegmenter()
 
     source_doc = fitz.open(input_path)
@@ -133,17 +159,28 @@ def redact_pdf_scanned(
                 Runs under a per-page timeout; draws on a copy so the caller can
                 fall back to the un-redacted original if it times out.
                 """
-                page = source_doc[page_index]
                 work_image = image.copy()
 
-                if native_ocr_pages is not None and page_index < len(native_ocr_pages):
-                    ocr_page = native_ocr_pages[page_index]
-                else:
-                    page_image_path = tmp_dir / f"page_{page_index + 1}.png"
-                    image.save(page_image_path)
-                    ocr_page = ocr_engine.analyze_image(
-                        image_path=page_image_path, page_index=page_index,
-                    )
+                # Zone classification from the layout engine (MinerU), if any.
+                layout_page: OcrPage | None = None
+                if provides_layout:
+                    if native_ocr_pages is not None and page_index < len(native_ocr_pages):
+                        layout_page = native_ocr_pages[page_index]
+                    else:
+                        layout_path = tmp_dir / f"page_{page_index + 1}_layout.png"
+                        image.save(layout_path)
+                        layout_page = ocr_engine.analyze_image(
+                            image_path=layout_path, page_index=page_index,
+                        )
+
+                # Geometry + text from the word/line-level engine.
+                page_image_path = tmp_dir / f"page_{page_index + 1}.png"
+                image.save(page_image_path)
+                ocr_page = word_engine.analyze_image(
+                    image_path=page_image_path, page_index=page_index,
+                )
+                if layout_page is not None:
+                    _assign_hints_from_layout(ocr_page, layout_page)
 
                 zoned_page = segmenter.segment(ocr_page, image=work_image)
                 page_rects, page_entities = _collect_redaction_rects(
@@ -164,7 +201,7 @@ def redact_pdf_scanned(
                 if settings.ocr_second_pass_verification:
                     redacted_path = tmp_dir / f"page_{page_index + 1}_redacted.png"
                     work_image.save(redacted_path)
-                    residual_ocr = ocr_engine.analyze_image(
+                    residual_ocr = word_engine.analyze_image(
                         image_path=redacted_path, page_index=page_index,
                     )
                     residual_zoned = segmenter.segment(residual_ocr)

@@ -24,6 +24,23 @@ from app.services.ocr.base import OcrEngine
 logger = logging.getLogger(__name__)
 
 _engine_cache: OcrEngine | None = None
+_word_engine_cache: OcrEngine | None = None
+
+
+def get_word_ocr_engine(primary: OcrEngine | None = None) -> OcrEngine:
+    """Word/line-level OCR engine (EasyOCR) used for redaction geometry.
+
+    The primary engine (e.g. MinerU) may only emit block-level boxes, which are
+    too coarse for character-accurate redaction.  This returns a token-level
+    engine for precise coordinates, reusing the primary when it already is one.
+    """
+    global _word_engine_cache
+    if primary is not None and primary.engine_name == "easyocr":
+        return primary
+    if _word_engine_cache is None:
+        from app.core.config import settings
+        _word_engine_cache = _make_easyocr(settings.ocr_use_gpu)
+    return _word_engine_cache
 
 
 def get_ocr_engine() -> OcrEngine:
