@@ -358,6 +358,7 @@ def _collect_redaction_rects(
     """
     rects: list[fitz.Rect] = []
     entities: list[PiiEntity] = []
+    easy_line_h = _median_height(easy_words) if easy_words else 0.0
 
     for zone in zoned_page.zones:
 
@@ -415,7 +416,9 @@ def _collect_redaction_rects(
 
         for entity in local_entities:
             if easy_words is not None:
-                entity_rects = _entity_rects_via_easy(entity, zone, easy_words)
+                entity_rects = _entity_rects_via_easy(
+                    entity, zone, easy_words, easy_line_h
+                )
             else:
                 entity_rects = _entity_rects_from_zone(entity, zone)
 
@@ -462,32 +465,54 @@ def _region_for_entity(entity: PiiEntity, zone: PageZone) -> fitz.Rect:
     return region if region is not None else fitz.Rect(zone.rect)
 
 
+def _median_height(words: list) -> float:
+    heights = sorted(w.rect.y1 - w.rect.y0 for w in words if w.rect.height > 0)
+    return heights[len(heights) // 2] if heights else 0.0
+
+
+def _cluster_by_line(candidates: list, line_h: float) -> list[list]:
+    """Group (word, shared_tokens) candidates into visual lines by y-proximity."""
+    gap = max(8.0, line_h * 0.7) if line_h > 0 else 10.0
+    items = sorted(candidates, key=lambda c: (c[0].rect.y0 + c[0].rect.y1) / 2)
+    clusters: list[list] = []
+    current: list = []
+    last_cy: float | None = None
+    for word, shared in items:
+        cy = (word.rect.y0 + word.rect.y1) / 2
+        if last_cy is None or abs(cy - last_cy) <= gap:
+            current.append((word, shared))
+        else:
+            clusters.append(current)
+            current = [(word, shared)]
+        last_cy = cy
+    if current:
+        clusters.append(current)
+    return clusters
+
+
 def _entity_rects_via_easy(
     entity: PiiEntity,
     zone: PageZone,
     easy_words: list,
+    line_h: float = 0.0,
 ) -> list[fitz.Rect]:
     """Map an entity (detected in clean layout text) to word-level OCR boxes.
 
-    The entity's text is matched, token by token, against the word-level OCR
-    boxes that fall inside the layout token's region.  If every entity token is
-    covered by matched words, those tight boxes are used; otherwise (e.g. OCR
-    misread part of a name) the whole region is redacted — never a leak.
+    Matching is by content across the page — NOT bounded to the layout token's
+    rect, which for MinerU table rows is badly misaligned with the real text.
+    Matched words are grouped into visual lines and the lines that add new
+    entity-token coverage are kept (handles wrapped entities while ignoring a
+    same-token collision on an unrelated line).  When no word matches, only a
+    SMALL layout region is used as fallback; a large multi-line block is left
+    untouched rather than painted over (the paragraph over-redaction bug).
     """
     region = _region_for_entity(entity, zone)
     ent_tokens = _content_tokens(zone.text[entity.start:entity.end])
     if not ent_tokens:
-        return [_padded(region)]
+        return [_padded(region)] if _small(region, line_h) else []
 
-    pad = 2.0
-    matched: list[fitz.Rect] = []
-    covered: set[str] = set()
+    candidates: list = []
     for word in easy_words:
-        cx = (word.rect.x0 + word.rect.x1) / 2
-        cy = (word.rect.y0 + word.rect.y1) / 2
-        if not (region.x0 - pad <= cx <= region.x1 + pad
-                and region.y0 - pad <= cy <= region.y1 + pad):
-            continue
         w_tokens = _content_tokens(word.text)
         if not w_tokens:
             continue
@@ -495,13 +520,54 @@ def _entity_rects_via_easy(
         # Require the word to be mostly part of the entity (rules out a nearby
         # reference that merely shares a short digit group).
         if shared and len(shared) / len(w_tokens) > 0.5:
-            matched.append(_padded(fitz.Rect(word.rect)))
-            covered |= shared
+            candidates.append((word, shared))
 
-    if matched and covered >= ent_tokens:
-        return matched
-    # Incomplete word coverage → redact the whole region (safe, no leak).
-    return [_padded(region)]
+    if not candidates:
+        # Nothing matched: fall back only for a small region; never paint a big
+        # multi-line block (almost always an NER false positive on a paragraph).
+        return [_padded(region)] if _small(region, line_h) else []
+
+    rcx = (region.x0 + region.x1) / 2
+    rcy = (region.y0 + region.y1) / 2
+
+    def coverage(cluster: list) -> set:
+        out: set = set()
+        for _, shared in cluster:
+            out |= shared
+        return out
+
+    def distance(cluster: list) -> float:
+        cy = sum((w.rect.y0 + w.rect.y1) / 2 for w, _ in cluster) / len(cluster)
+        cx = sum((w.rect.x0 + w.rect.x1) / 2 for w, _ in cluster) / len(cluster)
+        return abs(cy - rcy) + abs(cx - rcx)
+
+    clusters = _cluster_by_line(candidates, line_h)
+    clusters.sort(key=lambda cl: (-len(coverage(cl)), distance(cl)))
+
+    rects: list[fitz.Rect] = []
+    covered: set = set()
+    for cluster in clusters:
+        cov = coverage(cluster)
+        if cov - covered:
+            rects.extend(_padded(fitz.Rect(w.rect)) for w, _ in cluster)
+            covered |= cov
+        if covered >= ent_tokens:
+            break
+
+    if covered >= ent_tokens:
+        return rects
+    # Incomplete coverage (e.g. OCR misread part of a name): cover the whole
+    # region if it is small (no leak), but never paint a big multi-line block.
+    if _small(region, line_h):
+        return [_padded(region)]
+    return rects
+
+
+def _small(region: fitz.Rect, line_h: float) -> bool:
+    """True when a region is at most ~2 text lines tall (safe to fully redact)."""
+    if line_h <= 0:
+        return region.height <= 60.0
+    return region.height <= line_h * 2.5
 
 
 def _entity_rects_from_zone(

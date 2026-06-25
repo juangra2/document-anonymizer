@@ -76,6 +76,31 @@ def test_csv_value_maps_to_single_word_box():
     assert rects[0].x0 <= 122 and rects[0].x1 >= 318
 
 
+def _body_zone(text, rect):
+    zt = ZoneToken(text=text, rect=fitz.Rect(*rect), text_offset=0)
+    return PageZone(zone_type=ZoneType.BODY, rect=fitz.Rect(*rect), text=text,
+                    tokens=[zt], source="ocr")
+
+
+def test_large_block_incomplete_coverage_not_fully_painted():
+    # Tall multi-line block (e.g. an NER false positive on a paragraph) with
+    # only partial word coverage → must NOT paint the whole block.
+    text = "frase larga que el sistema marca como persona por error en el bloque"
+    zone = _body_zone(text, (50, 200, 1000, 380))   # 180 px tall
+    ent = PiiEntity("PERSON", 0, len(text), 0.9)
+    easy = [_tok("frase", 55, 205, 95, 223), _tok("larga", 100, 205, 150, 223)]
+    rects = _entity_rects_via_easy(ent, zone, easy, line_h=20.0)
+    for r in rects:
+        assert (r.y1 - r.y0) <= 30, "must not paint the multi-line block"
+
+
+def test_no_match_large_region_skipped():
+    zone = _body_zone("texto", (50, 200, 1000, 380))
+    ent = PiiEntity("PERSON", 0, 5, 0.9)
+    easy = [_tok("otracosa", 55, 205, 120, 223)]   # no shared token
+    assert _entity_rects_via_easy(ent, zone, easy, line_h=20.0) == []
+
+
 def test_incomplete_word_coverage_falls_back_to_region():
     # Entity tokens partly OCR-misread in the word layer → cannot cover all
     # tokens → redact the whole region rather than leak the misread part.
