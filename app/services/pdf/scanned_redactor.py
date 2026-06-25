@@ -16,6 +16,7 @@ Flow per page
 from __future__ import annotations
 
 import logging
+import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from io import BytesIO
@@ -35,6 +36,7 @@ from app.services.ocr.factory import get_ocr_engine, get_word_ocr_engine
 from app.services.ocr.models import OcrPage
 from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pii.analyzer import PiiAnalyzer
+from app.services.pii.gazetteer import normalize as _norm_token
 from app.services.pii.models import PiiEntity
 from app.services.vision.code_detector import detect_visual_code_rects
 from app.services.vision.scanned_marks import detect_stamp_rects
@@ -54,26 +56,6 @@ def _run_with_timeout(fn, timeout_s: int):
         return future.result(timeout=timeout_s)
     finally:
         executor.shutdown(wait=False)
-
-
-def _assign_hints_from_layout(word_page: OcrPage, layout_page: OcrPage) -> None:
-    """Copy each layout block's zone_hint onto the word tokens it contains.
-
-    Geometry comes from word-level OCR (tight boxes); zone classification comes
-    from the layout engine (MinerU).  Both run on the same rendered image, so a
-    word's centre falling inside a block inherits that block's hint.
-    """
-    blocks = [b for b in layout_page.tokens if b.zone_hint]
-    if not blocks:
-        return
-    for word in word_page.tokens:
-        cx = (word.rect.x0 + word.rect.x1) / 2
-        cy = (word.rect.y0 + word.rect.y1) / 2
-        for block in blocks:
-            r = block.rect
-            if r.x0 <= cx <= r.x1 and r.y0 <= cy <= r.y1:
-                word.zone_hint = block.zone_hint
-                break
 
 
 def _is_image_dominant_page(page: fitz.Page) -> bool:
@@ -174,21 +156,31 @@ def redact_pdf_scanned(
                             image_path=layout_path, page_index=page_index,
                         )
 
-                # Geometry + text from the word/line-level engine.
+                # Word/line-level OCR — used for redaction geometry.
                 page_image_path = tmp_dir / f"page_{page_index + 1}.png"
                 image.save(page_image_path)
                 ocr_page = word_engine.analyze_image(
                     image_path=page_image_path, page_index=page_index,
                 )
-                if layout_page is not None:
-                    _assign_hints_from_layout(ocr_page, layout_page)
 
-                zoned_page = segmenter.segment(ocr_page, image=work_image)
+                # A1: detect PII on the layout engine's clean, ordered text
+                # (MinerU) when available — its blocks keep IBANs/CSV/names
+                # contiguous, unlike the reordered word stream — and map the
+                # spans to the word-level boxes for tight geometry.  Without a
+                # layout engine, detect and place on the word OCR directly.
+                if layout_page is not None:
+                    zoned_page = segmenter.segment(layout_page, image=work_image)
+                    easy_words = ocr_page.tokens
+                else:
+                    zoned_page = segmenter.segment(ocr_page, image=work_image)
+                    easy_words = None
+
                 page_rects, page_entities = _collect_redaction_rects(
                     zoned_page=zoned_page,
                     analyzer=analyzer,
                     mode=mode,
                     collect_entities=collect_entities,
+                    easy_words=easy_words,
                 )
 
                 draw = ImageDraw.Draw(work_image)
@@ -356,8 +348,14 @@ def _collect_redaction_rects(
     analyzer: PiiAnalyzer,
     mode: str,
     collect_entities: bool = False,
+    easy_words: list | None = None,
 ) -> tuple[list[fitz.Rect], list[PiiEntity]]:
-    """Return (pixel_rects_to_redact, pii_entities_found)."""
+    """Return (pixel_rects_to_redact, pii_entities_found).
+
+    When *easy_words* is provided (A1), PII is detected on the layout engine's
+    clean text but redaction rects are taken from those word-level OCR boxes for
+    tight, aligned geometry; otherwise rects come from the zone's own tokens.
+    """
     rects: list[fitz.Rect] = []
     entities: list[PiiEntity] = []
 
@@ -416,7 +414,10 @@ def _collect_redaction_rects(
         local_entities = [e for e in local_entities if e.entity_type in allowed]
 
         for entity in local_entities:
-            entity_rects = _entity_rects_from_zone(entity, zone)
+            if easy_words is not None:
+                entity_rects = _entity_rects_via_easy(entity, zone, easy_words)
+            else:
+                entity_rects = _entity_rects_from_zone(entity, zone)
 
             # Skip tokens that are part of existing redaction areas
             for r in entity_rects:
@@ -434,6 +435,73 @@ def _collect_redaction_rects(
                 ))
 
     return rects, entities
+
+
+_WORD_TOK_RE = re.compile(r"[0-9A-Za-zÁÉÍÓÚÑÜáéíóúñüÀÈÒÏÇàèòïç]+")
+
+
+def _content_tokens(text: str) -> set[str]:
+    """Normalised alphanumeric tokens (≥2 chars) of *text* for content matching."""
+    return {
+        _norm_token(t) for t in _WORD_TOK_RE.findall(text)
+        if len(t) >= 2 and _norm_token(t)
+    }
+
+
+def _region_for_entity(entity: PiiEntity, zone: PageZone) -> fitz.Rect:
+    """Bounding rect of the layout tokens overlapping the entity span."""
+    region: fitz.Rect | None = None
+    for token in zone.tokens:
+        if token.text_offset is None:
+            continue
+        t_start = token.text_offset
+        t_end = t_start + len(token.text)
+        if t_end <= entity.start or t_start >= entity.end:
+            continue
+        region = fitz.Rect(token.rect) if region is None else (region | token.rect)
+    return region if region is not None else fitz.Rect(zone.rect)
+
+
+def _entity_rects_via_easy(
+    entity: PiiEntity,
+    zone: PageZone,
+    easy_words: list,
+) -> list[fitz.Rect]:
+    """Map an entity (detected in clean layout text) to word-level OCR boxes.
+
+    The entity's text is matched, token by token, against the word-level OCR
+    boxes that fall inside the layout token's region.  If every entity token is
+    covered by matched words, those tight boxes are used; otherwise (e.g. OCR
+    misread part of a name) the whole region is redacted — never a leak.
+    """
+    region = _region_for_entity(entity, zone)
+    ent_tokens = _content_tokens(zone.text[entity.start:entity.end])
+    if not ent_tokens:
+        return [_padded(region)]
+
+    pad = 2.0
+    matched: list[fitz.Rect] = []
+    covered: set[str] = set()
+    for word in easy_words:
+        cx = (word.rect.x0 + word.rect.x1) / 2
+        cy = (word.rect.y0 + word.rect.y1) / 2
+        if not (region.x0 - pad <= cx <= region.x1 + pad
+                and region.y0 - pad <= cy <= region.y1 + pad):
+            continue
+        w_tokens = _content_tokens(word.text)
+        if not w_tokens:
+            continue
+        shared = ent_tokens & w_tokens
+        # Require the word to be mostly part of the entity (rules out a nearby
+        # reference that merely shares a short digit group).
+        if shared and len(shared) / len(w_tokens) > 0.5:
+            matched.append(_padded(fitz.Rect(word.rect)))
+            covered |= shared
+
+    if matched and covered >= ent_tokens:
+        return matched
+    # Incomplete word coverage → redact the whole region (safe, no leak).
+    return [_padded(region)]
 
 
 def _entity_rects_from_zone(

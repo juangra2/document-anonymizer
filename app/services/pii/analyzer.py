@@ -1878,19 +1878,25 @@ class PiiAnalyzer:
     def _detect_csv(text: str) -> list[PiiEntity]:
         """CSV (Código Seguro de Verificación): label + nearby value.
 
-        Handles the value sitting on the same line ("C.S.V.: 1280…") or a line
-        below the label (vertical footer layout), which the old contiguous regex
-        missed.  A value must be a long digit-rich alphanumeric run within
-        ``_CSV_WINDOW`` characters after a CSV label.
+        Handles the value sitting on the same line ("C.S.V.: 1280…"), a line
+        below the label (vertical footer layout), or — after OCR token
+        reordering — a line *above* it.  Matching is bidirectional: a value is a
+        long digit-rich alphanumeric run within ``_CSV_WINDOW`` characters of a
+        CSV label, before or after it.
         """
-        label_ends = [m.end() for m in _CSV_LABEL_RE.finditer(text)]
-        if not label_ends:
+        label_spans = [(m.start(), m.end()) for m in _CSV_LABEL_RE.finditer(text)]
+        if not label_spans:
             return []
         entities: list[PiiEntity] = []
         seen: set[tuple[int, int]] = set()
         for vm in _CSV_VALUE_RE.finditer(text):
-            if any(0 <= vm.start() - le <= _CSV_WINDOW for le in label_ends):
-                span = (vm.start(), vm.end())
+            vs, ve = vm.start(), vm.end()
+            near = any(
+                max(ls - ve, vs - le, 0) <= _CSV_WINDOW
+                for ls, le in label_spans
+            )
+            if near:
+                span = (vs, ve)
                 if span not in seen:
                     seen.add(span)
                     entities.append(
