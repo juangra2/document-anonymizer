@@ -908,6 +908,13 @@ _CSV_LABEL_RE = re.compile(
 _CSV_VALUE_RE = re.compile(r"\b(?=[A-Z0-9]*\d(?:[A-Z0-9]*\d){7})[A-Z0-9]{14,44}\b")
 _CSV_WINDOW = 80   # max chars between a CSV label end and its value start
 
+# Measurement-unit tokens that open a budget line item ("Ud Par de…", "Ml Tubo
+# de…").  A PERSON span starting with one is a line item, not a person name.
+_MEASURE_UNITS = {
+    "UD", "UDS", "UNID", "UNIDAD", "UNIDADES",
+    "ML", "M2", "M3", "M²", "M³", "KG", "TN", "KM", "LTS", "L", "H", "HA",
+}
+
 # OCR-tolerant Spanish IBAN.  No leading word boundary so it also catches an
 # IBAN glued to a label ("…BENEFICIARIOES13…"), and the country letter S may be
 # misread as 5 ("E5…").  22 digit-likes follow; OCR letter→digit confusions
@@ -1253,6 +1260,17 @@ class PiiAnalyzer:
                 # Proper names and place names always start uppercase.
                 if result.entity_type in {"PERSON", "LOCATION"} and value and value[0].islower():
                     continue
+
+                # A PERSON containing a digit is never a real name — it is a code
+                # ("EN.407", "PAC-12") that NER mislabels.  And a span beginning
+                # with a measurement-unit token ("Ud Par", "Ml Tubo") is a budget
+                # line item, not a person.  Both are common NER false positives.
+                if result.entity_type == "PERSON":
+                    if any(ch.isdigit() for ch in value):
+                        continue
+                    first = value.split()
+                    if first and first[0].upper().strip(".,") in _MEASURE_UNITS:
+                        continue
 
                 # In BODY zones with dense legal prose, low-confidence and
                 # single-word NER detections are rarely genuine names.  Non-PERSON
