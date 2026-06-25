@@ -81,6 +81,12 @@ class Settings(BaseSettings):
     #               --local-dir model/MinerU2.5-Pro-2604-1.2B
     ocr_mineru_model_path: str = "model/MinerU2.5-Pro-2604-1.2B"
 
+    # Cap on tokens the MinerU VLM may generate per block.  Bounds the runaway
+    # generation seen on noisy regions (e.g. a dotted line decoded as an endless
+    # "α₁ 与 α₂ 与 …" formula that took >11 min on one page).  Generous enough
+    # for a dense legal paragraph; 0 disables the cap.
+    ocr_mineru_max_new_tokens: int = 2048
+
     ocr_pdf_render_dpi: int = 200
     ocr_second_pass_verification: bool = True
 

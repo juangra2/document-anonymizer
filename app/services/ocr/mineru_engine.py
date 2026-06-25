@@ -70,6 +70,33 @@ _BLOCK_TYPE_TO_HINT: dict[str, str] = {
     "image":    "body",
 }
 
+# CJK / fullwidth ranges — a Spanish administrative scan contains virtually none,
+# so their presence signals a hallucinated VLM block.
+_CJK_RE = re.compile(r"[㐀-鿿　-〿＀-￯]")
+
+
+def _is_degenerate_content(content: str) -> bool:
+    """True for hallucinated/repetition-loop VLM output (not real document text).
+
+    Signals: a non-trivial fraction of CJK characters, heavy LaTeX-formula spam,
+    or a single token dominating a long string (the "α₁ 与 α₂ 与 …" loop).
+    Dropping these blocks keeps OCR garbage out of PII detection.
+    """
+    if not content:
+        return False
+    n = len(content)
+    if n >= 40 and len(_CJK_RE.findall(content)) / n > 0.05:
+        return True
+    if content.count("\\alpha") >= 12 or content.count("\\therefore") >= 4:
+        return True
+    tokens = content.split()
+    if len(tokens) >= 40:
+        from collections import Counter
+        most_common = Counter(tokens).most_common(1)[0][1]
+        if most_common / len(tokens) > 0.30:
+            return True
+    return False
+
 
 # ---------------------------------------------------------------------------
 # Engine
@@ -204,8 +231,30 @@ class MinerUEngine(OcrEngine):
                 backend=self._backend,
             )
 
+        self._apply_token_cap(self._client)
+
         logger.info("MinerU2.5-Pro model loaded.")
         return self._client
+
+    @staticmethod
+    def _apply_token_cap(client: Any) -> None:
+        """Bound per-block generation so a hallucination loop can't run for
+        minutes.  Best-effort: MinerU stores per-category MinerUSamplingParams
+        with max_new_tokens=None (unbounded) by default."""
+        from app.core.config import settings
+        cap = settings.ocr_mineru_max_new_tokens
+        if not cap:
+            return
+        params = getattr(client, "sampling_params", None)
+        if not isinstance(params, dict):
+            return
+        try:
+            for sp in params.values():
+                current = getattr(sp, "max_new_tokens", None)
+                if current is None or current <= 0 or current > cap:
+                    sp.max_new_tokens = cap
+        except Exception:
+            logger.warning("Could not apply MinerU max_new_tokens cap.")
 
     def _resolve_model_path(self) -> Path:
         raw = self._model_path or _settings_model_path()
@@ -242,6 +291,13 @@ def _blocks_to_tokens(
     for block in blocks:
         content: str = (getattr(block, "content", "") or "").strip()
         if not content:
+            continue
+
+        if _is_degenerate_content(content):
+            logger.warning(
+                "Discarding degenerate MinerU block (likely VLM repetition loop): %r…",
+                content[:60],
+            )
             continue
 
         block_type: str = (getattr(block, "type", "text") or "text").lower()
