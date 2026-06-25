@@ -63,10 +63,22 @@ def test_ocr_iban_rejects_invalid_in_balanced_mode():
     assert not any(t == "IBAN_CODE" for t, _, _ in out)
 
 
-def test_ocr_iban_requires_label():
-    # No IBAN/cuenta label → the OCR-tolerant pass does not fire.
-    out = [
-        e for e in _ents(f"referencia {_MANGLED}", mode="balanced")
-        if e[0] == "IBAN_CODE" and e[2] == "deterministic_regex"
-    ]
+def test_ocr_iban_glued_to_label():
+    # IBAN glued to the preceding word (no space) — strict recognizer's leading
+    # word boundary misses it; the robust pass (mod-97) recovers it.
+    text = "CUENTA DEL BENEFICIARIOES1321001901552200556633: IMPORTE"
+    out = _ents(text, mode="balanced")
+    assert any(t == "IBAN_CODE" and v == "ES1321001901552200556633" for t, v, _ in out)
+
+
+def test_ocr_iban_country_letter_misread_as_5():
+    # "ES" misread as "E5" (S→5) — recovered after normalisation + mod-97.
+    out = _ents("beneficiario E51321001901552200556633 importe", mode="balanced")
+    assert any(t == "IBAN_CODE" and v.startswith("E5") for t, v, _ in out)
+
+
+def test_ocr_iban_rejects_invalid_unlabeled():
+    # An ES + 22-digit run that fails mod-97 is not emitted (balanced mode).
+    out = [e for e in _ents("ref ES9921001901552200556699 x", mode="balanced")
+           if e[0] == "IBAN_CODE"]
     assert out == []

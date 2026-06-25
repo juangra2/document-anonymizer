@@ -908,12 +908,13 @@ _CSV_LABEL_RE = re.compile(
 _CSV_VALUE_RE = re.compile(r"\b(?=[A-Z0-9]*\d(?:[A-Z0-9]*\d){7})[A-Z0-9]{14,44}\b")
 _CSV_WINDOW = 80   # max chars between a CSV label end and its value start
 
-# OCR-tolerant labelled IBAN: an IBAN/cuenta/compte label followed by an ES code
-# where digits may have been misread as O/I/L.  Validated by mod-97 afterwards.
-_OCR_IBAN_RE = re.compile(
-    r"(?i)\b(?:iban|cuenta|compte|c\.?c\.?c\.?)\b[^\n:]{0,12}[:\s][^\S\r\n]*"
-    r"(?P<value>ES[0-9OIL][0-9OIL](?:[ \-]?[0-9OIL]){18,22})"
-)
+# OCR-tolerant Spanish IBAN.  No leading word boundary so it also catches an
+# IBAN glued to a label ("…BENEFICIARIOES13…"), and the country letter S may be
+# misread as 5 ("E5…").  22 digit-likes follow; OCR letter→digit confusions
+# (O→0, I/L→1, S→5, B→8) are normalised before the mod-97 check, which rejects
+# anything that is not a genuine IBAN.
+_ROBUST_IBAN_RE = re.compile(r"(?i)E[S5][ \t\-]?(?:[0-9OILSB][ \t\-]?){22}")
+_IBAN_OCR_TRANS = str.maketrans("OILSBoilsb", "0115801158")
 
 # Textual signature attribution: "Fdo.: NAME", "Signat (electrònicament) per
 # NAME", "Firmado (electrónicamente) por NAME".  The captured name is validated
@@ -1899,33 +1900,35 @@ class PiiAnalyzer:
 
     @staticmethod
     def _detect_ocr_iban(text: str) -> list[PiiEntity]:
-        """Recover OCR-mangled Spanish IBANs in a labelled context.
+        """Recover OCR-mangled / glued Spanish IBANs, validated by mod-97.
 
-        Scanned OCR confuses O↔0 and I/l↔1, so a valid IBAN may fail the strict
-        regex.  Anchored to an IBAN/cuenta/compte label (to stay precise), this
-        normalises those confusions and keeps the span only if mod-97 passes.
+        Catches IBANs the strict recognizer misses: glued to a preceding word
+        (no word boundary) and with OCR letter confusions (S→5 in "ES", and
+        O/I/L/S/B inside the digits).  mod-97 keeps precision high.
         """
         entities: list[PiiEntity] = []
-        for m in _OCR_IBAN_RE.finditer(text):
-            raw = m.group("value")
-            normalized = (
-                raw.upper().replace(" ", "").replace("-", "")
-                .replace("O", "0").replace("I", "1").replace("L", "1")
-            )
-            # Keep the ES country prefix letters, normalise the rest to digits.
-            if not normalized.startswith("ES"):
+        seen: set[tuple[int, int]] = set()
+        for m in _ROBUST_IBAN_RE.finditer(text):
+            compact = re.sub(r"[ \t\-]", "", m.group())
+            if len(compact) < 24:
                 continue
-            candidate = "ES" + normalized[2:]
-            if is_valid_spanish_iban(candidate):
-                entities.append(
-                    PiiEntity(
-                        entity_type="IBAN_CODE",
-                        start=m.start("value"),
-                        end=m.end("value"),
-                        score=0.92,
-                        source="deterministic_regex",
+            body = compact[2:24].upper().translate(_IBAN_OCR_TRANS)
+            if not body.isdigit():
+                continue
+            if is_valid_spanish_iban("ES" + body):
+                trimmed = len(m.group()) - len(m.group().rstrip(" \t-"))
+                span = (m.start(), m.end() - trimmed)
+                if span not in seen:
+                    seen.add(span)
+                    entities.append(
+                        PiiEntity(
+                            entity_type="IBAN_CODE",
+                            start=span[0],
+                            end=span[1],
+                            score=0.92,
+                            source="deterministic_regex",
+                        )
                     )
-                )
         return entities
 
     @staticmethod
