@@ -559,15 +559,6 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         0.85,
     ),
     (
-        # CSV — Código Seguro de Verificación / Codi Segur de Verificació.
-        # Context-anchored: a per-document identifier that links the document to
-        # the citizen.  Anchored to the label to avoid matching arbitrary codes.
-        "CSV",
-        r"(?i)(?:CSV|c[oó]di(?:go|)[^\S\r\n]+seg(?:uro|ur)[^\S\r\n]+de[^\S\r\n]+verificaci[oó]n?)"
-        r"[^\S\r\n]*[:\-]?[^\S\r\n]*(?P<value>[A-Z0-9]{8,44})\b",
-        0.90,
-    ),
-    (
         "PROFESSIONAL_LICENSE",
         r"\b(?:COACV[-/_.]?\d{3,}|COA[-/_.]?[A-Z0-9]{3,}|COL[-/_.][A-Z0-9]{3,}|COLEG[-/_.][A-Z0-9]{3,})\b",
         0.80,
@@ -902,6 +893,21 @@ _ADDRESS_GAZETTEER_RE = re.compile(
 # Tokenises the trailing municipality candidate.
 _MUNI_TOKEN_RE = re.compile(r"\S+")
 
+# CSV (Código Seguro de Verificación): a label that may sit on a different line
+# from its value (vertical footer layout), so detection is value-shape + nearby
+# label rather than a single contiguous regex.
+# Label appears as the dotted abbreviation "C.S.V." / "C.S.V" / "CSV", or the
+# full phrase.  (The full phrase also occurs as an explanatory note with no
+# value following — the value-shape requirement below prevents a false match.)
+_CSV_LABEL_RE = re.compile(
+    r"(?i)(?:\bC\.?[^\S\r\n]?S\.?[^\S\r\n]?V\.?|"
+    r"c[oó]digo[^\S\r\n]+seguro[^\S\r\n]+de[^\S\r\n]+verificaci[oó]n?|"
+    r"codi[^\S\r\n]+segur[^\S\r\n]+de[^\S\r\n]+verificaci[oó])"
+)
+# A CSV is a long alphanumeric run with several digits (rules out plain words).
+_CSV_VALUE_RE = re.compile(r"\b(?=[A-Z0-9]*\d(?:[A-Z0-9]*\d){7})[A-Z0-9]{14,44}\b")
+_CSV_WINDOW = 80   # max chars between a CSV label end and its value start
+
 # OCR-tolerant labelled IBAN: an IBAN/cuenta/compte label followed by an ES code
 # where digits may have been misread as O/I/L.  Validated by mod-97 afterwards.
 _OCR_IBAN_RE = re.compile(
@@ -1112,6 +1118,7 @@ class PiiAnalyzer:
 
         entities.extend(self._detect_direct_regex(text, mode=mode))
         entities.extend(self._detect_ocr_iban(text))
+        entities.extend(self._detect_csv(text))
         entities.extend(self._detect_ner_entities(text, zone_type=zone_type))
 
         merged = self._merge_overlaps(entities)
@@ -1865,6 +1872,30 @@ class PiiAnalyzer:
             if province in codes:
                 return toks[k - 1].end()
         return None
+
+    @staticmethod
+    def _detect_csv(text: str) -> list[PiiEntity]:
+        """CSV (Código Seguro de Verificación): label + nearby value.
+
+        Handles the value sitting on the same line ("C.S.V.: 1280…") or a line
+        below the label (vertical footer layout), which the old contiguous regex
+        missed.  A value must be a long digit-rich alphanumeric run within
+        ``_CSV_WINDOW`` characters after a CSV label.
+        """
+        label_ends = [m.end() for m in _CSV_LABEL_RE.finditer(text)]
+        if not label_ends:
+            return []
+        entities: list[PiiEntity] = []
+        seen: set[tuple[int, int]] = set()
+        for vm in _CSV_VALUE_RE.finditer(text):
+            if any(0 <= vm.start() - le <= _CSV_WINDOW for le in label_ends):
+                span = (vm.start(), vm.end())
+                if span not in seen:
+                    seen.add(span)
+                    entities.append(
+                        PiiEntity("CSV", span[0], span[1], 0.9, source="deterministic_regex")
+                    )
+        return entities
 
     @staticmethod
     def _detect_ocr_iban(text: str) -> list[PiiEntity]:

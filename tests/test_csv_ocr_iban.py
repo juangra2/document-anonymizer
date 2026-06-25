@@ -28,6 +28,24 @@ def test_csv_requires_label():
     assert not any(t == "CSV" for t, _, _ in _ents("referencia 12806538135277910"))
 
 
+def test_csv_dotted_abbreviation_real_layout():
+    # Real MinerU layout from a notarial footer: "(*) C.S.V.: <value>".
+    text = ("(*) C.S.V.: 12806538135277910.\n"
+            "Servicio Web de Verificación: https://www.registradores.org/csv")
+    assert any(t == "CSV" and v == "12806538135277910" for t, v, _ in _ents(text))
+
+
+def test_csv_value_on_next_line():
+    text = "Código Seguro de Verificación\n12806538135277910\nDirección de verificación"
+    assert any(t == "CSV" and v == "12806538135277910" for t, v, _ in _ents(text))
+
+
+def test_csv_explanatory_note_without_value_not_matched():
+    # The phrase recurs as an explanation with no code after it → no match.
+    text = "Código Seguro de Verificación: este código permite contrastar la autenticidad"
+    assert not any(t == "CSV" for t, _, _ in _ents(text))
+
+
 # --- OCR-tolerant IBAN ----------------------------------------------------
 
 _MANGLED = "ES91 21OO O418 45O2 OOO5 1332"   # zeros misread as letter O
