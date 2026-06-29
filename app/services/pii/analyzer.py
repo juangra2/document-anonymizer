@@ -234,6 +234,15 @@ LABELED_FIELD_PATTERNS_VAL_CAT: list[tuple[str, str]] = [
 LABELED_FIELD_PATTERNS = LABELED_FIELD_PATTERNS + LABELED_FIELD_PATTERNS_VAL_CAT  # type: ignore[name-defined]
 
 
+# Role/office words after "Dirección" that mark an organisational unit, not a
+# postal address ("Dirección Facultativa / General / Técnica / de Obra(s) /
+# de Ejecución").  Used as a negative lookahead in the no-colon ADDRESS pattern.
+_DIR_ROLE_LOOKAHEAD = (
+    r"[^\S\r\n]+(?:general|facultativa|t[eé]cnica|"
+    r"de[^\S\r\n]+obra(?:s)?|de[^\S\r\n]+ejecuci[oó]n)"
+)
+
+
 NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
     (
         "PERSON",
@@ -264,8 +273,14 @@ NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
         r"(?im)^[^\S\r\n]*(?:email[^\S\r\n]+personal|email|correo)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
+        # "Dirección" followed by a role/office word ("Dirección Facultativa /
+        # General / Técnica / de Obra / de Ejecución") is an organisational unit,
+        # not a postal address — excluded via the negative lookahead.
         "ADDRESS",
-        r"(?im)^[^\S\r\n]*(?:direcci[oó]n[^\S\r\n]+postal|direccion[^\S\r\n]+postal|direcci[oó]n(?![^\S\r\n]+general)|direccion(?![^\S\r\n]+general)|residencia)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:direcci[oó]n[^\S\r\n]+postal|direccion[^\S\r\n]+postal|"
+        r"direcci[oó]n(?!" + _DIR_ROLE_LOOKAHEAD + r")|"
+        r"direccion(?!" + _DIR_ROLE_LOOKAHEAD + r")|residencia)"
+        r"[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
         # ADDRESS next-line no-colon: "Domicilio\nCalle X, N, CP Ciudad"
@@ -1270,6 +1285,17 @@ class PiiAnalyzer:
                         continue
                     first = value.split()
                     if first and first[0].upper().strip(".,") in _MEASURE_UNITS:
+                        continue
+                    # Minimal INE gate: a PERSON whose tokens are ALL absent from
+                    # the INE name/surname gazetteer is almost always an NER false
+                    # positive on capitalised non-name phrases ("Hormigón
+                    # Señalización", "Maderas Señalización", "Plan de Gestión de
+                    # Residuos").  Real Spanish names carry at least one known
+                    # given name or surname.  (Full gazetteer-gating, pending a
+                    # corpus re-evaluation, would also tune low-confidence rescue.)
+                    if settings.gazetteer_person and not any(
+                        gazetteer.is_person_token(t) for t in _name_tokens(value)
+                    ):
                         continue
 
                 # In BODY zones with dense legal prose, low-confidence and
