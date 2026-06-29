@@ -117,6 +117,23 @@ def test_ocr_confusion_match_maps_to_correct_cell():
     assert rects[0].x0 < 400 and rects[0].x1 < 560, "must hit the IBAN cell, not IMPORTE"
 
 
+def test_iban_inside_easyocr_line_token():
+    # EasyOCR returns the whole sentence as one token; the IBAN is a minority of
+    # it.  A proportional sub-rect must cover just the IBAN, not the whole line.
+    mtext = ("la cuenta con IBAN ES13 2100 1901 5522 0055 6633 y SWIFT "
+             "CAIXESBBXXX, indicando")
+    zone = _zone(mtext, (343, 1178, 1308, 1256))
+    ent = PiiEntity("IBAN_CODE", mtext.index("ES13"), mtext.index("6633") + 4, 0.9)
+    line = ("con IBAN Es13 2100 1901 5522 0056 6633 y SWIFT CAIXESBBXXX , "
+            "indicando como concepto;")
+    easy = [_tok(line, 348, 1204, 1288, 1234)]
+    rects = _entity_rects_via_easy(ent, zone, easy, 30.0)
+    assert len(rects) == 1
+    r = rects[0]
+    assert r.x0 > 400 and r.x1 < 820, "sub-rect must cover the IBAN, not the whole line"
+    assert (r.x1 - r.x0) < 500
+
+
 def test_incomplete_word_coverage_falls_back_to_region():
     # Entity tokens partly OCR-misread in the word layer → cannot cover all
     # tokens → redact the whole region rather than leak the misread part.

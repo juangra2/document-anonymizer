@@ -449,23 +449,52 @@ _WORD_TOK_RE = re.compile(r"[0-9A-Za-zÁÉÍÓÚÑÜáéíóúñüÀÈÒÏÇàè
 _OCR_FOLD = str.maketrans("SOILB", "50118")
 
 
-def _content_tokens(text: str) -> set[str]:
-    """Normalised tokens (≥2 chars) of *text* for OCR-tolerant content matching.
+def _canon_tok(raw: str) -> str | None:
+    """Canonical form of a raw token for OCR-tolerant matching, or None.
 
-    Digit-bearing tokens are additionally folded over common OCR confusions so a
-    misread identifier matches across the two OCR engines.
+    Normalises, and folds common OCR confusions on digit-bearing tokens so a
+    misread identifier matches across the two OCR engines; plain alphabetic
+    words are left untouched to avoid cross-word collisions.
     """
-    tokens: set[str] = set()
-    for raw in _WORD_TOK_RE.findall(text):
-        if len(raw) < 2:
-            continue
-        norm = _norm_token(raw)
-        if not norm:
-            continue
-        if any(ch.isdigit() for ch in norm):
-            norm = norm.translate(_OCR_FOLD)
-        tokens.add(norm)
-    return tokens
+    if len(raw) < 2:
+        return None
+    norm = _norm_token(raw)
+    if not norm:
+        return None
+    if any(ch.isdigit() for ch in norm):
+        norm = norm.translate(_OCR_FOLD)
+    return norm
+
+
+def _content_tokens(text: str) -> set[str]:
+    """Set of canonical tokens (≥2 chars) of *text* for content matching."""
+    return {c for raw in _WORD_TOK_RE.findall(text) if (c := _canon_tok(raw))}
+
+
+def _subrect_for_line_token(ent_tokens: set[str], word) -> fitz.Rect | None:
+    """Sub-rect of *word* spanning the entity's tokens when they are a minority
+    of a long EasyOCR line token ("con IBAN ES13 … 6633 y SWIFT …").
+
+    The matched words' char offsets within the token are interpolated over the
+    token rect, giving a tight box for the entity inside the line.  Requires
+    enough matched tokens to be confident the entity really is in this line.
+    """
+    matches = []
+    for m in _WORD_TOK_RE.finditer(word.text):
+        canon = _canon_tok(m.group())
+        if canon and canon in ent_tokens:
+            matches.append((m.start(), m.end()))
+    if len(matches) < max(2, (len(ent_tokens) + 1) // 2):
+        return None
+    c0 = min(s for s, _ in matches)
+    c1 = max(e for _, e in matches)
+    n = len(word.text)
+    if n <= 0:
+        return None
+    width = word.rect.x1 - word.rect.x0
+    x0 = word.rect.x0 + width * (c0 / n)
+    x1 = word.rect.x0 + width * (c1 / n)
+    return _padded(fitz.Rect(x0, word.rect.y0, x1, word.rect.y1))
 
 
 def _region_for_entity(entity: PiiEntity, zone: PageZone) -> fitz.Rect:
@@ -517,56 +546,62 @@ def _entity_rects_via_easy(
 
     Matching is by content across the page — NOT bounded to the layout token's
     rect, which for MinerU table rows is badly misaligned with the real text.
-    Matched words are grouped into visual lines and the lines that add new
-    entity-token coverage are kept (handles wrapped entities while ignoring a
-    same-token collision on an unrelated line).  When no word matches, only a
-    SMALL layout region is used as fallback; a large multi-line block is left
-    untouched rather than painted over (the paragraph over-redaction bug).
+    Word-level matches are grouped into visual lines; an entity buried inside a
+    single long EasyOCR line token contributes a proportional sub-rect.  The
+    groups that add new entity-token coverage are kept (handles wrapped
+    entities while ignoring same-token collisions on unrelated lines).  When
+    nothing matches, only a SMALL layout region is used as fallback; a large
+    multi-line block is left untouched (the paragraph over-redaction bug).
     """
     region = _region_for_entity(entity, zone)
     ent_tokens = _content_tokens(zone.text[entity.start:entity.end])
     if not ent_tokens:
         return [_padded(region)] if _small(region, line_h) else []
 
-    candidates: list = []
+    whole: list = []           # (word, shared) — word is mostly the entity
+    line_groups: list = []     # (sub_rect, shared) — entity inside a line token
     for word in easy_words:
         w_tokens = _content_tokens(word.text)
         if not w_tokens:
             continue
         shared = ent_tokens & w_tokens
-        # Require the word to be mostly part of the entity (rules out a nearby
-        # reference that merely shares a short digit group).
-        if shared and len(shared) / len(w_tokens) > 0.5:
-            candidates.append((word, shared))
+        if not shared:
+            continue
+        if len(shared) / len(w_tokens) > 0.5:
+            whole.append((word, shared))
+        else:
+            # Word shares tokens but is mostly other text (a long line token):
+            # take a proportional sub-rect of the entity's span within it.
+            sub = _subrect_for_line_token(ent_tokens, word)
+            if sub is not None:
+                line_groups.append((sub, shared))
 
-    if not candidates:
+    # Uniform groups: (rects, covered_tokens, centre_x, centre_y).
+    groups: list = []
+    for cluster in _cluster_by_line(whole, line_h):
+        cov: set = set()
+        for _, shared in cluster:
+            cov |= shared
+        cx = sum((w.rect.x0 + w.rect.x1) / 2 for w, _ in cluster) / len(cluster)
+        cy = sum((w.rect.y0 + w.rect.y1) / 2 for w, _ in cluster) / len(cluster)
+        groups.append(([_padded(fitz.Rect(w.rect)) for w, _ in cluster], cov, cx, cy))
+    for sub, shared in line_groups:
+        groups.append(([sub], shared, (sub.x0 + sub.x1) / 2, (sub.y0 + sub.y1) / 2))
+
+    if not groups:
         # Nothing matched: fall back only for a small region; never paint a big
         # multi-line block (almost always an NER false positive on a paragraph).
         return [_padded(region)] if _small(region, line_h) else []
 
     rcx = (region.x0 + region.x1) / 2
     rcy = (region.y0 + region.y1) / 2
-
-    def coverage(cluster: list) -> set:
-        out: set = set()
-        for _, shared in cluster:
-            out |= shared
-        return out
-
-    def distance(cluster: list) -> float:
-        cy = sum((w.rect.y0 + w.rect.y1) / 2 for w, _ in cluster) / len(cluster)
-        cx = sum((w.rect.x0 + w.rect.x1) / 2 for w, _ in cluster) / len(cluster)
-        return abs(cy - rcy) + abs(cx - rcx)
-
-    clusters = _cluster_by_line(candidates, line_h)
-    clusters.sort(key=lambda cl: (-len(coverage(cl)), distance(cl)))
+    groups.sort(key=lambda g: (-len(g[1]), abs(g[3] - rcy) + abs(g[2] - rcx)))
 
     rects: list[fitz.Rect] = []
     covered: set = set()
-    for cluster in clusters:
-        cov = coverage(cluster)
+    for group_rects, cov, _, _ in groups:
         if cov - covered:
-            rects.extend(_padded(fitz.Rect(w.rect)) for w, _ in cluster)
+            rects.extend(group_rects)
             covered |= cov
         if covered >= ent_tokens:
             break
