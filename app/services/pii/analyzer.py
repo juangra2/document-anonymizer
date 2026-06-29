@@ -548,6 +548,16 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         0.80,
     ),
     (
+        # CCC — pre-SEPA Spanish bank account: Entidad(4) Oficina(4) DC(2)
+        # Cuenta(10), visually grouped ("0049 5114 91 2116158451").  Financial
+        # PII, so reported/redacted as IBAN_CODE (no separate type needed).
+        # Requires separators between all four groups, which makes the 4-4-2-10
+        # shape specific enough to avoid colliding with other numbers.
+        "IBAN_CODE",
+        r"\b\d{4}[ \-]\d{4}[ \-]\d{2}[ \-]\d{10}\b",
+        0.85,
+    ),
+    (
         # REGISTRY_NUMBER — output/input register ("N. Eixida / N. Salida":
         # 00128-2022-093281).  Identifies the specific communication addressed to
         # a citizen, so it is always redacted.  Distinct from CASE_NUMBER (which
