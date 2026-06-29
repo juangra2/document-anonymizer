@@ -101,6 +101,22 @@ def test_no_match_large_region_skipped():
     assert _entity_rects_via_easy(ent, zone, easy, line_h=20.0) == []
 
 
+def test_ocr_confusion_match_maps_to_correct_cell():
+    # MinerU reads the IBAN cleanly ("ES13…") but EasyOCR misreads S→5 ("E513…").
+    # OCR-tolerant matching must still land on the IBAN word, not the adjacent
+    # "IMPORTE" cell (the wrong-cell fallback bug).
+    text = "CUENTA DEL BENEFICIARIO ES1321001901552200556633"
+    zone = _zone(text, (591, 971, 1371, 1017))
+    ent = PiiEntity("IBAN_CODE", text.index("ES13"), len(text), 0.9)
+    easy = [
+        _tok("E51321001901552200556633", 296, 968, 526, 992),
+        _tok("IMPORTE", 900, 968, 1000, 992),
+    ]
+    rects = _entity_rects_via_easy(ent, zone, easy, 24.0)
+    assert len(rects) == 1
+    assert rects[0].x0 < 400 and rects[0].x1 < 560, "must hit the IBAN cell, not IMPORTE"
+
+
 def test_incomplete_word_coverage_falls_back_to_region():
     # Entity tokens partly OCR-misread in the word layer → cannot cover all
     # tokens → redact the whole region rather than leak the misread part.

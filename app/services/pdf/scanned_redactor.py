@@ -442,13 +442,30 @@ def _collect_redaction_rects(
 
 _WORD_TOK_RE = re.compile(r"[0-9A-Za-zÁÉÍÓÚÑÜáéíóúñüÀÈÒÏÇàèòïç]+")
 
+# OCR letter↔digit confusions, applied to digit-bearing tokens only so an
+# identifier read slightly differently by the layout engine (MinerU) and the
+# word engine (EasyOCR) still matches — e.g. "ES13…" vs "E513…" (S↔5).  Plain
+# alphabetic words are left untouched to avoid cross-word collisions.
+_OCR_FOLD = str.maketrans("SOILB", "50118")
+
 
 def _content_tokens(text: str) -> set[str]:
-    """Normalised alphanumeric tokens (≥2 chars) of *text* for content matching."""
-    return {
-        _norm_token(t) for t in _WORD_TOK_RE.findall(text)
-        if len(t) >= 2 and _norm_token(t)
-    }
+    """Normalised tokens (≥2 chars) of *text* for OCR-tolerant content matching.
+
+    Digit-bearing tokens are additionally folded over common OCR confusions so a
+    misread identifier matches across the two OCR engines.
+    """
+    tokens: set[str] = set()
+    for raw in _WORD_TOK_RE.findall(text):
+        if len(raw) < 2:
+            continue
+        norm = _norm_token(raw)
+        if not norm:
+            continue
+        if any(ch.isdigit() for ch in norm):
+            norm = norm.translate(_OCR_FOLD)
+        tokens.add(norm)
+    return tokens
 
 
 def _region_for_entity(entity: PiiEntity, zone: PageZone) -> fitz.Rect:
