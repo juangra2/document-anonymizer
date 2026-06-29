@@ -38,6 +38,11 @@ from app.services.vision.signature_region import detect_signature_rects
 # which improves decode rate significantly vs 200 DPI (3–4 px/module).
 _QR_DETECT_DPI = 300
 
+# A real QR/barcode occupies a small fraction of a document page.  Detections
+# larger than this are almost always false positives on diagrams/figures and are
+# not redacted (a technical drawing was being painted black as a "QR").
+_QR_MAX_AREA_FRAC = 0.05
+
 
 def redact_pdf_digital(
     input_path: Path,
@@ -325,8 +330,18 @@ def _add_visual_qr_zones(page: fitz.Page, zoned_page) -> None:
     matrix = fitz.Matrix(scale, scale)
     pixmap = page.get_pixmap(matrix=matrix, alpha=False)
     image = Image.open(BytesIO(pixmap.tobytes("png"))).convert("RGB")
+    image_area = float(image.width * image.height)
 
     for qr_rect, decoded_text in detect_and_decode_visual_codes(image):
+        # Only redact codes that actually decode to content: a detect-only hit
+        # with no payload is, on these documents, a diagram/figure misread as a
+        # QR (the detector returns "" for those).
+        if not decoded_text.strip():
+            continue
+        # Reject implausibly large detections (a real QR is a small page region).
+        area = (qr_rect.x1 - qr_rect.x0) * (qr_rect.y1 - qr_rect.y0)
+        if image_area > 0 and area > _QR_MAX_AREA_FRAC * image_area:
+            continue
         pdf_rect = fitz.Rect(
             qr_rect.x0 / scale,
             qr_rect.y0 / scale,
