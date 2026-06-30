@@ -471,20 +471,36 @@ def _content_tokens(text: str) -> set[str]:
     return {c for raw in _WORD_TOK_RE.findall(text) if (c := _canon_tok(raw))}
 
 
+def _is_id_like(token: str) -> bool:
+    """True for a single token specific enough to anchor on its own (a DNI/NIE/
+    NSS/CP/IBAN-fragment): at least 5 chars and containing a digit."""
+    return len(token) >= 5 and any(ch.isdigit() for ch in token)
+
+
 def _subrect_for_line_token(ent_tokens: set[str], word) -> fitz.Rect | None:
     """Sub-rect of *word* spanning the entity's tokens when they are a minority
-    of a long EasyOCR line token ("con IBAN ES13 … 6633 y SWIFT …").
+    of a long EasyOCR line token ("con IBAN ES13 … 6633 y SWIFT …",
+    "con DNI número 47019611K.").
 
     The matched words' char offsets within the token are interpolated over the
-    token rect, giving a tight box for the entity inside the line.  Requires
-    enough matched tokens to be confident the entity really is in this line.
+    token rect, giving a tight box for the entity inside the line.  A multi-token
+    entity needs at least half its tokens matched; a single-token entity is only
+    anchored when that token is identifier-like (so an ID such as a DNI is
+    covered, but a lone common word is not).
     """
     matches = []
     for m in _WORD_TOK_RE.finditer(word.text):
         canon = _canon_tok(m.group())
         if canon and canon in ent_tokens:
             matches.append((m.start(), m.end()))
-    if len(matches) < max(2, (len(ent_tokens) + 1) // 2):
+
+    if len(ent_tokens) == 1:
+        if not _is_id_like(next(iter(ent_tokens))):
+            return None
+        need = 1
+    else:
+        need = max(2, (len(ent_tokens) + 1) // 2)
+    if len(matches) < need:
         return None
     c0 = min(s for s, _ in matches)
     c1 = max(e for _, e in matches)

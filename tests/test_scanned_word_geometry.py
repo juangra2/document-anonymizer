@@ -134,6 +134,27 @@ def test_iban_inside_easyocr_line_token():
     assert (r.x1 - r.x0) < 500
 
 
+def test_single_token_dni_inside_line_token():
+    # A DNI is one token embedded in an EasyOCR line token; it must still be
+    # mapped to a tight sub-rect (it was skipped before, needing ≥2 tokens).
+    text = "con domicilio en Madrid, con DNI número 47019611K."
+    zone = _zone(text, (60, 500, 900, 524))
+    ent = PiiEntity("ES_DNI", text.index("47019611K"), text.index("47019611K") + 9, 0.9)
+    line = "con DNI numero 47019611K."
+    easy = [_tok(line, 60, 502, 360, 522)]
+    rects = _entity_rects_via_easy(ent, zone, easy, 22.0)
+    assert len(rects) == 1
+    # Sub-rect covers the DNI portion (right part of the line), not the label.
+    assert rects[0].x0 > 200
+
+
+def test_single_common_word_not_anchored_in_line_token():
+    # A lone non-identifier token must NOT anchor a sub-rect inside a line.
+    from app.services.pdf.scanned_redactor import _subrect_for_line_token
+    word = _tok("el presente poder ante el notario de Madrid", 60, 500, 900, 522)
+    assert _subrect_for_line_token({"PODER"}, word) is None
+
+
 def test_incomplete_word_coverage_falls_back_to_region():
     # Entity tokens partly OCR-misread in the word layer → cannot cover all
     # tokens → redact the whole region rather than leak the misread part.
