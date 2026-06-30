@@ -30,18 +30,13 @@ from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services.pii.institution_filter import filter_institutional
 from app.services.pii.models import PiiEntity
-from app.services.vision.code_detector import detect_and_decode_visual_codes, detect_visual_code_rects
+from app.services.vision.code_detector import detect_redactable_codes, detect_visual_code_rects
 from app.services.vision.signature_region import detect_signature_rects
 
 # Render DPI used only for visual QR detection — not full-page OCR.
 # 300 DPI gives ~5–6 px/module for small QR codes (contrato_laboral, notificacion)
 # which improves decode rate significantly vs 200 DPI (3–4 px/module).
 _QR_DETECT_DPI = 300
-
-# A real QR/barcode occupies a small fraction of a document page.  Detections
-# larger than this are almost always false positives on diagrams/figures and are
-# not redacted (a technical drawing was being painted black as a "QR").
-_QR_MAX_AREA_FRAC = 0.05
 
 
 def redact_pdf_digital(
@@ -330,18 +325,10 @@ def _add_visual_qr_zones(page: fitz.Page, zoned_page) -> None:
     matrix = fitz.Matrix(scale, scale)
     pixmap = page.get_pixmap(matrix=matrix, alpha=False)
     image = Image.open(BytesIO(pixmap.tobytes("png"))).convert("RGB")
-    image_area = float(image.width * image.height)
 
-    for qr_rect, decoded_text in detect_and_decode_visual_codes(image):
-        # Only redact codes that actually decode to content: a detect-only hit
-        # with no payload is, on these documents, a diagram/figure misread as a
-        # QR (the detector returns "" for those).
-        if not decoded_text.strip():
-            continue
-        # Reject implausibly large detections (a real QR is a small page region).
-        area = (qr_rect.x1 - qr_rect.x0) * (qr_rect.y1 - qr_rect.y0)
-        if image_area > 0 and area > _QR_MAX_AREA_FRAC * image_area:
-            continue
+    # Shared guard (see code_detector.detect_redactable_codes): only codes that
+    # decode to a non-empty payload and are not implausibly large are redacted.
+    for qr_rect, decoded_text in detect_redactable_codes(image):
         pdf_rect = fitz.Rect(
             qr_rect.x0 / scale,
             qr_rect.y0 / scale,

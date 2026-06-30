@@ -102,13 +102,43 @@ def detect_and_decode_visual_codes(
     return unique
 
 
+# A real QR/barcode occupies a small fraction of a document page.  Detections
+# larger than this are almost always false positives on diagrams/seals/figures.
+_QR_MAX_AREA_FRAC = 0.05
+
+
+def detect_redactable_codes(
+    image: Image.Image,
+    padding: int = 8,
+    max_area_frac: float = _QR_MAX_AREA_FRAC,
+) -> list[tuple[fitz.Rect, str]]:
+    """Codes safe to redact: those that decode to a non-empty payload and are
+    not implausibly large.  Shared by the digital and OCR redaction paths so the
+    same guard (a seal/figure that doesn't decode is not painted black) applies
+    everywhere.
+    """
+    image_area = float(image.width * image.height)
+    out: list[tuple[fitz.Rect, str]] = []
+    for rect, text in detect_and_decode_visual_codes(image, padding=padding):
+        if not text.strip():
+            continue
+        area = (rect.x1 - rect.x0) * (rect.y1 - rect.y0)
+        if image_area > 0 and area > max_area_frac * image_area:
+            continue
+        out.append((rect, text))
+    return out
+
+
 def detect_visual_code_rects(
     image: Image.Image,
     padding: int = 8,
+    max_area_frac: float = _QR_MAX_AREA_FRAC,
 ) -> list[fitz.Rect]:
     """Detect QR codes / barcodes in *image* and return their bounding rects.
 
-    Policy: any detected code is fully redacted regardless of content.
+    Used by the image-dominant fast path, which cannot decode payloads; the
+    *max_area_frac* size cap is the minimum guard against redacting a large
+    diagram/seal misread as a code.
     Detection cascade (first match wins, then deduplication):
       1. cv2.QRCodeDetectorAruco (newer OpenCV, highest recall on modern QR)
       2. cv2.QRCodeDetector.detectAndDecodeMulti  (single-pass multi-QR)
@@ -175,7 +205,16 @@ def detect_visual_code_rects(
         except Exception:
             pass
 
-    return _dedupe_rects([r for r in rects if _is_plausible_qr_rect(r)])
+    image_area = float(image.width * image.height)
+
+    def _within_size(r: fitz.Rect) -> bool:
+        if image_area <= 0:
+            return True
+        return (r.x1 - r.x0) * (r.y1 - r.y0) <= max_area_frac * image_area
+
+    return _dedupe_rects(
+        [r for r in rects if _is_plausible_qr_rect(r) and _within_size(r)]
+    )
 
 
 def _is_plausible_qr_rect(rect: fitz.Rect) -> bool:

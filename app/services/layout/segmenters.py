@@ -46,7 +46,7 @@ from app.services.layout._digital_analysis import (
 from app.services.layout.reflow import group_logical_lines, normalize_inline_newlines
 from app.services.pdf.extractor import PageText, WordBox
 from app.services.pdf.table_layout import group_words_by_visual_row
-from app.services.vision.code_detector import detect_and_decode_visual_codes
+from app.services.vision.code_detector import detect_redactable_codes
 
 # Y-position thresholds as fraction of page height.
 _HEADER_RATIO: float = 0.12
@@ -320,7 +320,7 @@ class OcrPageSegmenter:
                     text="",
                     source="ocr",
                 ))
-            for qr_rect, qr_text in detect_and_decode_visual_codes(image):
+            for qr_rect, qr_text in detect_redactable_codes(image):
                 visual_zones.append(PageZone(
                     zone_type=ZoneType.QR_CODE,
                     rect=qr_rect,
