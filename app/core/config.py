@@ -93,7 +93,7 @@ class Settings(BaseSettings):
     # Per-page OCR budget (seconds).  A page that exceeds it (e.g. a very large
     # blueprint that stalls the OCR engine) is skipped, logged, and flagged for
     # manual review instead of hanging the whole job.
-    ocr_page_timeout_s: int = 180
+    ocr_page_timeout_s: int = 360
 
     # "Image-dominant" page fast path: a page whose largest embedded image covers
     # at least this fraction of the page AND exceeds this pixel count is treated
