@@ -58,7 +58,7 @@ def redact_pdf_hybrid_secure(
 
     ocr_redacted_count = 0
     ocr_pages_processed = 0
-    plan_pages_skipped: list[int] = []
+    plan_pages_carried: list[int] = []
 
     with TemporaryDirectory(prefix="pdf_hybrid_") as tmp_dir_name:
         tmp_dir = Path(tmp_dir_name)
@@ -82,11 +82,12 @@ def redact_pdf_hybrid_secure(
                 page_index = page_info.page_index
                 page = redacted_doc[page_index]
 
-                # Plan pages (A1/A0 drawings): detected from metadata before any
-                # render.  The digital pass already skipped them, so the page is
-                # carried through untouched and flagged for manual review.
+                # Plan pages (A1/A0 drawings): the digital pass already located
+                # and redacted the title block (or flagged the page — its
+                # warnings propagate).  Carried through without OCR: the page
+                # budget cannot cover rasterising an A1/A0 drawing.
                 if is_plan_page(page):
-                    plan_pages_skipped.append(page_index)
+                    plan_pages_carried.append(page_index)
                     output_doc.insert_pdf(
                         redacted_doc, from_page=page_index, to_page=page_index,
                     )
@@ -199,11 +200,6 @@ def redact_pdf_hybrid_secure(
         warnings.append(
             "Residual PII-like entities detected after OCR redaction. Manual review required."
         )
-    if plan_pages_skipped:
-        warnings.append(
-            "Construction-plan pages kept unredacted (title-block processing "
-            f"pending): {sorted(plan_pages_skipped)}. Manual review required."
-        )
 
     confidence_avg = (
         sum(confidence_values) / len(confidence_values) if confidence_values else None
@@ -234,7 +230,9 @@ def redact_pdf_hybrid_secure(
         residual_entities=residual_count,
         residual_entities_by_type=residual_by_type,
         manual_review_required=(
-            bool(low_confidence_pages) or residual_count > 0 or bool(plan_pages_skipped)
+            bool(low_confidence_pages)
+            or residual_count > 0
+            or digital_report.manual_review_required
         ),
         warnings=warnings,
         redaction_strategy="hybrid_secure_pdf_redaction",

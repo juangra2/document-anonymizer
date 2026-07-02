@@ -35,7 +35,7 @@ from app.services.ocr.base import OcrEngine
 from app.services.ocr.factory import get_ocr_engine, get_word_ocr_engine
 from app.services.ocr.models import OcrPage
 from app.services.pdf.inspector import inspect_pdf_for_phase1
-from app.services.pdf.plan_pages import is_image_dominant_page, is_plan_page
+from app.services.pdf.plan_pages import is_image_dominant_page, is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services.pii.gazetteer import normalize as _norm_token
 from app.services.pii.models import PiiEntity
@@ -92,6 +92,7 @@ def redact_pdf_scanned(
     confidence_values: list[float] = []
     low_confidence_pages: list[int] = []
     skipped_pages: list[int] = []
+    plan_pages_done: list[int] = []
     warnings: list[str] = []
 
     try:
@@ -186,14 +187,27 @@ def redact_pdf_scanned(
             for page_index, page in enumerate(source_doc):
                 # Plan pages (A1/A0 drawings) are detected from metadata BEFORE
                 # rendering: rasterising them is the expensive step the page
-                # budget cannot cover.  Fase (ii) will process the title block;
-                # until a cajetín is found the page is kept as-is and flagged.
+                # budget cannot cover.  Only the title block is analysed and
+                # redacted; without one, the page is kept as-is and flagged.
                 if is_plan_page(page):
-                    logger.warning(
-                        "Page %d detected as construction plan; skipping "
-                        "full pipeline (manual review).", page_index,
+                    found, plan_entities, plan_rects = redact_plan_page(
+                        page, analyzer, mode=mode,
                     )
-                    skipped_pages.append(page_index)
+                    if found:
+                        logger.info(
+                            "Page %d: construction plan, title block redacted "
+                            "(%d rects).", page_index, plan_rects,
+                        )
+                        all_entities.extend(plan_entities)
+                        redacted_count += plan_rects
+                        plan_pages_done.append(page_index)
+                    else:
+                        logger.warning(
+                            "Page %d: construction plan without detectable "
+                            "title block; kept as-is (manual review).",
+                            page_index,
+                        )
+                        skipped_pages.append(page_index)
                     output_doc.insert_pdf(
                         source_doc, from_page=page_index, to_page=page_index,
                     )

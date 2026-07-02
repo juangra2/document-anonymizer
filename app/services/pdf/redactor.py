@@ -27,7 +27,7 @@ from app.services.layout.segmenters import DigitalPageSegmenter
 from app.services.layout.zone_config import get_detector_config
 from app.services.pdf.extractor import extract_page_text, rects_for_span
 from app.services.pdf.inspector import inspect_pdf_for_phase1
-from app.services.pdf.plan_pages import is_plan_page
+from app.services.pdf.plan_pages import is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services.pii.institution_filter import filter_institutional
 from app.services.pii.models import PiiEntity
@@ -60,14 +60,24 @@ def redact_pdf_digital(
         warnings: list[str] = []
 
         plan_pages_skipped: list[int] = []
+        plan_pages_done: list[int] = []
 
         for page_index, page in enumerate(doc):
-            # Plan pages (A1/A0 vector drawings, e.g. a CAD plan with thousands
-            # of dispersed labels) are excluded from the normal pipeline: NER on
-            # fragment soup yields noise and the 300-DPI QR render alone exceeds
-            # 70 MP.  Kept as-is and flagged until title-block processing lands.
+            # Plan pages (A1/A0 drawings) never enter the normal pipeline: NER
+            # on fragment soup yields noise and the 300-DPI QR render alone
+            # exceeds 70 MP.  Only the title block (cajetín) carries PII, so it
+            # is located and redacted on its own; without one, the page is kept
+            # as-is and flagged for manual review.
             if is_plan_page(page):
-                plan_pages_skipped.append(page_index)
+                found, plan_entities, plan_rects = redact_plan_page(
+                    page, analyzer, mode=mode,
+                )
+                if found:
+                    plan_pages_done.append(page_index)
+                    all_entities.extend(plan_entities)
+                    redacted_count += plan_rects
+                else:
+                    plan_pages_skipped.append(page_index)
                 continue
 
             page_text = extract_page_text(page, page_index)
@@ -99,10 +109,15 @@ def redact_pdf_digital(
 
             page.apply_redactions()
 
+        if plan_pages_done:
+            warnings.append(
+                "Construction-plan pages: only the title block was analysed "
+                f"and redacted: {sorted(plan_pages_done)}."
+            )
         if plan_pages_skipped:
             warnings.append(
-                "Construction-plan pages kept unredacted (title-block "
-                f"processing pending): {sorted(plan_pages_skipped)}. "
+                "Construction-plan pages without a detectable title block, "
+                f"kept unredacted: {sorted(plan_pages_skipped)}. "
                 "Manual review required."
             )
 

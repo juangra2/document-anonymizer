@@ -70,6 +70,42 @@ def test_toggle_disables_detection(monkeypatch):
         doc.close()
 
 
+def test_plan_page_titleblock_redacted_end_to_end(tmp_path):
+    # Plano digital con cajetín: se redacta el PII del cajetín y se conserva
+    # el contenido del dibujo.
+    from app.services.pdf.redactor import redact_pdf_digital
+    from app.services.pii.analyzer import PiiAnalyzer
+
+    doc, page = _plan_pdf()
+    x0, y0 = _A1_W - 340, _A1_H - 500
+    for i in range(7):
+        page.draw_line((x0, y0 + 70 * i), (_A1_W - 20, y0 + 70 * i))
+    page.draw_rect(fitz.Rect(x0, y0, _A1_W - 20, _A1_H - 20))
+    labels = ["PROMOTOR: ACME PROMOCIONES SL",
+              "ARQUITECTO: LOLA ROMERA MARTINEZ",
+              "ESCALA: 1/500", "FECHA: 01/2026",
+              "PLANO: 03", "SITUACION: CALLE MAYOR 12"]
+    for k, lab in enumerate(labels):
+        page.insert_text((x0 + 10, y0 + 30 + 55 * k), lab, fontsize=13)
+    page.insert_text((300, 300), "ROTONDA SJL-6", fontsize=10)   # cuerpo del dibujo
+
+    src = tmp_path / "plan_tb.pdf"
+    doc.save(src)
+    doc.close()
+
+    out = tmp_path / "out.pdf"
+    report = redact_pdf_digital(
+        input_path=src, output_path=out, job_id="t", analyzer=PiiAnalyzer(),
+    )
+    assert any("title block" in w.lower() for w in report.warnings)
+
+    rdoc = fitz.open(out)
+    text = rdoc[0].get_text()
+    rdoc.close()
+    assert "LOLA ROMERA MARTINEZ" not in text, "PII del cajetín debe redactarse"
+    assert "ROTONDA SJL-6" in text, "el cuerpo del dibujo no debe tocarse"
+
+
 def test_digital_redactor_skips_plan_page(tmp_path):
     # Un PDF con página-plano se procesa sin tocar la página y con aviso.
     from app.services.pdf.redactor import redact_pdf_digital

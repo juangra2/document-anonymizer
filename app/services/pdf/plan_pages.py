@@ -77,6 +77,125 @@ def _drawing_count(page: fitz.Page) -> int:
             return 0
 
 
+_TITLEBLOCK_OCR_DPI = 300
+
+import re as _re
+
+# "Situación/Emplazamiento:" del cajetín → dirección del proyecto (PII del
+# plano).  Local a este módulo: fuera del cajetín "situación" es prosa común.
+_TB_ADDRESS_RE = _re.compile(
+    r"(?im)^[^\S\r\n]*(?:situaci[oó]n?|emplazamiento|localizaci[oó]n)"
+    r"[^\S\r\n]*:[^\S\r\n]*\n?(?P<value>[^\n]+(?:\n[^\n:]+)?)"
+)
+
+
+def redact_plan_page(page: fitz.Page, analyzer, mode: str = "strict"):
+    """Redacta el PII del cajetín de una página-plano, in place.
+
+    Flujo: localizar cajetín (titleblock.detect_titleblock) → re-rasterizar
+    SOLO ese clip a 300 DPI → EasyOCR + análisis PII (pipeline de zonas del
+    path escaneado) → mapear los rects a puntos de página (des-rotando: los
+    annots de redacción esperan coordenadas sin rotar) → apply_redactions,
+    que tacha también el contenido de imágenes embebidas (planos escaneados).
+
+    El cuerpo del dibujo no se rasteriza ni se analiza nunca.
+
+    Returns:
+        (found, entities, n_rects): found=False si no hay cajetín (la página
+        queda intacta; el caller debe marcarla para revisión manual).
+    """
+    # Imports perezosos: scanned_redactor importa este módulo (evita el ciclo)
+    # y los motores OCR no deben cargarse si no hay páginas-plano.
+    from app.services.layout.models import PageZone, ZoneType
+    from app.services.layout.segmenters import _build_ocr_zone_text_and_tokens
+    from app.services.ocr.factory import get_word_ocr_engine
+    from app.services.vision.titleblock import detect_titleblock
+
+    clip = detect_titleblock(page)
+    if clip is None:
+        return False, [], 0
+
+    scale = _TITLEBLOCK_OCR_DPI / 72.0
+    pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), clip=clip, alpha=False)
+    from io import BytesIO
+    from PIL import Image
+    image = Image.open(BytesIO(pix.tobytes("png"))).convert("RGB")
+
+    import tempfile
+    from pathlib import Path as _Path
+    with tempfile.TemporaryDirectory(prefix="plan_tb_") as td:
+        img_path = _Path(td) / "titleblock.png"
+        image.save(img_path)
+        ocr_page = get_word_ocr_engine(None).analyze_image(
+            image_path=img_path, page_index=page.number or 0,
+        )
+    if not ocr_page.tokens:
+        return True, [], 0
+
+    # El cajetín es un bloque pequeño y estructurado: se analiza como UNA sola
+    # zona (partirlo en header/footer separa "Promotor:" de su valor) y con
+    # heurísticas propias, porque TODO su contenido es metadato del proyecto:
+    #   - LOCATION del NER con tokens de nombre/apellido INE → PERSON (los
+    #     nombres de arquitecto en el cajetín se etiquetan a menudo LOCATION).
+    #   - "Situación/Emplazamiento:" → ADDRESS (dirección del proyecto).
+    zone_text, zone_tokens = _build_ocr_zone_text_and_tokens(ocr_page.tokens)
+    zone = PageZone(
+        zone_type=ZoneType.BODY,
+        rect=fitz.Rect(0, 0, image.width, image.height),
+        text=zone_text,
+        tokens=zone_tokens,
+        source="ocr",
+    )
+
+    from app.services.layout.zone_config import ALL_PII_TYPES
+    from app.services.pii import gazetteer
+    from app.services.pii.analyzer import _name_tokens
+    from app.services.pii.models import PiiEntity
+    from app.services.pdf.scanned_redactor import (
+        _center_in_any, _entity_rects_from_zone,
+    )
+
+    raw = analyzer.analyze(zone_text, mode=mode, zone_type=None)
+    allowed = set(ALL_PII_TYPES)
+    entities = []
+    for e in raw:
+        if e.entity_type == "LOCATION" and any(
+            gazetteer.is_person_token(t) for t in _name_tokens(zone_text[e.start:e.end])
+        ):
+            e = PiiEntity("PERSON", e.start, e.end, e.score, e.source,
+                          zone_text[e.start:e.end])
+        if e.entity_type in allowed:
+            entities.append(PiiEntity(
+                e.entity_type, e.start, e.end, e.score, e.source,
+                zone_text[e.start:e.end],
+            ))
+    for m in _TB_ADDRESS_RE.finditer(zone_text):
+        entities.append(PiiEntity(
+            "ADDRESS", m.start("value"), m.end("value"), 0.9,
+            "labeled_field", m.group("value"),
+        ))
+
+    px_rects: list[fitz.Rect] = []
+    for e in entities:
+        for r in _entity_rects_from_zone(e, zone):
+            if not _center_in_any(r, px_rects):
+                px_rects.append(r)
+
+    derot = page.derotation_matrix
+    for r in px_rects:
+        view = fitz.Rect(
+            clip.x0 + r.x0 / scale, clip.y0 + r.y0 / scale,
+            clip.x0 + r.x1 / scale, clip.y0 + r.y1 / scale,
+        ) & clip
+        if view.is_empty:
+            continue
+        page.add_redact_annot(view * derot, fill=(0, 0, 0))
+
+    if px_rects:
+        page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_PIXELS)
+    return True, entities, len(px_rects)
+
+
 def is_plan_page(page: fitz.Page) -> bool:
     """True cuando la página es un plano de obra (todas las señales a la vez):
 
