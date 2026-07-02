@@ -25,6 +25,7 @@ from app.schemas.report import DetectedEntityInfo, OcrInfo, ProcessingLimits, Pr
 from app.services.layout.segmenters import OcrPageSegmenter
 from app.services.ocr.factory import get_ocr_engine
 from app.services.pdf.inspector import inspect_pdf_for_phase1
+from app.services.pdf.plan_pages import is_plan_page
 from app.services.pdf.redactor import redact_pdf_digital
 from app.services.pdf.scanned_redactor import (
     _append_image_as_pdf_page,
@@ -57,6 +58,7 @@ def redact_pdf_hybrid_secure(
 
     ocr_redacted_count = 0
     ocr_pages_processed = 0
+    plan_pages_skipped: list[int] = []
 
     with TemporaryDirectory(prefix="pdf_hybrid_") as tmp_dir_name:
         tmp_dir = Path(tmp_dir_name)
@@ -79,6 +81,16 @@ def redact_pdf_hybrid_secure(
             for page_info in inspection.page_inspections:
                 page_index = page_info.page_index
                 page = redacted_doc[page_index]
+
+                # Plan pages (A1/A0 drawings): detected from metadata before any
+                # render.  The digital pass already skipped them, so the page is
+                # carried through untouched and flagged for manual review.
+                if is_plan_page(page):
+                    plan_pages_skipped.append(page_index)
+                    output_doc.insert_pdf(
+                        redacted_doc, from_page=page_index, to_page=page_index,
+                    )
+                    continue
 
                 if page_info.page_type == "digital":
                     output_doc.insert_pdf(
@@ -187,6 +199,11 @@ def redact_pdf_hybrid_secure(
         warnings.append(
             "Residual PII-like entities detected after OCR redaction. Manual review required."
         )
+    if plan_pages_skipped:
+        warnings.append(
+            "Construction-plan pages kept unredacted (title-block processing "
+            f"pending): {sorted(plan_pages_skipped)}. Manual review required."
+        )
 
     confidence_avg = (
         sum(confidence_values) / len(confidence_values) if confidence_values else None
@@ -216,7 +233,9 @@ def redact_pdf_hybrid_secure(
         },
         residual_entities=residual_count,
         residual_entities_by_type=residual_by_type,
-        manual_review_required=bool(low_confidence_pages) or residual_count > 0,
+        manual_review_required=(
+            bool(low_confidence_pages) or residual_count > 0 or bool(plan_pages_skipped)
+        ),
         warnings=warnings,
         redaction_strategy="hybrid_secure_pdf_redaction",
         redaction_mode=mode,

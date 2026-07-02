@@ -46,6 +46,20 @@ class Settings(BaseSettings):
     # specific communication addressed to a citizen).
     redact_case_file_number: bool = False
 
+    # Construction-plan pages (A1/A0 drawings).  Detected from fitz metadata
+    # BEFORE rasterising or running any OCR (O(ms)), so a 30+ MP plan never
+    # stalls the pipeline.  PII on a plan lives in the title block (cajetín);
+    # the drawing body is never processed.
+    plan_page_enabled: bool = True
+    # ≥A2 gate: short side and long side minimums in PDF points (A2 = 1191×1684).
+    plan_min_short_side_pts: float = 1150.0
+    plan_min_long_side_pts: float = 1600.0
+    # Graphic dominance: massive vector content OR a dominant embedded image
+    # (the image branch reuses ocr_image_dominant_*).  A text A4 has <200 paths.
+    plan_min_drawings: int = 2000
+    # "No paragraphs": at most this many text blocks of ≥150 chars.
+    plan_max_paragraph_blocks: int = 5
+
     # Detect and redact handwritten signatures (embedded images / ink) in the
     # digital PDF path, anchored to a signature cue ("Fdo.", "Firma", …).
     # Off by default: the current heuristics over-redact (legitimate text/logos);

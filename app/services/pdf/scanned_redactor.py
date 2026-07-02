@@ -35,6 +35,7 @@ from app.services.ocr.base import OcrEngine
 from app.services.ocr.factory import get_ocr_engine, get_word_ocr_engine
 from app.services.ocr.models import OcrPage
 from app.services.pdf.inspector import inspect_pdf_for_phase1
+from app.services.pdf.plan_pages import is_image_dominant_page, is_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services.pii.gazetteer import normalize as _norm_token
 from app.services.pii.models import PiiEntity
@@ -58,36 +59,8 @@ def _run_with_timeout(fn, timeout_s: int):
         executor.shutdown(wait=False)
 
 
-def _is_image_dominant_page(page: fitz.Page) -> bool:
-    """True for plan/photo pages: a very large image covering most of the page.
-
-    Distinguishes high-resolution blueprints (which stall the OCR engine) from
-    ordinary scanned text pages by requiring a high pixel count, not just area.
-    """
-    page_rect = page.rect
-    page_area = page_rect.width * page_rect.height
-    if page_area <= 0:
-        return False
-
-    try:
-        images = page.get_images(full=True)
-    except Exception:
-        return False
-
-    for im in images:
-        xref = im[0]
-        w_px = im[2] if len(im) > 2 else 0
-        h_px = im[3] if len(im) > 3 else 0
-        if (w_px * h_px) / 1_000_000.0 < settings.ocr_image_dominant_megapixels:
-            continue
-        try:
-            rects = page.get_image_rects(xref)
-        except Exception:
-            continue
-        for r in rects:
-            if (r.width * r.height) / page_area >= settings.ocr_image_dominant_area_frac:
-                return True
-    return False
+# Metadata-only page classifiers shared with the hybrid/digital paths.
+_is_image_dominant_page = is_image_dominant_page
 
 
 def redact_pdf_scanned(
@@ -211,6 +184,21 @@ def redact_pdf_scanned(
                 }
 
             for page_index, page in enumerate(source_doc):
+                # Plan pages (A1/A0 drawings) are detected from metadata BEFORE
+                # rendering: rasterising them is the expensive step the page
+                # budget cannot cover.  Fase (ii) will process the title block;
+                # until a cajetín is found the page is kept as-is and flagged.
+                if is_plan_page(page):
+                    logger.warning(
+                        "Page %d detected as construction plan; skipping "
+                        "full pipeline (manual review).", page_index,
+                    )
+                    skipped_pages.append(page_index)
+                    output_doc.insert_pdf(
+                        source_doc, from_page=page_index, to_page=page_index,
+                    )
+                    continue
+
                 image = _render_page_to_image(page, dpi=settings.ocr_pdf_render_dpi)
 
                 # Fast path: oversized plan/photo page → skip heavy text OCR and

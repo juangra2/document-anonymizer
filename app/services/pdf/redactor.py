@@ -27,6 +27,7 @@ from app.services.layout.segmenters import DigitalPageSegmenter
 from app.services.layout.zone_config import get_detector_config
 from app.services.pdf.extractor import extract_page_text, rects_for_span
 from app.services.pdf.inspector import inspect_pdf_for_phase1
+from app.services.pdf.plan_pages import is_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services.pii.institution_filter import filter_institutional
 from app.services.pii.models import PiiEntity
@@ -58,7 +59,17 @@ def redact_pdf_digital(
         redacted_count = 0
         warnings: list[str] = []
 
+        plan_pages_skipped: list[int] = []
+
         for page_index, page in enumerate(doc):
+            # Plan pages (A1/A0 vector drawings, e.g. a CAD plan with thousands
+            # of dispersed labels) are excluded from the normal pipeline: NER on
+            # fragment soup yields noise and the 300-DPI QR render alone exceeds
+            # 70 MP.  Kept as-is and flagged until title-block processing lands.
+            if is_plan_page(page):
+                plan_pages_skipped.append(page_index)
+                continue
+
             page_text = extract_page_text(page, page_index)
             zoned_page = segmenter.segment(page_text, page.rect)
 
@@ -87,6 +98,13 @@ def redact_pdf_digital(
                 page.add_redact_annot(rect, fill=(0, 0, 0))
 
             page.apply_redactions()
+
+        if plan_pages_skipped:
+            warnings.append(
+                "Construction-plan pages kept unredacted (title-block "
+                f"processing pending): {sorted(plan_pages_skipped)}. "
+                "Manual review required."
+            )
 
         try:
             doc.scrub(
@@ -142,7 +160,7 @@ def redact_pdf_digital(
         entities_redacted=redacted_count,
         entities_by_type=entities_by_type,
         residual_entities=0,
-        manual_review_required=False,
+        manual_review_required=bool(plan_pages_skipped),
         warnings=warnings,
         redaction_mode=mode,
         limits=ProcessingLimits(
