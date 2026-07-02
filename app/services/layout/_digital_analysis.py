@@ -31,6 +31,7 @@ SENSITIVE_TABLE_HEADER_KEYWORDS = {
     "direccion", "dirección", "datos", "anonimizar",
     "valor", "ejemplo", "ip", "token", "usuario", "iban", "tarjeta",
     "apellido", "cognom",
+    "ordenante", "beneficiario", "titular",
 }
 
 FULL_CELL_REDACTION_HEADER_KEYWORDS = SENSITIVE_TABLE_HEADER_KEYWORDS

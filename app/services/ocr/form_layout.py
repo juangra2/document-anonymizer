@@ -32,6 +32,8 @@ FIELD_SPECS: tuple[FieldSpec, ...] = (
             "nombre completo",
             "solicitante",
             "titular",
+            "ordenante",
+            "beneficiario",
             "persona",
             "medico responsable",
             "médico responsable",

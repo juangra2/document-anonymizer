@@ -14,6 +14,11 @@ FIELD_LABELS: list[list[str]] = [
     ["apellidos"],
     ["apellido"],
     ["persona"],
+    ["ordenante"],
+    ["beneficiario"],
+    ["titular"],
+    ["cuenta", "del", "beneficiario"],
+    ["cuenta", "del", "ordenante"],
 
     ["fecha", "de", "nacimiento"],
     ["fecha", "nacimiento"],

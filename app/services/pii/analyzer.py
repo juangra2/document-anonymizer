@@ -44,7 +44,21 @@ RedactionMode = Literal["strict", "balanced"]
 LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
     (
         "PERSON",
-        r"(?im)^[^\S\r\n]*(?:solicitante|interesado|titular|promotor(?:a)?|propietario(?:a)?|representante|arquitecto(?:a)?|t[eé]cnico(?:a)?|m[eé]dico[^\S\r\n]+responsable|doctor(?:a)?|nombre(?:[^\S\r\n]+completo)?|nombre(?:[^\S\r\n]+y[^\S\r\n]+apellidos)?|apellidos|persona|paciente(?:[^\S\r\n]+nombre)?|trabajador(?:a)?|empleado(?:a)?|notificado(?:a)?|destinatario(?:a)?|empadronado(?:a)?|persona[^\S\r\n]+empadronada)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:solicitante|interesado|titular|ordenante|beneficiario(?:a)?|promotor(?:a)?|propietario(?:a)?|representante|arquitecto(?:a)?|t[eé]cnico(?:a)?|m[eé]dico[^\S\r\n]+responsable|doctor(?:a)?|nombre(?:[^\S\r\n]+completo)?|nombre(?:[^\S\r\n]+y[^\S\r\n]+apellidos)?|apellidos|persona|paciente(?:[^\S\r\n]+nombre)?|trabajador(?:a)?|empleado(?:a)?|notificado(?:a)?|destinatario(?:a)?|empadronado(?:a)?|persona[^\S\r\n]+empadronada)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
+    ),
+    (
+        # Glued financial party label (bank-transfer tables read by OCR):
+        # MinerU merges header+value cells without separator, e.g.
+        # "ORDENANTEDE LA FUENTE SAEZ NOTARIOS C.B. BENEFICIARIOREGISTRO…".
+        # Case-sensitive on purpose: only the all-caps table label fires, never
+        # prose ("el beneficiario podrá…").  The value is the following
+        # uppercase run, stopping before the next known financial label.
+        # Always redacted (company names included) — party identity is PII here.
+        "PERSON",
+        r"(?:ORDENANTE|BENEFICIARIO)[^\S\r\n]*"
+        r"(?P<value>[A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ .,\-&/]{3,60}?)"
+        r"[^\S\r\n]*(?=ORDENANTE|BENEFICIARIO|IMPORTE|TIPO|MONEDA|REFERENCIA|"
+        r"CONCEPTO|FECHA|CUENTA|IBAN|SWIFT|TOTAL|\r|\n|$)",
     ),
     (
         # Date-only value capture stops at the date token, not end-of-line.
@@ -82,8 +96,11 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
         r"(?im)^[^\S\r\n]*(?:tel[eé]fono(?:[^\S\r\n]+m[oó]vil|[^\S\r\n]+alternativo|[^\S\r\n]+contacto)?|telefono(?:[^\S\r\n]+movil)?|telf\.?|m[oó]vil)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
     ),
     (
+        # Account-like labeled values require ≥8 digits (validated in
+        # _detect_labeled_fields) so a prose value ("la indicada arriba")
+        # after "Cuenta del beneficiario:" is not redacted.
         "IBAN_CODE",
-        r"(?im)^[^\S\r\n]*(?:iban|cuenta[^\S\r\n]+bancaria|n[uú]mero[^\S\r\n]+de[^\S\r\n]+cuenta|n[^\S\r\n]*[º°.]?[^\S\r\n]*de[^\S\r\n]+cuenta|num\.?[^\S\r\n]+cuenta)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:iban|cuenta[^\S\r\n]+bancaria|cuenta[^\S\r\n]+del?[^\S\r\n]+(?:beneficiario|ordenante)|cuenta[^\S\r\n]+(?:beneficiario|ordenante)|n[uú]mero[^\S\r\n]+de[^\S\r\n]+cuenta|n[^\S\r\n]*[º°.]?[^\S\r\n]*de[^\S\r\n]+cuenta|num\.?[^\S\r\n]+cuenta)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
         # ES-specific IBAN colon: captures full IBAN including newline-split groups.
@@ -246,7 +263,7 @@ _DIR_ROLE_LOOKAHEAD = (
 NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
     (
         "PERSON",
-        r"(?im)^[^\S\r\n]*(?:nombre[^\S\r\n]+completo|nombre|persona|trabajador(?:a)?|empleado(?:a)?)[^\S\r\n]+(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:nombre[^\S\r\n]+completo|nombre|persona|trabajador(?:a)?|empleado(?:a)?|ordenante|beneficiario(?:a)?|titular)[^\S\r\n]+(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
     ),
     (
         "DATE_OF_BIRTH",
@@ -1435,6 +1452,11 @@ class PiiAnalyzer:
                     # capturing label suffixes like "de contacto:" when the
                     # no-colon PHONE pattern fires on "Teléfono de contacto:\n".
                     if emit_type == "PHONE_NUMBER" and sum(c.isdigit() for c in value) < 7:
+                        continue
+
+                    # Account-like labeled values ("Cuenta del beneficiario:")
+                    # must carry ≥8 digits — keeps prose values out.
+                    if emit_type == "IBAN_CODE" and sum(c.isdigit() for c in value) < 8:
                         continue
 
                     if not PiiAnalyzer._passes_validation(
