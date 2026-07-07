@@ -107,7 +107,7 @@ def redact_pdf_digital(
             for rect in page_rects:
                 page.add_redact_annot(rect, fill=(0, 0, 0))
 
-            page.apply_redactions()
+            _apply_redactions_safe(page)
 
         if plan_pages_done:
             warnings.append(
@@ -333,6 +333,21 @@ def _center_in_any(rect: fitz.Rect, containers: list[fitz.Rect]) -> bool:
         if c.x0 - 1.5 <= cx <= c.x1 + 1.5 and c.y0 - 1.5 <= cy <= c.y1 + 1.5:
             return True
     return False
+
+
+def _apply_redactions_safe(page: fitz.Page) -> None:
+    """apply_redactions con fallback de colorspace.
+
+    El modo por defecto (PIXELS) tacha el contenido de las imágenes, pero MuPDF
+    solo lo soporta en Gray/RGB/CMYK; una imagen embebida con colorspace
+    exótico (indexado/ICC, p.ej. la de un código de barras real) lanza
+    FzErrorArgument.  En ese caso se reintenta ELIMINANDO las imágenes que
+    solapan la redacción — mismo resultado de privacidad.
+    """
+    try:
+        page.apply_redactions()
+    except Exception:
+        page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_REMOVE)
 
 
 def _add_signature_zones(page: fitz.Page, zoned_page, page_text) -> None:

@@ -192,7 +192,12 @@ def redact_plan_page(page: fitz.Page, analyzer, mode: str = "strict"):
         page.add_redact_annot(view * derot, fill=(0, 0, 0))
 
     if px_rects:
-        page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_PIXELS)
+        try:
+            page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_PIXELS)
+        except Exception:
+            # Colorspace exótico en imagen embebida: eliminar la imagen que
+            # solapa la redacción en lugar de tachar sus píxeles.
+            page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_REMOVE)
     return True, entities, len(px_rects)
 
 

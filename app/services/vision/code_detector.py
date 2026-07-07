@@ -15,11 +15,53 @@ except ImportError:
     _PYZBAR_AVAILABLE = False
 
 
+def _recover_linear_extent(
+    image: Image.Image,
+    anchor_x: int,
+    y0: int,
+    y1: int,
+) -> tuple[int, int, int, int] | None:
+    """Extensión real (x, y, w, h) de un código de barras lineal degenerado.
+
+    zbar decodifica algunos Code128 pero reporta un bbox/polygon colapsado a un
+    solo borde vertical (width=0).  Se recupera la extensión con la receta
+    clásica de localización: en la banda vertical del ancla, el patrón de
+    barras tiene gradiente-x fuerte y gradiente-y débil; el componente conexo
+    de esa máscara que contiene el ancla es el código completo.
+    """
+    gray = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2GRAY)
+    b0 = max(0, y0 - 8)
+    b1 = min(gray.shape[0], y1 + 8)
+    if b1 - b0 < 10:
+        return None
+    band = gray[b0:b1, :]
+    gx = cv2.Sobel(band, cv2.CV_32F, 1, 0)
+    gy = cv2.Sobel(band, cv2.CV_32F, 0, 1)
+    grad = cv2.convertScaleAbs(np.abs(gx) - np.abs(gy))
+    _, thr = cv2.threshold(grad, 60, 255, cv2.THRESH_BINARY)
+    closed = cv2.morphologyEx(
+        thr, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (21, 7))
+    )
+    n, _, stats, _ = cv2.connectedComponentsWithStats(closed, connectivity=8)
+    best: tuple[int, int, int, int] | None = None
+    for i in range(1, n):
+        x, y, w, h, _area = stats[i]
+        if w < 30 or h < 0.4 * (y1 - y0):
+            continue
+        if not (x - 15 <= anchor_x <= x + w + 15):
+            continue
+        if best is None or w > best[2]:
+            best = (x, y + b0, w, h)
+    return best
+
+
 def _pyzbar_pairs(image: Image.Image, padding: int = 8) -> list[tuple[fitz.Rect, str]]:
     """(rect, payload) de pyzbar: QR y códigos de barras lineales decodificados.
 
     Sanidad mínima (lado corto ≥12 px) en lugar del filtro cuadrado: los
-    lineales son anchos por naturaleza y solo se emiten si decodifican.
+    lineales son anchos por naturaleza y solo se emiten si decodifican.  Un
+    bbox degenerado de zbar (width=0 en Code128 reales) se reconstruye desde
+    el polygon o, si también está colapsado, con OpenCV desde el ancla.
     """
     if not _PYZBAR_AVAILABLE:
         return []
@@ -27,16 +69,30 @@ def _pyzbar_pairs(image: Image.Image, padding: int = 8) -> list[tuple[fitz.Rect,
     try:
         for obj in _pyzbar_decode(image):
             r = obj.rect
-            if min(r.width, r.height) < 12:
+            x, y, w, h = r.left, r.top, r.width, r.height
+
+            if min(w, h) < 12:
+                # 1º intento: bbox del polygon (a veces trae los 4 vértices).
+                pts = getattr(obj, "polygon", None) or []
+                if pts:
+                    xs = [p.x for p in pts]
+                    ys = [p.y for p in pts]
+                    x, y = min(xs), min(ys)
+                    w, h = max(xs) - x, max(ys) - y
+                # 2º intento: recuperación OpenCV desde el borde reportado.
+                if min(w, h) < 12:
+                    recovered = _recover_linear_extent(
+                        image, anchor_x=r.left, y0=r.top, y1=r.top + max(r.height, h),
+                    )
+                    if recovered is None:
+                        continue
+                    x, y, w, h = recovered
+            if min(w, h) < 12:
                 continue
+
             text = obj.data.decode("utf-8", errors="replace")
             out.append((
-                fitz.Rect(
-                    r.left - padding,
-                    r.top - padding,
-                    r.left + r.width + padding,
-                    r.top + r.height + padding,
-                ),
+                fitz.Rect(x - padding, y - padding, x + w + padding, y + h + padding),
                 text,
             ))
     except Exception:
@@ -125,6 +181,17 @@ def detect_and_decode_visual_codes(
 # A real QR/barcode occupies a small fraction of a document page.  Detections
 # larger than this are almost always false positives on diagrams/seals/figures.
 _QR_MAX_AREA_FRAC = 0.05
+# Un código de barras lineal (aspect ≥3) es ancho por naturaleza y puede
+# superar con facilidad el tope pensado para QR compactos.
+_LINEAR_MAX_AREA_FRAC = 0.20
+
+
+def _area_cap(rect: fitz.Rect, default: float) -> float:
+    """Tope de área según la forma: los lineales anchos admiten más superficie."""
+    w, h = rect.x1 - rect.x0, rect.y1 - rect.y0
+    if min(w, h) <= 0:
+        return default
+    return _LINEAR_MAX_AREA_FRAC if max(w, h) / min(w, h) >= 3.0 else default
 
 
 def detect_redactable_codes(
@@ -143,7 +210,7 @@ def detect_redactable_codes(
         if not text.strip():
             continue
         area = (rect.x1 - rect.x0) * (rect.y1 - rect.y0)
-        if image_area > 0 and area > max_area_frac * image_area:
+        if image_area > 0 and area > _area_cap(rect, max_area_frac) * image_area:
             continue
         out.append((rect, text))
     return out
@@ -219,9 +286,13 @@ def detect_visual_code_rects(
         return (r.x1 - r.x0) * (r.y1 - r.y0) <= max_area_frac * image_area
 
     # cv2 QR hits (detect-only) need the square-shape filter; pyzbar hits are
-    # decoded (QR + linear barcodes) so only the size cap applies to them.
+    # decoded (QR + linear barcodes) so only the shape-aware size cap applies.
     kept = [r for r in rects if _is_plausible_qr_rect(r) and _within_size(r)]
-    kept.extend(r for r, _ in _pyzbar_pairs(image, padding) if _within_size(r))
+    kept.extend(
+        r for r, _ in _pyzbar_pairs(image, padding)
+        if (r.x1 - r.x0) * (r.y1 - r.y0) <= _area_cap(r, max_area_frac) * image_area
+        or image_area <= 0
+    )
 
     return _dedupe_rects(kept)
 
