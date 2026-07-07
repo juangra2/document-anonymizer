@@ -44,7 +44,7 @@ RedactionMode = Literal["strict", "balanced"]
 LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
     (
         "PERSON",
-        r"(?im)^[^\S\r\n]*(?:solicitante|interesado|titular|ordenante|beneficiario(?:a)?|promotor(?:a)?|propietario(?:a)?|representante|arquitecto(?:a)?|t[eé]cnico(?:a)?|m[eé]dico[^\S\r\n]+responsable|doctor(?:a)?|nombre(?:[^\S\r\n]+completo)?|nombre(?:[^\S\r\n]+y[^\S\r\n]+apellidos)?|apellidos|persona|paciente(?:[^\S\r\n]+nombre)?|trabajador(?:a)?|empleado(?:a)?|notificado(?:a)?|destinatario(?:a)?|empadronado(?:a)?|persona[^\S\r\n]+empadronada)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:solicitante|interesado|titular|ordenante|beneficiario(?:a)?|entidad(?:[^\S\r\n]+bancaria)?|banco|promotor(?:a)?|propietario(?:a)?|representante|arquitecto(?:a)?|t[eé]cnico(?:a)?|m[eé]dico[^\S\r\n]+responsable|doctor(?:a)?|nombre(?:[^\S\r\n]+completo)?|nombre(?:[^\S\r\n]+y[^\S\r\n]+apellidos)?|apellidos|persona|paciente(?:[^\S\r\n]+nombre)?|trabajador(?:a)?|empleado(?:a)?|notificado(?:a)?|destinatario(?:a)?|empadronado(?:a)?|persona[^\S\r\n]+empadronada)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
     ),
     (
         # Glued financial party label (bank-transfer tables read by OCR):
@@ -57,8 +57,8 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
         "PERSON",
         r"(?:ORDENANTE|BENEFICIARIO)[^\S\r\n]*"
         r"(?P<value>[A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ .,\-&/]{3,60}?)"
-        r"[^\S\r\n]*(?=ORDENANTE|BENEFICIARIO|IMPORTE|TIPO|MONEDA|REFERENCIA|"
-        r"CONCEPTO|FECHA|CUENTA|IBAN|SWIFT|TOTAL|\r|\n|$)",
+        r"[^\S\r\n]*(?=ORDENANTE|BENEFICIARIO|ENTIDAD|BANCO|IMPORTE|TIPO|MONEDA|"
+        r"REFERENCIA|CONCEPTO|FECHA|CUENTA|IBAN|SWIFT|TOTAL|\r|\n|$)",
     ),
     (
         # Date-only value capture stops at the date token, not end-of-line.
@@ -263,7 +263,7 @@ _DIR_ROLE_LOOKAHEAD = (
 NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
     (
         "PERSON",
-        r"(?im)^[^\S\r\n]*(?:nombre[^\S\r\n]+completo|nombre|persona|trabajador(?:a)?|empleado(?:a)?|ordenante|beneficiario(?:a)?|titular)[^\S\r\n]+(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:nombre[^\S\r\n]+completo|nombre|persona|trabajador(?:a)?|empleado(?:a)?|ordenante|beneficiario(?:a)?|titular|entidad(?:[^\S\r\n]+bancaria)?|banco)[^\S\r\n]+(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
     ),
     (
         "DATE_OF_BIRTH",

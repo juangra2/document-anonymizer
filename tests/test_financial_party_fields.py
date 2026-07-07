@@ -53,6 +53,34 @@ def test_lowercase_prose_beneficiario_not_matched():
     assert _ents("el beneficiario podrá ejercitar sus derechos", {"PERSON"}) == []
 
 
+# --- entidad bancaria ---------------------------------------------------------
+
+def test_entidad_colon():
+    assert ("PERSON", "Banco Santander S.A.") in _ents(
+        "ENTIDAD: Banco Santander S.A.", {"PERSON"})
+
+
+def test_entidad_bancaria_and_banco_colon():
+    assert any(v == "CaixaBank" for _, v in _ents(
+        "Entidad bancaria: CaixaBank", {"PERSON"}))
+    assert any(v == "Sabadell" for _, v in _ents("BANCO: Sabadell", {"PERSON"}))
+
+
+def test_entidad_no_colon():
+    assert any(v == "Banco Santander" for _, v in _ents(
+        "Entidad Banco Santander", {"PERSON"}))
+
+
+def test_glued_party_stops_before_entidad():
+    out = _ents("ORDENANTEJUAN PEREZ RUIZ ENTIDADBANCO SANTANDER", {"PERSON"})
+    assert any(v == "JUAN PEREZ RUIZ" for _, v in out)
+
+
+def test_entidad_prose_not_matched():
+    assert _ents("la entidad procederá al abono en el banco indicado",
+                 {"PERSON"}) == []
+
+
 # --- cuenta del beneficiario/ordenante ---------------------------------------
 
 def test_cuenta_beneficiario_with_digits():
