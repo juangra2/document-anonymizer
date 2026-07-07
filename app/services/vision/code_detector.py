@@ -15,6 +15,35 @@ except ImportError:
     _PYZBAR_AVAILABLE = False
 
 
+def _pyzbar_pairs(image: Image.Image, padding: int = 8) -> list[tuple[fitz.Rect, str]]:
+    """(rect, payload) de pyzbar: QR y códigos de barras lineales decodificados.
+
+    Sanidad mínima (lado corto ≥12 px) en lugar del filtro cuadrado: los
+    lineales son anchos por naturaleza y solo se emiten si decodifican.
+    """
+    if not _PYZBAR_AVAILABLE:
+        return []
+    out: list[tuple[fitz.Rect, str]] = []
+    try:
+        for obj in _pyzbar_decode(image):
+            r = obj.rect
+            if min(r.width, r.height) < 12:
+                continue
+            text = obj.data.decode("utf-8", errors="replace")
+            out.append((
+                fitz.Rect(
+                    r.left - padding,
+                    r.top - padding,
+                    r.left + r.width + padding,
+                    r.top + r.height + padding,
+                ),
+                text,
+            ))
+    except Exception:
+        pass
+    return out
+
+
 def detect_and_decode_visual_codes(
     image: Image.Image,
     padding: int = 8,
@@ -70,22 +99,13 @@ def detect_and_decode_visual_codes(
                 if rect is not None and _is_plausible_qr_rect(rect):
                     pairs.append((rect, decoded or ""))
 
-    # --- Pass 4: pyzbar ---
-    if not pairs and _PYZBAR_AVAILABLE:
-        try:
-            for obj in _pyzbar_decode(image):
-                r = obj.rect
-                rect = fitz.Rect(
-                    r.left - padding,
-                    r.top - padding,
-                    r.left + r.width + padding,
-                    r.top + r.height + padding,
-                )
-                if _is_plausible_qr_rect(rect):
-                    text = obj.data.decode("utf-8", errors="replace")
-                    pairs.append((rect, text))
-        except Exception:
-            pass
+    # --- Pass 4: pyzbar — QR + códigos de barras lineales (Code128/39/93,
+    # EAN/UPC, I25, DATABAR, PDF417…).  Corre SIEMPRE, no solo como fallback:
+    # una página puede llevar un QR y un código de barras a la vez.  A los
+    # resultados pyzbar no se les exige forma cuadrada (un lineal es ancho por
+    # naturaleza y el hecho de decodificar ya descarta el falso positivo); la
+    # guardia compartida de payload+tamaño (detect_redactable_codes) aplica igual.
+    pairs.extend(_pyzbar_pairs(image, padding))
 
     # Deduplicate by rect proximity
     tolerance = 4.0
@@ -191,20 +211,6 @@ def detect_visual_code_rects(
                 if rect is not None:
                     rects.append(rect)
 
-    # --- Pass 4: pyzbar (optional) ---
-    if not rects and _PYZBAR_AVAILABLE:
-        try:
-            for obj in _pyzbar_decode(image):
-                r = obj.rect
-                rects.append(fitz.Rect(
-                    r.left - padding,
-                    r.top - padding,
-                    r.left + r.width + padding,
-                    r.top + r.height + padding,
-                ))
-        except Exception:
-            pass
-
     image_area = float(image.width * image.height)
 
     def _within_size(r: fitz.Rect) -> bool:
@@ -212,9 +218,12 @@ def detect_visual_code_rects(
             return True
         return (r.x1 - r.x0) * (r.y1 - r.y0) <= max_area_frac * image_area
 
-    return _dedupe_rects(
-        [r for r in rects if _is_plausible_qr_rect(r) and _within_size(r)]
-    )
+    # cv2 QR hits (detect-only) need the square-shape filter; pyzbar hits are
+    # decoded (QR + linear barcodes) so only the size cap applies to them.
+    kept = [r for r in rects if _is_plausible_qr_rect(r) and _within_size(r)]
+    kept.extend(r for r, _ in _pyzbar_pairs(image, padding) if _within_size(r))
+
+    return _dedupe_rects(kept)
 
 
 def _is_plausible_qr_rect(rect: fitz.Rect) -> bool:

@@ -16,6 +16,8 @@ dependencies = [
     "numpy",
     "easyocr",
     "opencv-python",
+    # QR + códigos de barras lineales (Code128/39, EAN/UPC, PDF417…).
+    "pyzbar",
 ]
 
 [project.optional-dependencies]
