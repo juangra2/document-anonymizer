@@ -977,12 +977,19 @@ _IBAN_OCR_TRANS = str.maketrans("OILSBoilsb", "0115801158")
 # NAME", "Firmado (electrónicamente) por NAME".  The captured name is validated
 # against the INE gazetteer to drop role titles ("Fdo.: El Secretario") and
 # institutions ("Firmado por la Universitat …").
+# Una palabra-etiqueta de firma nunca forma parte del nombre: sin esta guarda,
+# con varios "Fdo.: NOMBRE" en la misma línea (bloques de firma en columnas) el
+# valor del primero absorbía el "Fdo" siguiente y el nombre contiguo se quedaba
+# sin etiqueta y sin redactar.
+_SIG_WORD_GUARD = r"(?!(?:fdo|firma(?:do|t)?|signat(?:ura)?)\b)"
+
 _SIGNATURE_NAME_RE = re.compile(
     r"(?i)(?:fdo\.?|signat(?:[^\S\r\n]+(?:electr[oò]nicament[^\S\r\n]+)?per)?|"
     r"firmat(?:[^\S\r\n]+per)?|firmado(?:[^\S\r\n]+(?:electr[oó]nicamente[^\S\r\n]+)?por)?|"
     r"firma)[^\S\r\n]*:?[^\S\r\n]*"
-    r"(?P<value>[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’\-]+"
-    r"(?:[^\S\r\n]+(?:de|del|la|les|dels|i|y)?[^\S\r\n]*[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’\-]+){1,4})"
+    r"(?P<value>" + _SIG_WORD_GUARD + r"[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’\-]+"
+    r"(?:[^\S\r\n]+(?:de|del|la|les|dels|i|y)?[^\S\r\n]*"
+    + _SIG_WORD_GUARD + r"[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’\-]+){1,4})"
 )
 
 # Administrative case-file number after an "Expedient/Expediente" label
