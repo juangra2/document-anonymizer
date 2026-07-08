@@ -12,7 +12,13 @@ def build_spanish_pattern_recognizers() -> list[PatternRecognizer]:
                     name="dni_pattern",
                     regex=r"\b\d{8}[\s\-]?[A-HJ-NP-TV-Z]\b",
                     score=0.85,
-                )
+                ),
+                Pattern(
+                    # Formato con separadores de miles: 47.215.601-M
+                    name="dni_dotted_pattern",
+                    regex=r"\b\d{2}\.\d{3}\.\d{3}[\s\-]?[A-HJ-NP-TV-Z]\b",
+                    score=0.85,
+                ),
             ],
             context=["dni", "nif", "documento", "identidad"],
         ),

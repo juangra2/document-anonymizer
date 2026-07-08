@@ -73,7 +73,7 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "ES_DNI",
-        r"(?im)^[^\S\r\n]*(?:dni|nif|dni/nif|nif/dni|documento[^\S\r\n]+nacional|documento[^\S\r\n]+de[^\S\r\n]+identidad)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:dni|nif|dni/nif|nif/dni|documento[^\S\r\n]+nacional|documento[^\S\r\n]+de[^\S\r\n]+identidad)(?:[^\S\r\n]+n(?:[ºo°]\.?|\.º|[uú]m(?:ero)?\.?))?[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
         "ES_NIE",
@@ -271,7 +271,7 @@ NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "ES_DNI",
-        r"(?im)^[^\S\r\n]*(?:dni/nif|dni[^\S\r\n]+nif|nif/dni|nif[^\S\r\n]+dni|documento[^\S\r\n]+nacional|dni|nif)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:dni/nif|dni[^\S\r\n]+nif|nif/dni|nif[^\S\r\n]+dni|documento[^\S\r\n]+nacional|dni|nif)(?:[^\S\r\n]+n(?:[ºo°]\.?|\.º|[uú]m(?:ero)?\.?))?[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
     ),
     (
         "ES_NIE",
@@ -377,6 +377,12 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
     (
         "ES_DNI",
         r"\b\d{8}[ \t\-]?[A-HJ-NP-TV-Z]\b",
+        0.95,
+    ),
+    (
+        # DNI/NIF con separadores de miles: 47.215.601-M (también sin guión).
+        "ES_DNI",
+        r"\b\d{2}\.\d{3}\.\d{3}[ \t\-]?[A-HJ-NP-TV-Z]\b",
         0.95,
     ),
     (
@@ -895,7 +901,9 @@ SOURCE_PRIORITY = {
 
 # Used by _detect_labeled_fields to re-type PERSON entities whose value is
 # actually a document number (e.g. "representante:05078944S").
-_DNI_FULL_RE = re.compile(r"^\d{8}[A-HJ-NP-TV-Z]$", re.IGNORECASE)
+_DNI_FULL_RE = re.compile(
+    r"^(?:\d{8}|\d{2}\.\d{3}\.\d{3})[\-]?[A-HJ-NP-TV-Z]$", re.IGNORECASE
+)
 _NIE_FULL_RE = re.compile(r"^[XYZ]\d{7}[A-HJ-NP-TV-Z]$", re.IGNORECASE)
 
 # Compact identifiers whose value never contains a comma/semicolon.  A labeled
