@@ -72,6 +72,16 @@ VERTICAL_VALUE_LABELS = {
     "domicilio", "direccion", "adreca", "adreça",
     "poblacion", "municipio", "localidad", "provincia",
     "codigo postal", "codi postal",
+    # Etiquetas bilingües valenciano/castellano de formularios GVA
+    # (normalize_token elimina acentos y conserva el separador " / ").
+    "nom / nombre", "nombre / nom",
+    "cognoms / apellidos", "apellidos / cognoms",
+    "cognom / apellido", "apellido / cognom",
+    "dni / nif", "nif / dni",
+    "adreca / direccion", "direccion / adreca",
+    "telefon / telefono", "telefono / telefon",
+    "municipi / municipio", "municipio / municipi",
+    "data / fecha", "fecha / data",
 }
 
 TABLE_STOP_PREFIXES = {

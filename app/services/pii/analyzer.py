@@ -260,6 +260,46 @@ _DIR_ROLE_LOOKAHEAD = (
 )
 
 
+# ---------------------------------------------------------------------------
+# Etiquetas bilingües valenciano/castellano ("NOM / NOMBRE") con el valor en la
+# línea siguiente, sin dos puntos — formato habitual de formularios de la
+# administración valenciana.  Dispara con la etiqueta valenciana sola o con la
+# compuesta en cualquier orden; la castellana sola NO (ya la cubren los
+# patrones existentes y añadirla en next-line sin colon sería arriesgado).
+# CÀRREC/CARGO se excluye a propósito: el cargo es contexto, no PII (misma
+# política que Antefirma / "Dirección Facultativa").
+# ---------------------------------------------------------------------------
+
+def _bi_label(val: str, cast: str) -> str:
+    """Etiqueta bilingüe: valenciano solo, VAL/CAST o CAST/VAL."""
+    sep = r"[^\S\r\n]*/[^\S\r\n]*"
+    return rf"(?:{val}(?:{sep}{cast})?|{cast}{sep}{val})"
+
+
+# El valor de la línea siguiente no puede ser a su vez otra etiqueta bilingüe
+# (campo vacío seguido del siguiente campo).
+_BI_VALUE_GUARD = (
+    r"(?!(?:NOM|NOMBRE|COGNOMS?|APELLIDOS?|DNI|NIF|ADRE[ÇC]A|DIRECCI[OÓ]N?|"
+    r"TEL[ÈE]FONO?|DATA|FECHA|MUNICIPIO?|SIGNATURA|FIRMA|C[ÀA]RREC|CARGO)\b)"
+)
+
+_BI_NL = r"[^\S\r\n]*\r?\n[^\S\r\n]*"
+_BI_NAME_VALUE = (
+    _BI_VALUE_GUARD + r"(?P<value>[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][^\r\n:]*?)[^\S\r\n]*$"
+)
+
+_BILINGUAL_NEXTLINE_PATTERNS: list[tuple[str, str]] = [
+    ("PERSON", rf"(?im)^[^\S\r\n]*{_bi_label('nom', 'nombre')}{_BI_NL}{_BI_NAME_VALUE}"),
+    ("PERSON", rf"(?im)^[^\S\r\n]*{_bi_label('cognoms?', 'apellidos?')}{_BI_NL}{_BI_NAME_VALUE}"),
+    ("PERSON", rf"(?im)^[^\S\r\n]*{_bi_label('signatura', 'firma')}{_BI_NL}{_BI_NAME_VALUE}"),
+    ("ES_DNI", rf"(?im)^[^\S\r\n]*{_bi_label('dni', 'nif')}{_BI_NL}(?P<value>[0-9][0-9.\- ]{{6,14}}[A-Za-z]?)[^\S\r\n]*$"),
+    ("ADDRESS", rf"(?im)^[^\S\r\n]*{_bi_label('adre[çc]a', 'direcci[oó]n?')}{_BI_NL}{_BI_NAME_VALUE}"),
+    ("ADDRESS", rf"(?im)^[^\S\r\n]*{_bi_label('municipi', 'municipio')}{_BI_NL}{_BI_NAME_VALUE}"),
+    ("PHONE_NUMBER", rf"(?im)^[^\S\r\n]*{_bi_label('tel[èe]fon', 'tel[ée]fono')}{_BI_NL}(?P<value>[+0-9][0-9 .\-()]{{6,20}})[^\S\r\n]*$"),
+    ("DATE_TIME", rf"(?im)^[^\S\r\n]*{_bi_label('data', 'fecha')}{_BI_NL}(?P<value>\d{{1,2}}[/.\-]\d{{1,2}}[/.\-]\d{{2,4}}(?:[^\S\r\n]+\d{{1,2}}:\d{{2}})?)[^\S\r\n]*$"),
+]
+
+
 NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
     (
         "PERSON",
@@ -352,6 +392,10 @@ NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
         r"(?im)^[^\S\r\n]*(?:nass)[^\S\r\n]+(?P<value>\d{2}/\d{10})",
     ),
 ]
+
+# Los bilingües next-line pasan por el mismo detector no-colon (hereda filtros
+# de FP, validación y el mínimo de dígitos de PHONE).
+NO_COLON_FIELD_PATTERNS = NO_COLON_FIELD_PATTERNS + _BILINGUAL_NEXTLINE_PATTERNS
 
 
 ROLE_TABLE_ROW_PATTERN = (
