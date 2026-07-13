@@ -13,6 +13,7 @@ Flow per page
 """
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from io import BytesIO
 from pathlib import Path
@@ -199,6 +200,40 @@ def redact_pdf_digital(
 # Per-page redaction logic
 # ---------------------------------------------------------------------------
 
+_NAME_CELL_TOKEN_RE = re.compile(r"^[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’\-]*$")
+
+
+def _standalone_name_cell(text: str) -> tuple[int, int] | None:
+    """Span (start, end) si la zona entera es un nombre propio aislado.
+
+    En formularios de rejilla el segmentador deja cada celda en su propia zona,
+    así que un nombre sin etiqueta en la misma celda ("ROBERTO FERNANDEZ
+    MORAN") no tiene contexto para el NER ni para los patrones etiquetados.
+    Se acepta solo con aval fuerte del INE: 2–4 palabras alfabéticas
+    capitalizadas, ≥2 en el gazetteer con al menos un apellido, y que el
+    conjunto no sea un topónimo (celdas de municipio).
+    """
+    from app.services.pii import gazetteer
+
+    stripped = text.strip()
+    if not stripped or "\n" in stripped or len(stripped) > 48:
+        return None
+    tokens = stripped.split()
+    if not 2 <= len(tokens) <= 4:
+        return None
+    if not all(_NAME_CELL_TOKEN_RE.match(t) for t in tokens):
+        return None
+    if gazetteer.is_toponym(stripped):
+        return None
+    norm = [gazetteer.normalize(t) for t in tokens]
+    ine_hits = sum(1 for t in norm if gazetteer.is_person_token(t))
+    has_surname = any(t in gazetteer.surnames() for t in norm)
+    if ine_hits < 2 or not has_surname:
+        return None
+    start = text.index(stripped)
+    return start, start + len(stripped)
+
+
 def _collect_redaction_rects(
     zoned_page,
     page_text,
@@ -276,6 +311,20 @@ def _collect_redaction_rects(
         # Filter to types relevant for this zone
         allowed = set(cfg.entity_types)
         local_entities = [e for e in local_entities if e.entity_type in allowed]
+
+        # Celda-nombre aislada (valor de formulario sin etiqueta en la zona).
+        if "PERSON" in allowed and not any(
+            e.entity_type == "PERSON" for e in local_entities
+        ):
+            span = _standalone_name_cell(zone.text)
+            if span is not None:
+                local_entities.append(PiiEntity(
+                    entity_type="PERSON",
+                    start=span[0],
+                    end=span[1],
+                    score=0.85,
+                    source="standalone_name_cell",
+                ))
 
         for entity in local_entities:
             abs_start = zone.page_text_offset + entity.start

@@ -165,7 +165,12 @@ def _collect_vertical_field_value_rows(
 
         next_rect = _rect_for_words(next_row)
         gap = next_rect.y0 - label_rect.y1
-        if gap < -2.0 or gap > max(20.0, label_rect.height * 2.2):
+        # Los formularios de celda compacta (GVA) solapan unos puntos la caja
+        # del valor con la de su etiqueta; se admite hasta ~60% de la altura
+        # de la etiqueta.  Filas realmente distintas ya lo son por el agrupado
+        # visual, así que esto no junta contenido de la misma línea.
+        overlap_tol = max(4.0, label_rect.height * 0.6)
+        if gap < -overlap_tol or gap > max(20.0, label_rect.height * 2.2):
             continue
         # The value must sit roughly under the label's column.
         if next_rect.x1 < label_rect.x0 - 4.0 or next_rect.x0 > label_rect.x1 + 60.0:
@@ -182,7 +187,14 @@ def _collect_vertical_field_value_rows(
             continue
 
         protected_rects.append(label_rect)
-        redaction_rects.append(_rect_for_words(next_row, padding=0.8))
+        value_rect = _rect_for_words(next_row, padding=0.8)
+        # En celdas solapadas, un rect que invada la caja de la etiqueta hace
+        # que apply_redactions elimine también su texto (MuPDF borra todo
+        # glifo que interseca).  Se recorta por debajo de la etiqueta; el
+        # valor sigue intersecando el rect y se elimina igualmente.
+        if value_rect.y0 < label_rect.y1 < value_rect.y1:
+            value_rect.y0 = label_rect.y1 + 0.1
+        redaction_rects.append(value_rect)
         layout_zone_rects.append(_rect_for_words(row + next_row, padding=1.2))
 
 

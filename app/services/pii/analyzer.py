@@ -1028,7 +1028,9 @@ _IBAN_OCR_TRANS = str.maketrans("OILSBoilsb", "0115801158")
 _SIG_WORD_GUARD = r"(?!(?:fdo|firma(?:do|t)?|signat(?:ura)?)\b)"
 
 _SIGNATURE_NAME_RE = re.compile(
-    r"(?i)(?:fdo\.?|signat(?:[^\S\r\n]+(?:electr[oò]nicament[^\S\r\n]+)?per)?|"
+    # (?<![\wÀ-ÿ]): la etiqueta no puede empezar a mitad de palabra
+    # ("ASSIGNATURES" contiene "signat" y disparaba un falso positivo).
+    r"(?i)(?<![\wÀ-ÿ])(?:fdo\.?|signat(?:[^\S\r\n]+(?:electr[oò]nicament[^\S\r\n]+)?per)?|"
     r"firmat(?:[^\S\r\n]+per)?|firmado(?:[^\S\r\n]+(?:electr[oó]nicamente[^\S\r\n]+)?por)?|"
     r"firma)[^\S\r\n]*:?[^\S\r\n]*"
     r"(?P<value>" + _SIG_WORD_GUARD + r"[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’\-]+"
@@ -1224,6 +1226,7 @@ class PiiAnalyzer:
             entities.extend(self._detect_role_table_rows(text))
             entities.extend(self._detect_address_gazetteer(text))
             entities.extend(self._detect_signature_block_names(text))
+            entities.extend(self._detect_person_filenames(text))
 
         entities.extend(self._detect_direct_regex(text, mode=mode))
         entities.extend(self._detect_ocr_iban(text))
@@ -1560,6 +1563,11 @@ class PiiAnalyzer:
                 if entity_type == "PHONE_NUMBER" and sum(c.isdigit() for c in value) < 7:
                     continue
 
+                # Un DNI/NIE sin apenas dígitos es la cola de otra etiqueta
+                # ("NIF DEL TUTOR" → valor "DEL TUTOR"), no un documento.
+                if entity_type in ("ES_DNI", "ES_NIE") and sum(c.isdigit() for c in value) < 7:
+                    continue
+
                 if not PiiAnalyzer._passes_validation(
                     entity_type=entity_type,
                     value=value,
@@ -1578,6 +1586,38 @@ class PiiAnalyzer:
                     )
                 )
 
+        return entities
+
+    _FILENAME_RE = re.compile(
+        r"\b[\w][\w\-]{2,60}\.(?:pdf|docx?|odt|rtf|xlsx?|jpe?g|png|tiff?)\b",
+        re.IGNORECASE,
+    )
+
+    @staticmethod
+    def _detect_person_filenames(text: str) -> list[PiiEntity]:
+        """Nombres de fichero adjunto que contienen el nombre del interesado
+        ("TFM_Luis_Vela.pdf"): fuga habitual en formularios con anexos.
+
+        Precisión: exige a la vez un nombre de pila y un apellido del INE entre
+        las partes del fichero — "Informe_2024.pdf" o "Memoria_Valencia.pdf"
+        no disparan.
+        """
+        from app.services.pii import gazetteer
+
+        entities: list[PiiEntity] = []
+        for match in PiiAnalyzer._FILENAME_RE.finditer(text):
+            stem = match.group().rsplit(".", 1)[0]
+            parts = [gazetteer.normalize(p) for p in re.split(r"[_\-]+", stem) if p]
+            has_given = any(p in gazetteer.given_names() for p in parts)
+            has_surname = any(p in gazetteer.surnames() for p in parts)
+            if has_given and has_surname:
+                entities.append(PiiEntity(
+                    entity_type="PERSON",
+                    start=match.start(),
+                    end=match.end(),
+                    score=0.9,
+                    source="person_filename",
+                ))
         return entities
 
     @staticmethod
