@@ -1036,7 +1036,9 @@ _SIGNATURE_NAME_RE = re.compile(
     # ("ASSIGNATURES" contiene "signat" y disparaba un falso positivo).
     r"(?i)(?<![\wÀ-ÿ])(?:fdo\.?|signat(?:[^\S\r\n]+(?:electr[oò]nicament[^\S\r\n]+)?per)?|"
     r"firmat(?:[^\S\r\n]+per)?|firmado(?:[^\S\r\n]+(?:electr[oó]nicamente[^\S\r\n]+)?por)?|"
-    r"firma)[^\S\r\n]*:?[^\S\r\n]*"
+    # (?![\wÀ-ÿ]): el label debe terminar en límite de palabra — "signatura"
+    # no es "signat" + valor "ura…" (85 FPs de 'ura electrónica' en corpus).
+    r"firma)(?![\wÀ-ÿ])[^\S\r\n]*:?[^\S\r\n]*"
     r"(?P<value>" + _SIG_WORD_GUARD + r"[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’\-]+"
     r"(?:[^\S\r\n]+(?:de|del|la|les|dels|i|y)?[^\S\r\n]*"
     + _SIG_WORD_GUARD + r"[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’\-]+){1,4})"
