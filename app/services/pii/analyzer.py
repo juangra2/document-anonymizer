@@ -1613,6 +1613,15 @@ class PiiAnalyzer:
     # (misma protección que _SIG_WORD_GUARD, para bloques "Fdo.: X  Fdo.: Y").
     _NAME_TOKEN_STOP = {"FDO", "FIRMA", "FIRMADO", "FIRMAT", "SIGNAT", "SIGNATURA"}
 
+    # Artículo/preposición inmediatamente antes del candidato → sintagma
+    # organizativo o de lugar ("al Campus Nord", "el Área de Personal", "en
+    # Cartagena Sur"), no una mención de persona (esas siguen a "y", "por",
+    # "comparece", "D." o puntuación).
+    _NP_ARTICLE_BEFORE = {
+        "el", "la", "los", "las", "al", "del", "en", "als", "dels", "pel",
+        "un", "una", "lo",
+    }
+
     # Apellidos/nombres INE que además son sustantivos comunes del castellano
     # ("Campo Valor" en una cabecera de tabla no es una persona).  Cuentan como
     # aval débil: un candidato necesita al menos un token INE fuera de esta
@@ -1624,6 +1633,16 @@ class PiiAnalyzer:
         "PUENTE", "CAMINO", "FUENTE", "CUESTA", "FRANCO", "BRAVO", "PARDO",
         "REAL", "JUSTO", "DOMINGO", "REYES", "SANTOS", "MARCO", "VICTORIA",
         "COSTA", "SERRA", "MOTA", "SALAS", "MERCADO", "CONSEJO", "CORTES",
+        # Vocabulario administrativo/organizativo que el INE lista como nombre
+        # (FPs observados en el corpus: "Campus Nord", "UNA PARTE", "Área de
+        # Personal", "Centro de Salud Valle Verde", "Alcalde Reig"…).
+        "CAMPUS", "NORD", "SUR", "ESTE", "OESTE", "UNA", "UNO", "PARTE",
+        "AREA", "PERSONAL", "VALLE", "VERDE", "SALUD", "CENTRO", "CENTRE",
+        "ALCALDE", "ALCALDESA", "TEMPORAL", "COMPTE", "CONCEPTO", "CUENTA",
+        "MAGNIFICO", "BENESTAR", "SOCIAL", "FAMILIA", "GOBIERNO", "GOVERN",
+        "AJUNTAMENT", "AYUNTAMIENTO", "UNIVERSIDAD", "UNIVERSITAT",
+        "GENERALITAT", "CATALA", "LABORAL", "EN", "GRAN", "NOU", "SEU",
+        "CARTAGENA", "VALENCIA", "MADRID", "BARCELONA",
     }
 
     @staticmethod
@@ -1683,10 +1702,14 @@ class PiiAnalyzer:
                         for t in subn
                     )
                     span_text = text[sub[0].start():sub[-1].end()]
+                    # Palabra minúscula inmediatamente anterior al candidato.
+                    prefix = text[:sub[0].start()].rstrip()
+                    prev_word = prefix.rsplit(None, 1)[-1].lower() if prefix else ""
                     if (
                         ine_hits >= 2
                         and has_surname
                         and strong_hit
+                        and prev_word not in PiiAnalyzer._NP_ARTICLE_BEFORE
                         and subn[0] not in PiiAnalyzer._NAME_START_BLOCKLIST
                         # Una línea de presupuesto ("Ud Par de manguitos…")
                         # empieza por unidad de medida, no por un nombre.
