@@ -940,6 +940,10 @@ SOURCE_PRIORITY = {
     "case_table_row": 4,
     "role_table_row": 3,
     "deterministic_regex": 2,
+    # Nombre avalado por el INE: span completo con partículas; debe ganar al
+    # span parcial que a veces devuelve el NER ("Luis Prados" vs
+    # "Luis Prados de la Guardia").
+    "gazetteer_person": 2,
     "presidio": 1,
 }
 
@@ -1227,6 +1231,8 @@ class PiiAnalyzer:
             entities.extend(self._detect_address_gazetteer(text))
             entities.extend(self._detect_signature_block_names(text))
             entities.extend(self._detect_person_filenames(text))
+            if settings.gazetteer_person:
+                entities.extend(self._detect_gazetteer_person_names(text))
 
         entities.extend(self._detect_direct_regex(text, mode=mode))
         entities.extend(self._detect_ocr_iban(text))
@@ -1585,6 +1591,116 @@ class PiiAnalyzer:
                         source="no_colon_labeled_field",
                     )
                 )
+
+        return entities
+
+    # Palabra capitalizada candidata a formar parte de un nombre propio.
+    _CAP_WORD_RE = re.compile(r"[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’\-]+")
+    # Partículas (minúscula) admitidas dentro de un nombre compuesto.
+    _NAME_PARTICLES = {"de", "del", "la", "las", "los", "y", "i"}
+    # Palabras que nunca inician un nombre: tipos de vía y ruido frecuente de
+    # documentos administrativos (evita "Plaza de la Paz" → PERSON).
+    # En MAYÚSCULAS: se compara contra gazetteer.normalize(), que normaliza así.
+    _NAME_START_BLOCKLIST = {
+        "CALLE", "PLAZA", "PZA", "AVENIDA", "AVDA", "PASEO", "CAMINO", "RONDA",
+        "TRAVESIA", "TRAVESSERA", "CARRER", "AVINGUDA", "PLACA", "CTRA",
+        "CARRETERA", "VIA", "URBANIZACION", "POLIGONO", "PARTIDA",
+        # Hagiotopónimos: "San Juan de Alicante" no es una persona.
+        "SAN", "SANTA", "SANT", "SANTO",
+    }
+
+    # Etiquetas de firma: nunca pertenecen a un nombre y cortan la secuencia
+    # (misma protección que _SIG_WORD_GUARD, para bloques "Fdo.: X  Fdo.: Y").
+    _NAME_TOKEN_STOP = {"FDO", "FIRMA", "FIRMADO", "FIRMAT", "SIGNAT", "SIGNATURA"}
+
+    # Apellidos/nombres INE que además son sustantivos comunes del castellano
+    # ("Campo Valor" en una cabecera de tabla no es una persona).  Cuentan como
+    # aval débil: un candidato necesita al menos un token INE fuera de esta
+    # lista ("Clara Blanco López" pasa por López; "Campo Valor" no pasa).
+    _COMMON_WORD_NAMES = {
+        "CAMPO", "VALOR", "PAZ", "PLAZA", "CALLE", "MAR", "SOL", "LUNA",
+        "FLOR", "ROSA", "CLARA", "BLANCO", "MORENO", "RUBIO", "PRADO", "VEGA",
+        "RIO", "RIOS", "CRUZ", "IGLESIA", "TORRE", "CASTILLO", "MONTE",
+        "PUENTE", "CAMINO", "FUENTE", "CUESTA", "FRANCO", "BRAVO", "PARDO",
+        "REAL", "JUSTO", "DOMINGO", "REYES", "SANTOS", "MARCO", "VICTORIA",
+        "COSTA", "SERRA", "MOTA", "SALAS", "MERCADO", "CONSEJO", "CORTES",
+    }
+
+    @staticmethod
+    def _detect_gazetteer_person_names(text: str) -> list[PiiEntity]:
+        """Nombres propios en texto corrido avalados por el gazetteer INE.
+
+        Generador de candidatos independiente del NER (el NER pierde muchos
+        nombres en prosa administrativa): secuencias de 2–4 palabras
+        capitalizadas — con partículas de/del/la/… intercaladas — donde ≥2
+        tokens están en el INE y al menos uno es apellido, y el conjunto no es
+        un topónimo.  Los extremos se recortan hasta tokens con aval INE para
+        no absorber palabras de contexto ("Madrid Juan Pérez…").
+        """
+        from app.services.pii import gazetteer
+
+        entities: list[PiiEntity] = []
+        matches = list(PiiAnalyzer._CAP_WORD_RE.finditer(text))
+        i = 0
+        while i < len(matches):
+            # Construir la secuencia contigua de palabras capitalizadas.
+            run = [matches[i]]
+            j = i + 1
+            while j < len(matches) and len(run) < 6:
+                if gazetteer.normalize(matches[j].group()) in PiiAnalyzer._NAME_TOKEN_STOP:
+                    break
+                between = text[run[-1].end():matches[j].start()]
+                stripped = between.strip()
+                joined = stripped.split()
+                if "\n" in between or "\r" in between:
+                    break
+                if joined and not all(
+                    w in PiiAnalyzer._NAME_PARTICLES for w in joined
+                ):
+                    break
+                if not joined and between != " " and between != "":
+                    if len(between) > 3:
+                        break
+                run.append(matches[j])
+                j += 1
+
+            if len(run) >= 2:
+                norm = [gazetteer.normalize(m.group()) for m in run]
+                # Recortar solo la CABECERA sin aval INE ("Madrid Juan Pérez"):
+                # los tokens capitalizados que siguen a un nombre son más
+                # apellidos (incluidos los raros que faltan en el INE, como en
+                # "Lucia Martin Pruebas") y recortarlos dejaría PII visible.
+                lo, hi = 0, len(run)
+                while lo < hi and not gazetteer.is_person_token(norm[lo]):
+                    lo += 1
+                sub, subn = run[lo:hi], norm[lo:hi]
+                if 2 <= len(sub) <= 4:
+                    ine_hits = sum(1 for t in subn if gazetteer.is_person_token(t))
+                    has_surname = any(t in gazetteer.surnames() for t in subn)
+                    strong_hit = any(
+                        gazetteer.is_person_token(t)
+                        and t not in PiiAnalyzer._COMMON_WORD_NAMES
+                        for t in subn
+                    )
+                    span_text = text[sub[0].start():sub[-1].end()]
+                    if (
+                        ine_hits >= 2
+                        and has_surname
+                        and strong_hit
+                        and subn[0] not in PiiAnalyzer._NAME_START_BLOCKLIST
+                        # Una línea de presupuesto ("Ud Par de manguitos…")
+                        # empieza por unidad de medida, no por un nombre.
+                        and not any(t in _MEASURE_UNITS for t in subn)
+                        and not gazetteer.is_toponym(span_text)
+                    ):
+                        entities.append(PiiEntity(
+                            entity_type="PERSON",
+                            start=sub[0].start(),
+                            end=sub[-1].end(),
+                            score=0.85,
+                            source="gazetteer_person",
+                        ))
+            i = j
 
         return entities
 
