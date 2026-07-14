@@ -89,7 +89,7 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "EMAIL_ADDRESS",
-        r"(?im)^[^\S\r\n]*(?:email(?:[^\S\r\n]+personal|[^\S\r\n]+contacto)?|e-mail|correo(?:[^\S\r\n]+personal)?|correo[^\S\r\n]+electr[oó]nico)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:email(?:[^\S\r\n]+personal|[^\S\r\n]+contacto)?|e-mail|correo(?:[^\S\r\n]+personal)?|correo[^\S\r\n]+electr[oó]nico)[^\S\r\n]*:[^\S\r\n]*(?P<value>[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})",
     ),
     (
         "PHONE_NUMBER",
@@ -194,7 +194,7 @@ LABELED_FIELD_PATTERNS_VAL_CAT: list[tuple[str, str]] = [
     ),
     (
         "EMAIL_ADDRESS",
-        r"(?im)^[^\S\r\n]*(?:correu(?:[^\S\r\n]+electr[oò]nic)?|adre[cç]a[^\S\r\n]+electr[oò]nica)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:correu(?:[^\S\r\n]+electr[oò]nic)?|adre[cç]a[^\S\r\n]+electr[oò]nica)[^\S\r\n]*:[^\S\r\n]*(?P<value>[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})",
     ),
     (
         "PHONE_NUMBER",
@@ -327,7 +327,7 @@ NO_COLON_FIELD_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         "EMAIL_ADDRESS",
-        r"(?im)^[^\S\r\n]*(?:email[^\S\r\n]+personal|email|correo)[^\S\r\n]+(?P<value>[^\r\n]+?)[^\S\r\n]*$",
+        r"(?im)^[^\S\r\n]*(?:email[^\S\r\n]+personal|email|correo)[^\S\r\n]+(?P<value>[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})",
     ),
     (
         # "Dirección" followed by a role/office word ("Dirección Facultativa /

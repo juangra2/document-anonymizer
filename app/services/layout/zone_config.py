@@ -94,6 +94,11 @@ _HEADER_CONFIG = ZoneDetectorConfig(
         "DATE_OF_BIRTH",
         "DATE_TIME",
         "EMAIL_ADDRESS",
+        # Un IBAN nunca es contacto institucional de membrete: es dato
+        # financiero y se redacta siempre.  La franja superior de una página
+        # interior ("FORMA DE PAGO … IBAN: ES25-…") se clasifica como header
+        # y sin este tipo el IBAN se perdía (regex de alta precisión: mod-97).
+        "IBAN_CODE",
     ],
     apply_layout_analysis=False,
 )
@@ -103,7 +108,10 @@ _HEADER_CONFIG = ZoneDetectorConfig(
 # REGISTRY_NUMBER are high-precision deterministic patterns, so enabling them in
 # the footer does not add false positives.
 _FOOTER_CONFIG = ZoneDetectorConfig(
-    entity_types=["CASE_NUMBER", "URL", "CERT_SERIAL", "REGISTRY_NUMBER", "CSV"],
+    # IBAN_CODE: mismo criterio que en cabecera — dato financiero, nunca
+    # contacto de plantilla; el mod-97 evita falsos positivos.
+    entity_types=["CASE_NUMBER", "URL", "CERT_SERIAL", "REGISTRY_NUMBER", "CSV",
+                  "IBAN_CODE"],
     apply_layout_analysis=False,
 )
 
