@@ -51,15 +51,14 @@ def test_csv_explanatory_note_without_value_not_matched():
 _MANGLED = "ES91 21OO O418 45O2 OOO5 1332"   # zeros misread as letter O
 
 
-def test_ocr_iban_recovered_in_balanced_mode():
-    # In balanced mode the strict labeled IBAN is mod-97 validated and rejects
-    # the mangled form; the OCR-tolerant pass recovers it.
-    out = _ents(f"IBAN: {_MANGLED}", mode="balanced")
+def test_ocr_iban_recovered_after_mangling():
+    # The OCR-tolerant pass (mod-97 interno) recupera la forma deformada.
+    out = _ents(f"IBAN: {_MANGLED}", mode="strict")
     assert any(t == "IBAN_CODE" for t, _, _ in out)
 
 
-def test_ocr_iban_rejects_invalid_in_balanced_mode():
-    out = _ents("IBAN: ES00 XYZ no", mode="balanced")
+def test_ocr_iban_rejects_invalid_value():
+    out = _ents("IBAN: ES00 XYZ no", mode="strict")
     assert not any(t == "IBAN_CODE" for t, _, _ in out)
 
 
@@ -67,18 +66,22 @@ def test_ocr_iban_glued_to_label():
     # IBAN glued to the preceding word (no space) — strict recognizer's leading
     # word boundary misses it; the robust pass (mod-97) recovers it.
     text = "CUENTA DEL BENEFICIARIOES1321001901552200556633: IMPORTE"
-    out = _ents(text, mode="balanced")
+    out = _ents(text, mode="strict")
     assert any(t == "IBAN_CODE" and v == "ES1321001901552200556633" for t, v, _ in out)
 
 
 def test_ocr_iban_country_letter_misread_as_5():
     # "ES" misread as "E5" (S→5) — recovered after normalisation + mod-97.
-    out = _ents("beneficiario E51321001901552200556633 importe", mode="balanced")
+    # Contexto sin etiqueta de parte (en strict "beneficiario X" emitiría el
+    # valor como PERSON etiquetado, que también se redacta).
+    out = _ents("ref E51321001901552200556633 importe", mode="strict")
     assert any(t == "IBAN_CODE" and v.startswith("E5") for t, v, _ in out)
 
 
 def test_ocr_iban_rejects_invalid_unlabeled():
-    # An ES + 22-digit run that fails mod-97 is not emitted (balanced mode).
-    out = [e for e in _ents("ref ES9921001901552200556699 x", mode="balanced")
-           if e[0] == "IBAN_CODE"]
+    # El pase OCR-tolerante exige mod-97: una tira ES+dígitos inválida no sale
+    # de ESTE detector (en el pipeline strict el regex directo puede emitirla
+    # igualmente — política deliberada: con forma de IBAN, se redacta).
+    from app.services.pii.analyzer import PiiAnalyzer
+    out = PiiAnalyzer._detect_ocr_iban("ref ES9921001901552200556699 x")
     assert out == []

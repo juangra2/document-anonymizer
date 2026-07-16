@@ -10,15 +10,6 @@ def test_detects_valid_dni():
     assert any(entity.entity_type == "ES_DNI" for entity in results)
 
 
-def test_balanced_ignores_invalid_dni_letter():
-    analyzer = PiiAnalyzer()
-
-    text = "El DNI del solicitante es 12345678A."
-    results = analyzer.analyze(text, mode="balanced")
-
-    assert not any(entity.entity_type == "ES_DNI" for entity in results)
-
-
 def test_strict_detects_invalid_dni_like_value():
     analyzer = PiiAnalyzer()
 

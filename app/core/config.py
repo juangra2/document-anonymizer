@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     result_ttl_minutes: int = 30
 
     presidio_score_threshold: float = 0.55
-    default_redaction_mode: Literal["strict", "balanced"] = "strict"
+    default_redaction_mode: Literal["strict"] = "strict"
 
     # NER backend for PERSON/LOCATION/ORGANIZATION detection.
     # "spacy"        → es_core_news_md (default; fast, no download).
@@ -125,9 +125,8 @@ class Settings(BaseSettings):
     # reject  : risk >= threshold → RedactionVerificationError raised.
     verify_risk_threshold_review: float = 0.30
     verify_risk_threshold_reject: float = 0.70
-    # Comma-separated layer names active per redaction mode.
+    # Comma-separated layer names active for post-redaction verification.
     verify_layers_strict:   str = "textual,metadata,binary"
-    verify_layers_balanced: str = "textual,metadata"
     # OCR verification layer is opt-in — it doubles processing time.
     verify_ocr_layer_enabled: bool = False
 

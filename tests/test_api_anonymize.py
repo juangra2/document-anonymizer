@@ -95,7 +95,7 @@ def test_anonymize_zip_report_contains_output_and_mode():
     pdf_bytes = build_sample_pdf()
 
     response = client.post(
-        "/anonymize?output=zip&mode=balanced",
+        "/anonymize?output=zip&mode=strict",
         files={
             "file": ("input.pdf", BytesIO(pdf_bytes), "application/pdf")
         },
@@ -103,7 +103,7 @@ def test_anonymize_zip_report_contains_output_and_mode():
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/zip"
-    assert response.headers["x-redaction-mode"] == "balanced"
+    assert response.headers["x-redaction-mode"] == "strict"
     assert response.headers["x-output-format"] == "zip"
 
     zip_buffer = BytesIO(response.content)
@@ -112,5 +112,15 @@ def test_anonymize_zip_report_contains_output_and_mode():
         report = json.loads(zip_file.read("report.json").decode("utf-8"))
 
     assert report["output_format"] == "zip"
-    assert report["redaction_mode"] == "balanced"
+    assert report["redaction_mode"] == "strict"
     assert report["redaction_strategy"] == "physical_pdf_redaction"
+
+def test_balanced_mode_removed_returns_422():
+    # El modo balanced se eliminó: un identificador que falla el checksum
+    # sigue siendo PII, así que solo existe strict.
+    pdf_bytes = build_sample_pdf()
+    response = client.post(
+        "/anonymize?mode=balanced",
+        files={"file": ("input.pdf", BytesIO(pdf_bytes), "application/pdf")},
+    )
+    assert response.status_code == 422

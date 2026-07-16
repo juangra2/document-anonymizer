@@ -68,18 +68,6 @@ CAS-002 Marta Lopez Sintetica Direccion: Plaza de Pruebas 9, Valencia
     assert any(entity.entity_type == "CASE_TABLE_ROW" for entity in results)
 
 
-def test_balanced_can_be_less_aggressive_with_invalid_identifiers():
-    types = entity_types(
-        """
-DNI/NIF 00000000X
-IBAN ES91 0000 0000 0000 0000 0000
-""",
-        mode="balanced",
-    )
-
-    assert "ES_DNI" not in types
-    assert "IBAN_CODE" not in types
-
 def test_field_labels_are_not_detected_as_pii():
     analyzer = PiiAnalyzer()
 

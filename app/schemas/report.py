@@ -102,7 +102,7 @@ class ProcessingReport(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
     redaction_strategy: str = "physical_pdf_redaction"
-    redaction_mode: Literal["strict", "balanced"] = "strict"
+    redaction_mode: Literal["strict"] = "strict"
     output_format: Literal["pdf", "zip"] = "pdf"
 
     security_checks: SecurityChecks = Field(default_factory=SecurityChecks)

@@ -169,12 +169,8 @@ class DocumentVerifier:
 
     @staticmethod
     def _active_layers(mode: str) -> set[VerificationLayer]:
-        """Return the set of layers to run for the given redaction mode."""
-        raw = (
-            settings.verify_layers_strict
-            if mode == "strict"
-            else settings.verify_layers_balanced
-        )
+        """Return the set of verification layers to run."""
+        raw = settings.verify_layers_strict
         layers: set[VerificationLayer] = set()
         for name in raw.split(","):
             name = name.strip().lower()

@@ -88,7 +88,7 @@ def build_spanish_pattern_recognizers() -> list[PatternRecognizer]:
                     # Flexible grouping: ES + 2 check digits + 20 digits with any
                     # mix of space/dash separators (or none).  Covers irregular
                     # groupings like "ES05 21009900 73703413 6977" and dash forms
-                    # "ES25-2100-3894-...".  mod-97 (balanced) rejects false hits.
+                    # "ES25-2100-3894-...".
                     regex=r"\bES\d{2}(?:[\s\-]?\d){20}\b",
                     score=0.90,
                 )

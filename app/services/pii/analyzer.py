@@ -26,19 +26,17 @@ from presidio_analyzer.nlp_engine import NlpEngineProvider
 from app.services.pii import gazetteer
 from app.services.pii.models import PiiEntity
 from app.services.pii.recognizers_es import build_spanish_pattern_recognizers
-from app.services.pii.validators_es import (
-    is_valid_cif,
-    is_valid_dni,
-    is_valid_nie,
-    is_valid_spanish_iban,
-    looks_like_cadastral_reference,
-)
+from app.services.pii.validators_es import is_valid_spanish_iban
 
 logger = logging.getLogger(__name__)
 
 
 SUPPORTED_LANGUAGES = ["es"]
-RedactionMode = Literal["strict", "balanced"]
+# Único modo de redacción: para anonimizar, un identificador que no supera la
+# validación de checksum sigue siendo PII (un DNI con un dígito mal leído por
+# OCR identifica igual).  Los validadores (mod-23, mod-97…) se conservan como
+# evidencia positiva, nunca como veto.
+RedactionMode = Literal["strict"]
 
 
 LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
@@ -1213,7 +1211,7 @@ class PiiAnalyzer:
 
         Args:
             text:      The text to analyse.
-            mode:      "strict" (all heuristics) or "balanced" (validated only).
+            mode:      Always "strict" (kept in the signature for API shape).
             zone_type: Layout zone this text comes from ("body", "header",
                        "footer", "form", "table", …).  When provided, enables
                        zone-aware NER filtering to reduce false positives in
@@ -1225,16 +1223,14 @@ class PiiAnalyzer:
         entities: list[PiiEntity] = []
 
         entities.extend(self._detect_labeled_fields(text, mode=mode))
-
-        if mode == "strict":
-            entities.extend(self._detect_no_colon_labeled_fields(text, mode=mode))
-            entities.extend(self._detect_case_table_rows(text))
-            entities.extend(self._detect_role_table_rows(text))
-            entities.extend(self._detect_address_gazetteer(text))
-            entities.extend(self._detect_signature_block_names(text))
-            entities.extend(self._detect_person_filenames(text))
-            if settings.gazetteer_person:
-                entities.extend(self._detect_gazetteer_person_names(text))
+        entities.extend(self._detect_no_colon_labeled_fields(text, mode=mode))
+        entities.extend(self._detect_case_table_rows(text))
+        entities.extend(self._detect_role_table_rows(text))
+        entities.extend(self._detect_address_gazetteer(text))
+        entities.extend(self._detect_signature_block_names(text))
+        entities.extend(self._detect_person_filenames(text))
+        if settings.gazetteer_person:
+            entities.extend(self._detect_gazetteer_person_names(text))
 
         entities.extend(self._detect_direct_regex(text, mode=mode))
         entities.extend(self._detect_ocr_iban(text))
@@ -1529,14 +1525,6 @@ class PiiAnalyzer:
                     if emit_type == "IBAN_CODE" and sum(c.isdigit() for c in value) < 8:
                         continue
 
-                    if not PiiAnalyzer._passes_validation(
-                        entity_type=emit_type,
-                        value=value,
-                        mode=mode,
-                        source="labeled_field",
-                    ):
-                        continue
-
                     seen_spans.add(span)
                     entities.append(
                         PiiEntity(
@@ -1574,14 +1562,6 @@ class PiiAnalyzer:
                 # Un DNI/NIE sin apenas dígitos es la cola de otra etiqueta
                 # ("NIF DEL TUTOR" → valor "DEL TUTOR"), no un documento.
                 if entity_type in ("ES_DNI", "ES_NIE") and sum(c.isdigit() for c in value) < 7:
-                    continue
-
-                if not PiiAnalyzer._passes_validation(
-                    entity_type=entity_type,
-                    value=value,
-                    mode=mode,
-                    source="no_colon_labeled_field",
-                ):
                     continue
 
                 entities.append(
@@ -1846,14 +1826,6 @@ class PiiAnalyzer:
                 if PiiAnalyzer._looks_like_false_positive(entity_type, value):
                     continue
 
-                if not PiiAnalyzer._passes_validation(
-                    entity_type=entity_type,
-                    value=value,
-                    mode=mode,
-                    source="deterministic_regex",
-                ):
-                    continue
-
                 entities.append(
                     PiiEntity(
                         entity_type=entity_type,
@@ -1880,33 +1852,6 @@ class PiiAnalyzer:
                 )
 
         return entities
-
-    @staticmethod
-    def _passes_validation(
-        entity_type: str,
-        value: str,
-        mode: RedactionMode,
-        source: str,
-    ) -> bool:
-        if mode == "strict":
-            return True
-
-        if entity_type == "ES_DNI":
-            return is_valid_dni(value)
-
-        if entity_type == "ES_NIE":
-            return is_valid_nie(value)
-
-        if entity_type == "ES_CIF":
-            return is_valid_cif(value)
-
-        if entity_type == "IBAN_CODE":
-            return is_valid_spanish_iban(value)
-
-        if entity_type == "CADASTRAL_REFERENCE":
-            return looks_like_cadastral_reference(value)
-
-        return True
 
     @staticmethod
     def _looks_like_false_positive(entity_type: str, value: str) -> bool:

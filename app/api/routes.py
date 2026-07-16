@@ -66,9 +66,12 @@ async def anonymize(
         default="pdf",
         description="Response format: pdf or zip. zip includes anonymized PDF and report.json.",
     ),
-    mode: Literal["strict", "balanced"] = Query(
+    mode: Literal["strict"] = Query(
         default="strict",
-        description="Redaction mode. strict redacts more aggressively; balanced redacts less.",
+        description=(
+            "Redaction mode. Only 'strict' is supported: for anonymisation, "
+            "an identifier that fails checksum validation is still PII."
+        ),
     ),
     include_entities: bool = Query(
         default=False,
