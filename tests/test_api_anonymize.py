@@ -115,12 +115,13 @@ def test_anonymize_zip_report_contains_output_and_mode():
     assert report["redaction_mode"] == "strict"
     assert report["redaction_strategy"] == "physical_pdf_redaction"
 
-def test_balanced_mode_removed_returns_422():
-    # El modo balanced se eliminó: un identificador que falla el checksum
-    # sigue siendo PII, así que solo existe strict.
+def test_mode_param_removed_and_ignored():
+    # El parámetro mode se retiró de la API: cualquier valor enviado se ignora
+    # (comportamiento estándar de FastAPI) y siempre se procesa en strict.
     pdf_bytes = build_sample_pdf()
     response = client.post(
         "/anonymize?mode=balanced",
         files={"file": ("input.pdf", BytesIO(pdf_bytes), "application/pdf")},
     )
-    assert response.status_code == 422
+    assert response.status_code == 200
+    assert response.headers["x-redaction-mode"] == "strict"

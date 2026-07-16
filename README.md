@@ -177,14 +177,13 @@ La API queda disponible en `http://localhost:8000`. Documentación interactiva e
 | Parámetro | Tipo | Descripción |
 |---|---|---|
 | `file` | multipart | Documento a anonimizar (PDF, PNG, JPG/JPEG, TIFF) |
-| `mode` | query | `strict` (único valor admitido) |
 | `output` | query | `pdf` (por defecto) o `zip` (incluye `report.json`) |
 | `include_entities` | query | `true` para incluir la lista de entidades detectadas en el informe (auditoría) |
 
 **curl**
 
 ```bash
-curl -X POST "http://localhost:8000/anonymize?mode=strict&output=pdf" \
+curl -X POST "http://localhost:8000/anonymize?output=pdf" \
   -F "file=@documento.pdf" \
   -o documento_anonimizado.pdf
 ```
@@ -197,7 +196,7 @@ import requests
 with open("documento.pdf", "rb") as f:
     r = requests.post(
         "http://localhost:8000/anonymize",
-        params={"mode": "strict", "output": "zip", "include_entities": True},
+        params={"output": "zip", "include_entities": True},
         files={"file": ("documento.pdf", f, "application/pdf")},
     )
 

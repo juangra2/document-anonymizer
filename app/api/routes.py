@@ -8,6 +8,7 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from starlette.concurrency import run_in_threadpool
 
+from app.core.config import settings
 from app.core.errors import (
     AnonymizerError,
     DocumentTooLargeError,
@@ -66,13 +67,6 @@ async def anonymize(
         default="pdf",
         description="Response format: pdf or zip. zip includes anonymized PDF and report.json.",
     ),
-    mode: Literal["strict"] = Query(
-        default="strict",
-        description=(
-            "Redaction mode. Only 'strict' is supported: for anonymisation, "
-            "an identifier that fails checksum validation is still PII."
-        ),
-    ),
     include_entities: bool = Query(
         default=False,
         description=(
@@ -81,6 +75,10 @@ async def anonymize(
         ),
     ),
 ) -> Response:
+    # Único modo de redacción; el parámetro se retiró de la API (un query param
+    # extra como ?mode=... se ignora, comportamiento estándar de FastAPI).
+    mode = settings.default_redaction_mode
+
     supported_content_types = {
         "application/pdf",
         "application/octet-stream",
