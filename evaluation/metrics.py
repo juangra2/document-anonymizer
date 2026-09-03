@@ -114,7 +114,9 @@ class AggregatedMetrics:
 # P/R/F1 so they do not distort the overall score; still visible per-type.
 OUT_OF_SCOPE_GT_TYPES: frozenset[str] = frozenset({
     "LOCATION",
-    "ORGANIZATION",
+    # ORGANIZATION ya no esta fuera de alcance: el corpus anota la razon social
+    # de empresa privada como PII (requisito del ayuntamiento), asi que debe
+    # contar en la metrica global.
     "PROFESSIONAL_LICENSE",
     "ROLE_TABLE_ROW",
 })
