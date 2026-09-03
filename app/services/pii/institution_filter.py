@@ -58,6 +58,14 @@ INSTITUTION_NAME_RE = re.compile(
     r"|col[·.]?legi|colegio"
     r"|enginyeria|ingenier[ií]a"
     r"|t[eè]cnica?\b"
+    # Instituciones publicas anadidas por requisito del ayuntamiento: no se
+    # anonimiza NINGUNA institucion publica mencionada, no solo la emisora.
+    r"|registr(?:o|e)\s+(?:mercantil|civil|de\s+la\s+propiedad)"
+    r"|notar[ií]a|jutjat|juzgado|tribunal|audiencia\s+provincial"
+    r"|seguretat\s+social|seguridad\s+social"
+    r"|ag[èe]ncia\s+tribut[àa]ria|agencia\s+tributaria"
+    r"|subdelegaci[oó]n?|cabildo|entidad\s+local"
+    r"|federaci[oó]n?|confederaci[oó]n?"
     r")\b"
 )
 
@@ -299,3 +307,34 @@ def filter_institutional(
         if _is_institutional(e, page_text, inst_spans, ranges, allowlist, person_spans):
             suppress.add(i)
     return suppress
+
+
+# Veto estricto de institucion PUBLICA, usado para decidir si una organizacion
+# se anonimiza.  Es deliberadamente mas estrecho que INSTITUTION_NAME_RE: aquel
+# incluye raices genericas de profesion ("ingenieria", "tecnica") utiles para
+# filtrar falsos positivos del NER sobre PERSON/LOCATION, pero que vetarian
+# empresas privadas legitimas como "Grupotec Ingenieria".
+#
+# Por requisito del ayuntamiento no se anonimiza ninguna institucion publica
+# mencionada — no solo la emisora del documento —; solo la razon social de
+# entidad privada es dato a proteger.
+PUBLIC_INSTITUTION_RE = re.compile(
+    r"(?i)\b(?:"
+    r"ajuntament|ayuntamiento|alcald[ií]a"
+    r"|universi(?:tat|dad|dade)"
+    r"|generalitat|govern\b|gobierno"
+    r"|diputaci[oó]n?|consell(?:eria)?|consej(?:ería|eria)|conselleria"
+    r"|ministeri[oo]?|delegaci[oó]n?|subdelegaci[oó]n?"
+    r"|direcci[oó]n\s+general"
+    r"|hospital|centro\s+de\s+salud|centre\s+de\s+salut"
+    r"|seguretat\s+social|seguridad\s+social|tresoreria|tesorer[ií]a"
+    r"|ag[èe]ncia\s+tribut[àa]ria|agencia\s+tributaria"
+    r"|registr(?:o|e)\s+(?:mercantil|civil|de\s+la\s+propiedad)"
+    r"|notar[ií]a|jutjat|juzgado|tribunal|audiencia\s+provincial"
+    r"|mancomunitat|mancomunidad|consorci(?:o|)\b|cabildo|comarca\b"
+    r"|patronat|patronato|instituto\s+nacional|institut\s+nacional"
+    r"|c[aà]mara\s+(?:de\s+comercio|oficial)"
+    r"|colegio\s+oficial|col[·.]?legi\s+oficial"
+    r"|federaci[oó]n?\s+espa[ñn]ola|conselleria"
+    r")\b"
+)

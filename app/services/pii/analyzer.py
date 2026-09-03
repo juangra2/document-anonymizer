@@ -19,6 +19,7 @@ from typing import Literal
 # context entities, not PII subjects (RGPD Art. 4).  Centralised in
 # institution_filter.py and reused here for NER false-positive filtering.
 from app.services.pii.institution_filter import INSTITUTION_NAME_RE as _INSTITUTION_NAME_RE
+from app.services.pii.institution_filter import PUBLIC_INSTITUTION_RE as _PUBLIC_INSTITUTION_RE
 
 from presidio_analyzer import AnalyzerEngine, RecognizerRegistry
 from presidio_analyzer.nlp_engine import NlpEngineProvider
@@ -1004,12 +1005,37 @@ _COLEGIADO_NEAR_RE = re.compile(r"(?i)coleg(?:iad[oa]|iat)")
 _MONEY_LABEL_WINDOW = 140
 
 
+
+# Nucleos de razon social: cuando el NER etiqueta como PERSON o LOCATION un
+# sintagma que empieza por uno de estos, en realidad nombra a una empresa.
+# El retipado NO cambia lo que se redacta (ambos tipos se redactan): corrige la
+# etiqueta para que el informe y la metrica reflejen que es una razon social.
+_COMPANY_HEAD_RE = re.compile(
+    r"(?i)^(?:constructora|construcciones|edificaciones|obras|reformas|"
+    r"ingenier[ií]a|enginyeria|servicios|serveis|soluciones|solucions|"
+    r"promociones|promotora|inmobiliaria|talleres|transportes|distribuciones|"
+    r"suministros|consultor(?:es|[ií]a)|asesor[ií]a|gesti[oó]n|gestio|"
+    r"tecnolog[ií]as|sistemas|grupo|grup|industrias|ind[uú]stries|comercial|"
+    r"instalaciones|montajes|audiovisuales|formaci[oó]n|innovaci[oó]|"
+    r"laboratorios|farmac[eé]utica|seguros|inversiones|investments)\b"
+)
+
+# Contexto que introduce una razon social ("la mercantil X", "la empresa X").
+_COMPANY_CONTEXT_RE = re.compile(
+    r"(?i)\b(?:la\s+)?(?:mercantil|empresa|sociedad|firma|compa[ñn][ií]a|"
+    r"adjudicatari[ao]|contratista|entidad\s+privada|societat)\s*$"
+)
+
 SOURCE_PRIORITY = {
     "labeled_field": 5,
     "no_colon_labeled_field": 4,
     "case_table_row": 4,
     "role_table_row": 3,
+    # Detectores deterministas propios: ganan al NER, que suele devolver un
+    # span parcial o un tipo equivocado para razones sociales.
+    "company_suffix": 3,
     "deterministic_regex": 2,
+    "money_context": 2,
     # Nombre avalado por el INE: span completo con partículas; debe ganar al
     # span parcial que a veces devuelve el NER ("Luis Prados" vs
     # "Luis Prados de la Guardia").
@@ -1308,6 +1334,7 @@ class PiiAnalyzer:
         entities.extend(self._detect_ocr_iban(text))
         entities.extend(self._detect_csv(text))
         entities.extend(self._detect_money(text))
+        entities.extend(self._detect_private_companies(text))
         entities.extend(self._detect_ner_entities(text, zone_type=zone_type))
 
         merged = self._merge_overlaps(entities)
@@ -1446,7 +1473,17 @@ class PiiAnalyzer:
                 # ("EN.407", "PAC-12") that NER mislabels.  And a span beginning
                 # with a measurement-unit token ("Ud Par", "Ml Tubo") is a budget
                 # line item, not a person.  Both are common NER false positives.
-                if result.entity_type == "PERSON":
+                emit_type = result.entity_type
+                # Razon social que el NER etiqueta mal como PERSON/LOCATION.
+                if emit_type in ("PERSON", "LOCATION"):
+                    prefix = text[max(0, start - 40):start]
+                    if (
+                        _COMPANY_HEAD_RE.match(value)
+                        or _COMPANY_CONTEXT_RE.search(prefix.rstrip())
+                    ):
+                        emit_type = "ORGANIZATION"
+
+                if emit_type == "PERSON":
                     if any(ch.isdigit() for ch in value):
                         continue
                     first = value.split()
@@ -1471,8 +1508,8 @@ class PiiAnalyzer:
                 # a single token is kept only when matched against known Spanish
                 # given names / surnames (recovers low-confidence true positives
                 # without lowering the bar for unmatched spans).
-                if is_dense_body and result.entity_type in NER_ALLOWED_TYPES:
-                    if result.entity_type == "PERSON" and settings.gazetteer_person:
+                if is_dense_body and emit_type in NER_ALLOWED_TYPES:
+                    if emit_type == "PERSON" and settings.gazetteer_person:
                         tokens = _name_tokens(value)
                         name_hits = sum(
                             1 for t in tokens if gazetteer.is_person_token(t)
@@ -1490,7 +1527,7 @@ class PiiAnalyzer:
                 # a known given name (a person genuinely named like a place).
                 if (
                     settings.gazetteer_person
-                    and result.entity_type == "PERSON"
+                    and emit_type == "PERSON"
                     and PiiAnalyzer._looks_like_toponym(value)
                 ):
                     continue
@@ -1501,12 +1538,18 @@ class PiiAnalyzer:
                 # Heuristic: roots like "universitat", "ajuntament", "institut".
                 # LEARNABLE: replace with a named-entity disambiguation model
                 # that distinguishes "person mentions" from "org mentions".
-                if _INSTITUTION_NAME_RE.search(value):
+                if emit_type == "ORGANIZATION":
+                    # La razon social de empresa PRIVADA si es dato a proteger;
+                    # solo se veta la institucion publica (veto estricto), no las
+                    # raices genericas de profesion del filtro amplio.
+                    if _PUBLIC_INSTITUTION_RE.search(value):
+                        continue
+                elif _INSTITUTION_NAME_RE.search(value):
                     continue
 
                 entities.append(
                     PiiEntity(
-                        entity_type=result.entity_type,
+                        entity_type=emit_type,
                         start=start,
                         end=end,
                         score=float(result.score),
@@ -2207,6 +2250,92 @@ class PiiAnalyzer:
             if province in codes:
                 return toks[k - 1].end()
         return None
+
+    # Formas societarias espanolas.  La forma puede ir detras de la razon social
+    # ("TODINA INVESTMENTS, S.L.") o delante ("U.T.E. Ronda Norte Fase II").
+    _LEGAL_FORM_RE = re.compile(
+        r"(?i)(?<![\w.])(?:"
+        r"S\.\s?L\.\s?U\.|S\.\s?L\.\s?L\.|S\.\s?A\.\s?U\.|S\.\s?Coop\.|"
+        r"S\.\s?L\.|S\.\s?A\.|C\.\s?B\.|U\.\s?T\.\s?E\.|A\.\s?I\.\s?E\.|"
+        r"S\.\s?C\.|SLNE"
+        r")(?![\w])"
+    )
+    # Token que puede formar parte de una razon social.
+    _ORG_WORD_RE = re.compile(r"[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’&\-]*")
+    _ORG_PARTICLES = {"de", "del", "la", "las", "los", "y", "i", "d'", "the", "en"}
+
+    @staticmethod
+    def _detect_private_companies(text: str) -> list[PiiEntity]:
+        """Razon social de empresa privada por forma societaria (determinista).
+
+        Detecta el sintagma unido a S.L./S.A./C.B./U.T.E./… y lo emite como
+        ORGANIZATION, salvo que nombre a una institucion publica (que por
+        requisito nunca se anonimiza).
+        """
+        entities: list[PiiEntity] = []
+
+        for form in PiiAnalyzer._LEGAL_FORM_RE.finditer(text):
+            f_start, f_end = form.start(), form.end()
+            line_start = text.rfind("\n", 0, f_start) + 1
+            line_end = text.find("\n", f_end)
+            line_end = len(text) if line_end == -1 else line_end
+
+            # Palabras capitalizadas contiguas ANTES de la forma societaria.
+            before = text[line_start:f_start]
+            words = list(PiiAnalyzer._ORG_WORD_RE.finditer(before))
+            start = f_start
+            kept = 0
+            # `last_rel` marca donde empieza lo ya aceptado: el hueco relevante
+            # es el que separa cada palabra de la anterior aceptada, no el que
+            # llega hasta el final del fragmento.
+            last_rel = len(before)
+            for w in reversed(words):
+                gap = before[w.end():last_rel].strip(" ,\t")
+                if gap and not all(
+                    g.lower() in PiiAnalyzer._ORG_PARTICLES for g in gap.split()
+                ):
+                    break
+                last_rel = w.start()
+                start = line_start + w.start()
+                kept += 1
+                if kept >= 6:
+                    break
+
+            end = f_end
+            if kept == 0:
+                # Forma societaria al principio ("U.T.E. Ronda Norte Fase II"):
+                # se extiende hacia la derecha.
+                after = text[f_end:line_end]
+                taken = 0
+                for w in PiiAnalyzer._ORG_WORD_RE.finditer(after):
+                    gap = after[end - f_end:w.start()].strip(" ,\t")
+                    if gap and not all(
+                        g.lower() in PiiAnalyzer._ORG_PARTICLES for g in gap.split()
+                    ):
+                        break
+                    end = f_end + w.end()
+                    taken += 1
+                    if taken >= 6:
+                        break
+                if taken == 0:
+                    continue
+
+            value = text[start:end].strip(" ,\t")
+            if len(value) < 5:
+                continue
+            if _PUBLIC_INSTITUTION_RE.search(value):
+                continue
+
+            entities.append(PiiEntity(
+                entity_type="ORGANIZATION",
+                start=start,
+                end=start + len(value),
+                score=0.92,
+                source="company_suffix",
+                text=value,
+            ))
+
+        return entities
 
     @staticmethod
     def _detect_money(text: str) -> list[PiiEntity]:

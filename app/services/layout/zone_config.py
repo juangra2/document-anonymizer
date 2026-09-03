@@ -53,6 +53,9 @@ ALL_PII_TYPES: list[str] = [
     # liquidacion).  Los importes de presupuesto de obra quedan fuera por el
     # gate de contexto del detector, no por la configuracion de zona.
     "MONEY",
+    # Razon social de empresa PRIVADA (requisito del ayuntamiento).  La
+    # institucion publica queda excluida por el veto PUBLIC_INSTITUTION_RE.
+    "ORGANIZATION",
 ]
 
 
