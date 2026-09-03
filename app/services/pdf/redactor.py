@@ -281,7 +281,8 @@ def _collect_redaction_rects(
                 cfg = get_detector_config(zone.zone_type)
                 if cfg.entity_types is not None:
                     form_entities = analyzer.analyze(
-                        zone.text, mode=mode, zone_type=zone.zone_type.value
+                        zone.text, mode=mode, zone_type=zone.zone_type.value,
+                        context_text=page_text.text,
                     )
                     allowed = set(cfg.entity_types)
                     for entity in form_entities:
@@ -306,6 +307,9 @@ def _collect_redaction_rects(
             zone.text,
             mode=mode,
             zone_type=zone.zone_type.value,
+            # El gate de importes necesita la pagina: cada fila de tabla es una
+            # zona propia y ahi no se distingue nomina de presupuesto de obra.
+            context_text=page_text.text,
         )
 
         # Filter to types relevant for this zone

@@ -362,6 +362,9 @@ def _collect_redaction_rects(
     entities: list[PiiEntity] = []
     easy_line_h = _median_height(easy_words) if easy_words else 0.0
 
+    # Contexto de pagina para el gate de importes (ver PiiAnalyzer.analyze).
+    page_context = chr(10).join(z.text for z in zoned_page.zones if z.text)
+
     for zone in zoned_page.zones:
 
         # SIGNATURE / QR_CODE → full zone rect
@@ -387,7 +390,8 @@ def _collect_redaction_rects(
                 cfg = get_detector_config(zone.zone_type)
                 if cfg.entity_types is not None:
                     form_entities = analyzer.analyze(
-                        zone.text, mode=mode, zone_type=zone.zone_type.value
+                        zone.text, mode=mode, zone_type=zone.zone_type.value,
+                        context_text=page_context,
                     )
                     allowed = set(cfg.entity_types)
                     for entity in form_entities:
@@ -412,6 +416,7 @@ def _collect_redaction_rects(
             zone.text,
             mode=mode,
             zone_type=zone.zone_type.value,
+            context_text=page_context,
         )
         allowed = set(cfg.entity_types)
         local_entities = [e for e in local_entities if e.entity_type in allowed]

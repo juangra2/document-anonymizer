@@ -961,15 +961,20 @@ _MONEY_RE = re.compile(
     r"(?![\d,])"
 )
 
-# (a) Etiquetas que ligan el importe a una persona o a una cuenta.
+# (a) Etiquetas que ligan el importe a una persona o a una cuenta.  Incluyen los
+# conceptos de nomina, cuyas filas el segmentador deja como zonas sueltas
+# ("Complemento de antiguedad 145,14").
 _MONEY_LABEL_RE = re.compile(
     r"(?i)\b(?:importe(?:[^\S\r\n]+ordenado)?|import|ordenante|beneficiario|"
     r"cuenta|n[oó]mina|liquidaci[oó]n|abono|"
     r"l[ií]quido[^\S\r\n]+a[^\S\r\n]+percibir|"
     r"total[^\S\r\n]+a[^\S\r\n]+(?:percibir|ingresar|pagar)|"
-    r"retribuci[oó]n|devengos?|deducciones|salario|haber(?:es)?|cuota|recargo|"
-    r"sanci[oó]n|multa|tasa|ayuda|subvenci[oó]n|transferencia|"
-    r"base[^\S\r\n]+imponible)\b"
+    r"retribuci[oó]n|deveng(?:o|os|ado|ada)|deducciones|salario|haber(?:es)?|"
+    r"cuota|recargo|sanci[oó]n|multa|tasa|ayuda|subvenci[oó]n|transferencia|"
+    r"base[^\S\r\n]+(?:imponible|cotizaci[oó]n|irpf)|"
+    r"complemento|plus|horas[^\S\r\n]+extraordinarias|antig[uü]edad|"
+    r"irpf|retenci[oó]n|anticipo|neto|bruto|paga|pensiones|sindical|"
+    r"productividad|nocturnidad|penosidad|disponibilidad|guardia)\b"
 )
 
 # (b) Marcadores de zona financiera.
@@ -1006,24 +1011,28 @@ _MONEY_LABEL_WINDOW = 140
 
 
 
-# Nucleos de razon social: cuando el NER etiqueta como PERSON o LOCATION un
-# sintagma que empieza por uno de estos, en realidad nombra a una empresa.
-# El retipado NO cambia lo que se redacta (ambos tipos se redactan): corrige la
-# etiqueta para que el informe y la metrica reflejen que es una razon social.
-_COMPANY_HEAD_RE = re.compile(
-    r"(?i)^(?:constructora|construcciones|edificaciones|obras|reformas|"
-    r"ingenier[ií]a|enginyeria|servicios|serveis|soluciones|solucions|"
-    r"promociones|promotora|inmobiliaria|talleres|transportes|distribuciones|"
-    r"suministros|consultor(?:es|[ií]a)|asesor[ií]a|gesti[oó]n|gestio|"
-    r"tecnolog[ií]as|sistemas|grupo|grup|industrias|ind[uú]stries|comercial|"
-    r"instalaciones|montajes|audiovisuales|formaci[oó]n|innovaci[oó]|"
-    r"laboratorios|farmac[eé]utica|seguros|inversiones|investments)\b"
+# Contexto que introduce explicitamente una razon social privada ("la mercantil
+# X", "la empresa X").  Es la UNICA via, junto a la forma societaria, por la que
+# se retipa una entidad del NER a ORGANIZATION.
+#
+# Se probo tambien un heuristico de nucleo ("Servicios ...", "Grupo ...",
+# "Sistemas ...") y hubo que retirarlo: en documentacion administrativa esos
+# nucleos nombran unidades del propio organismo publico — "Servicio de Recursos
+# Humanos", "Grupo de Investigacion", "Departamento de Ciencias" — y producia
+# 741 falsos positivos sobre el corpus, hundiendo la precision a 0.012.
+_COMPANY_CONTEXT_RE = re.compile(
+    r"(?i)\b(?:la\s+|una\s+)?(?:mercantil|empresa|sociedad\s+mercantil|firma|"
+    r"compa[ñn][ií]a|adjudicatari[ao]|contratista|societat|"
+    r"entidad\s+privada)\s*$"
 )
 
-# Contexto que introduce una razon social ("la mercantil X", "la empresa X").
-_COMPANY_CONTEXT_RE = re.compile(
-    r"(?i)\b(?:la\s+)?(?:mercantil|empresa|sociedad|firma|compa[ñn][ií]a|"
-    r"adjudicatari[ao]|contratista|entidad\s+privada|societat)\s*$"
+# Unidades internas de un organismo publico: nunca son razon social privada.
+_PUBLIC_UNIT_RE = re.compile(
+    r"(?i)^(?:servicio|servei|departamento|departament|unidad|unitat|secci[oó]n|"
+    r"secci[oó]|negociado|[àa]rea|area|oficina|grupo\s+de|grup\s+de|"
+    r"laboratorio|laboratori|instituto|institut|c[aá]tedra|escuela|escola|"
+    r"facultad|facultat|convenio|conveni|junta|comisi[oó]n|comissi[oó]|"
+    r"consejo|consell|direcci[oó]n|direcci[oó])\b"
 )
 
 SOURCE_PRIORITY = {
@@ -1304,12 +1313,19 @@ class PiiAnalyzer:
         text: str,
         mode: RedactionMode = "strict",
         zone_type: str | None = None,
+        context_text: str | None = None,
     ) -> list[PiiEntity]:
         """Detect PII in *text*.
 
         Args:
             text:      The text to analyse.
             mode:      Always "strict" (kept in the signature for API shape).
+            context_text: Texto de la PAGINA completa, si se conoce.  Solo lo usa
+                       el gate de importes: el segmentador deja cada fila de
+                       tabla en su propia zona ("Salario base 2.309,00"), donde
+                       no cabe decidir si el importe es de una nomina o de un
+                       presupuesto de obra.  Sin el, "Base imponible 845,20" es
+                       indistinguible en ambos documentos.
             zone_type: Layout zone this text comes from ("body", "header",
                        "footer", "form", "table", …).  When provided, enables
                        zone-aware NER filtering to reduce false positives in
@@ -1333,7 +1349,7 @@ class PiiAnalyzer:
         entities.extend(self._detect_direct_regex(text, mode=mode))
         entities.extend(self._detect_ocr_iban(text))
         entities.extend(self._detect_csv(text))
-        entities.extend(self._detect_money(text))
+        entities.extend(self._detect_money(text, context_text))
         entities.extend(self._detect_private_companies(text))
         entities.extend(self._detect_ner_entities(text, zone_type=zone_type))
 
@@ -1478,8 +1494,8 @@ class PiiAnalyzer:
                 if emit_type in ("PERSON", "LOCATION"):
                     prefix = text[max(0, start - 40):start]
                     if (
-                        _COMPANY_HEAD_RE.match(value)
-                        or _COMPANY_CONTEXT_RE.search(prefix.rstrip())
+                        _COMPANY_CONTEXT_RE.search(prefix.rstrip())
+                        and not _PUBLIC_UNIT_RE.match(value)
                     ):
                         emit_type = "ORGANIZATION"
 
@@ -1539,10 +1555,19 @@ class PiiAnalyzer:
                 # LEARNABLE: replace with a named-entity disambiguation model
                 # that distinguishes "person mentions" from "org mentions".
                 if emit_type == "ORGANIZATION":
-                    # La razon social de empresa PRIVADA si es dato a proteger;
-                    # solo se veta la institucion publica (veto estricto), no las
-                    # raices genericas de profesion del filtro amplio.
-                    if _PUBLIC_INSTITUTION_RE.search(value):
+                    # ORGANIZATION crudo del NER no se redacta: en documentacion
+                    # administrativa nombra casi siempre una unidad del propio
+                    # organismo ("Servicio de Recursos Humanos", "Departamento
+                    # de ...") — 741 FP frente a 9 TP sobre el corpus.  La razon
+                    # social privada llega por dos vias precisas: la forma
+                    # societaria (_detect_private_companies) y el contexto
+                    # explicito que retipa aqui ("la mercantil X").
+                    if emit_type == result.entity_type:
+                        continue
+                    if (
+                        _PUBLIC_INSTITUTION_RE.search(value)
+                        or _PUBLIC_UNIT_RE.match(value)
+                    ):
                         continue
                 elif _INSTITUTION_NAME_RE.search(value):
                     continue
@@ -2323,7 +2348,7 @@ class PiiAnalyzer:
             value = text[start:end].strip(" ,\t")
             if len(value) < 5:
                 continue
-            if _PUBLIC_INSTITUTION_RE.search(value):
+            if _PUBLIC_INSTITUTION_RE.search(value) or _PUBLIC_UNIT_RE.match(value):
                 continue
 
             entities.append(PiiEntity(
@@ -2338,7 +2363,7 @@ class PiiAnalyzer:
         return entities
 
     @staticmethod
-    def _detect_money(text: str) -> list[PiiEntity]:
+    def _detect_money(text: str, context_text: str | None = None) -> list[PiiEntity]:
         """Importes economicos que son dato personal (ver gate arriba).
 
         Devuelve solo los importes ligados a una persona o cuenta: los de un
@@ -2346,10 +2371,13 @@ class PiiAnalyzer:
         """
         entities: list[PiiEntity] = []
 
-        # (c) Veto de zona: la zona entera habla de obra.
-        zone_vetoed = bool(_BUDGET_VETO_RE.search(text))
-        # (b) Senal de zona financiera.
-        zone_financial = bool(_FINANCIAL_ZONE_RE.search(text))
+        # Las senales de contexto se evaluan sobre la pagina cuando se conoce:
+        # una fila suelta no dice si pertenece a una nomina o a un presupuesto.
+        scope = context_text if context_text is not None else text
+        # (c) Veto: el documento habla de obra.
+        zone_vetoed = bool(_BUDGET_VETO_RE.search(scope))
+        # (b) Senal financiera.
+        zone_financial = bool(_FINANCIAL_ZONE_RE.search(scope))
 
         # Offsets de inicio de cada linea, para acotar ventanas sin re-escanear.
         line_starts: list[int] = [0]
@@ -2370,6 +2398,10 @@ class PiiAnalyzer:
 
             # (c) Veto por linea: fila de partida o linea con marcador de obra.
             if zone_vetoed or _BUDGET_VETO_RE.search(line) or _BUDGET_LINE_RE.match(line):
+                continue
+
+            # Un porcentaje no es un importe ("Cuota SS (6,35%)", "IRPF (15%)").
+            if text[end:end + 2].lstrip().startswith("%"):
                 continue
 
             # Numero de colegiado: tiene forma de importe y no se anonimiza.
