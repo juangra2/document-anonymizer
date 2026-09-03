@@ -1021,9 +1021,11 @@ _MONEY_LABEL_WINDOW = 140
 # Humanos", "Grupo de Investigacion", "Departamento de Ciencias" — y producia
 # 741 falsos positivos sobre el corpus, hundiendo la precision a 0.012.
 _COMPANY_CONTEXT_RE = re.compile(
-    r"(?i)\b(?:la\s+|una\s+)?(?:mercantil|empresa|sociedad\s+mercantil|firma|"
-    r"compa[ñn][ií]a|adjudicatari[ao]|contratista|societat|"
-    r"entidad\s+privada)\s*$"
+    r"(?i)\b(?:la\s+|una\s+)?(?:mercantil|empresa(?:\s+\w+)?|sociedad\s+mercantil|"
+    r"firma|compa[ñn][ií]a|adjudicatari[ao]|contratista|societat|"
+    # Admite el cierre de etiqueta ("Empresa adjudicataria: X", "Empresa
+    # consultora: X"), no solo el sintagma suelto ("la mercantil X").
+    r"entidad\s+privada)[\s:.\-]*$"
 )
 
 # Unidades internas de un organismo publico: nunca son razon social privada.
@@ -1489,15 +1491,30 @@ class PiiAnalyzer:
                 # ("EN.407", "PAC-12") that NER mislabels.  And a span beginning
                 # with a measurement-unit token ("Ud Par", "Ml Tubo") is a budget
                 # line item, not a person.  Both are common NER false positives.
+                # Una organizacion se anonimiza cuando hay EVIDENCIA de que es
+                # una empresa privada, con independencia de como la etiquete el
+                # NER (acierta con unas y falla con otras).  La evidencia es el
+                # contexto explicito que la introduce ("la mercantil X",
+                # "Empresa adjudicataria: X").  Sin ella, un ORGANIZATION del
+                # NER nombra casi siempre una unidad del propio organismo
+                # publico — 741 FP frente a 9 TP sobre el corpus.
                 emit_type = result.entity_type
-                # Razon social que el NER etiqueta mal como PERSON/LOCATION.
-                if emit_type in ("PERSON", "LOCATION"):
-                    prefix = text[max(0, start - 40):start]
+                company_ctx = bool(
+                    _COMPANY_CONTEXT_RE.search(text[max(0, start - 40):start].rstrip())
+                )
+                if company_ctx and emit_type in ("PERSON", "LOCATION", "ORGANIZATION"):
+                    emit_type = "ORGANIZATION"
+
+                if emit_type == "ORGANIZATION":
+                    if not company_ctx:
+                        continue
                     if (
-                        _COMPANY_CONTEXT_RE.search(prefix.rstrip())
-                        and not _PUBLIC_UNIT_RE.match(value)
+                        _PUBLIC_INSTITUTION_RE.search(value)
+                        or _PUBLIC_UNIT_RE.match(value)
                     ):
-                        emit_type = "ORGANIZATION"
+                        continue
+                elif _INSTITUTION_NAME_RE.search(value):
+                    continue
 
                 if emit_type == "PERSON":
                     if any(ch.isdigit() for ch in value):
@@ -1554,22 +1571,9 @@ class PiiAnalyzer:
                 # Heuristic: roots like "universitat", "ajuntament", "institut".
                 # LEARNABLE: replace with a named-entity disambiguation model
                 # that distinguishes "person mentions" from "org mentions".
-                if emit_type == "ORGANIZATION":
-                    # ORGANIZATION crudo del NER no se redacta: en documentacion
-                    # administrativa nombra casi siempre una unidad del propio
-                    # organismo ("Servicio de Recursos Humanos", "Departamento
-                    # de ...") — 741 FP frente a 9 TP sobre el corpus.  La razon
-                    # social privada llega por dos vias precisas: la forma
-                    # societaria (_detect_private_companies) y el contexto
-                    # explicito que retipa aqui ("la mercantil X").
-                    if emit_type == result.entity_type:
-                        continue
-                    if (
-                        _PUBLIC_INSTITUTION_RE.search(value)
-                        or _PUBLIC_UNIT_RE.match(value)
-                    ):
-                        continue
-                elif _INSTITUTION_NAME_RE.search(value):
+                # (Para ORGANIZATION el veto ya se aplico arriba, con el criterio
+                # estricto de institucion publica.)
+                if emit_type != "ORGANIZATION" and _INSTITUTION_NAME_RE.search(value):
                     continue
 
                 entities.append(

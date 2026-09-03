@@ -72,3 +72,28 @@ def test_person_still_person():
     text = "comparece Roberto Iglesias Calvo con DNI 12345678Z"
     types = {e.entity_type for e in analyzer.analyze(text, mode="strict", zone_type="body")}
     assert "PERSON" in types
+
+
+# --- contexto etiquetado y ORG del NER con evidencia -------------------------
+
+def test_labeled_company_context():
+    # "Empresa adjudicataria: X" / "Empresa consultora: X" son etiquetas de
+    # formulario, no sintagmas sueltos.
+    assert "Constructora Peñalba" in _orgs("Empresa adjudicataria: Constructora Peñalba")
+    assert "Grupotec Ingeniería" in _orgs("Empresa consultora: Grupotec Ingeniería")
+
+
+def test_ner_organization_with_company_context_is_kept():
+    # El NER acierta a veces etiquetando ORG; con contexto de empresa se redacta.
+    assert "Tecnobra Levante" in _orgs("la mercantil Tecnobra Levante presenta oferta")
+
+
+def test_ner_organization_without_evidence_is_dropped():
+    # Sin contexto de empresa, un ORGANIZATION del NER nombra casi siempre una
+    # unidad del propio organismo público (741 FP frente a 9 TP en el corpus).
+    assert _orgs("Instituto de Robótica Aplicada y Digital") == []
+    assert _orgs("Unidad de Proyectos Europeos") == []
+
+
+def test_labeled_context_does_not_beat_public_veto():
+    assert _orgs("Empresa adjudicataria: Ajuntament de València") == []
