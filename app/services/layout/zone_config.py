@@ -49,6 +49,10 @@ ALL_PII_TYPES: list[str] = [
     "DATE_TIME",
     "CASE_TABLE_ROW",
     "ROLE_TABLE_ROW",
+    # Importe economico ligado a persona o cuenta (nomina, transferencia,
+    # liquidacion).  Los importes de presupuesto de obra quedan fuera por el
+    # gate de contexto del detector, no por la configuracion de zona.
+    "MONEY",
 ]
 
 

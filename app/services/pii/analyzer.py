@@ -932,6 +932,78 @@ GENERIC_FALSE_POSITIVES = {
 }
 
 
+
+# ---------------------------------------------------------------------------
+# MONEY — importes economicos ligados a una persona o a una cuenta
+# ---------------------------------------------------------------------------
+# Un importe solo es dato personal segun de que hable el documento: la nomina o
+# la transferencia de un ciudadano lo son; las columnas de precio de un
+# presupuesto de obra o una tabla de mediciones, no.  El detector localiza el
+# importe y despues lo decide un gate de tres senales:
+#
+#   (a) etiqueta proxima  -> "Importe: 1.234,56", "TOTAL A PERCIBIR ..."
+#   (b) zona financiera   -> la zona ya contiene IBAN / ordenante / nomina;
+#                            necesaria cuando la etiqueta es cabecera de columna
+#                            y queda lejos del valor
+#   (c) veto de obra      -> presupuesto / mediciones; GANA sobre (a) y (b)
+#
+# El veto se evalua por linea y por zona: una tabla de partidas puede quedar en
+# una zona propia, sin el titulo del documento que la delataria.
+
+_MONEY_RE = re.compile(
+    r"(?<![\d.,])"
+    r"(?P<value>"
+    r"\d{1,3}(?:\.\d{3})*,\d{2}"                     # 1.234,56 / 234,56
+    r"|\d{1,3}(?:\.\d{3})+"                          # 2.500
+    r"|\d+(?=[^\S\r\n]*(?:€|EUR\b|euros?\b))"        # 300 €
+    r")"
+    r"(?![\d,])"
+)
+
+# (a) Etiquetas que ligan el importe a una persona o a una cuenta.
+_MONEY_LABEL_RE = re.compile(
+    r"(?i)\b(?:importe(?:[^\S\r\n]+ordenado)?|import|ordenante|beneficiario|"
+    r"cuenta|n[oó]mina|liquidaci[oó]n|abono|"
+    r"l[ií]quido[^\S\r\n]+a[^\S\r\n]+percibir|"
+    r"total[^\S\r\n]+a[^\S\r\n]+(?:percibir|ingresar|pagar)|"
+    r"retribuci[oó]n|devengos?|deducciones|salario|haber(?:es)?|cuota|recargo|"
+    r"sanci[oó]n|multa|tasa|ayuda|subvenci[oó]n|transferencia|"
+    r"base[^\S\r\n]+imponible)\b"
+)
+
+# (b) Marcadores de zona financiera.
+_FINANCIAL_ZONE_RE = re.compile(
+    r"(?i)(?:\bES\d{2}[\s\-]?\d{4}|\bordenante\b|\bbeneficiario\b|"
+    r"\bn[oó]mina\b|\bdevengos\b|\bdeducciones\b|"
+    r"\bl[ií]quido[^\S\r\n]+a[^\S\r\n]+percibir\b|\bautoliquidaci[oó]n\b|"
+    r"\bsujeto[^\S\r\n]+pasivo\b|\btransferencia\b)"
+)
+
+# (c) Veto: marcadores inequivocos de presupuesto de obra o mediciones.  Se
+# exigen formas de varias palabras para no vetar por un "presupuestos
+# municipales" suelto, que aparece en notificaciones de ayuda cuyo importe SI
+# es personal.
+_BUDGET_VETO_RE = re.compile(
+    r"(?i)(?:ejecuci[oó]n[^\S\r\n]+material|p\.\s?e\.\s?m\.|"
+    r"medicion(?:es)?|precio[^\S\r\n]+unitario|beneficio[^\S\r\n]+industrial|"
+    r"gastos[^\S\r\n]+generales|presupuesto[^\S\r\n]+de[^\S\r\n]+contrata|"
+    r"cuadro[^\S\r\n]+de[^\S\r\n]+precios|cap[ií]tulo)"
+)
+
+# Linea de partida de obra: abre con codigo de partida y/o unidad de medida.
+_BUDGET_LINE_RE = re.compile(
+    r"(?i)^[^\S\r\n]*(?:\d{2}\.\d{2}[^\S\r\n]+)?"
+    r"(?:ud|uds|unid|ml|m2|m3|m²|m³|kg|tn|km|ha|lts)\b"
+)
+
+# El numero de colegiado tiene forma de importe con separador de miles
+# ("14.226") y, por requisito del ayuntamiento, NO se anonimiza.
+_COLEGIADO_NEAR_RE = re.compile(r"(?i)coleg(?:iad[oa]|iat)")
+
+# Ventana hacia atras (caracteres) en la que se busca la etiqueta de (a).
+_MONEY_LABEL_WINDOW = 140
+
+
 SOURCE_PRIORITY = {
     "labeled_field": 5,
     "no_colon_labeled_field": 4,
@@ -1235,6 +1307,7 @@ class PiiAnalyzer:
         entities.extend(self._detect_direct_regex(text, mode=mode))
         entities.extend(self._detect_ocr_iban(text))
         entities.extend(self._detect_csv(text))
+        entities.extend(self._detect_money(text))
         entities.extend(self._detect_ner_entities(text, zone_type=zone_type))
 
         merged = self._merge_overlaps(entities)
@@ -2134,6 +2207,66 @@ class PiiAnalyzer:
             if province in codes:
                 return toks[k - 1].end()
         return None
+
+    @staticmethod
+    def _detect_money(text: str) -> list[PiiEntity]:
+        """Importes economicos que son dato personal (ver gate arriba).
+
+        Devuelve solo los importes ligados a una persona o cuenta: los de un
+        presupuesto de obra o una tabla de mediciones quedan fuera.
+        """
+        entities: list[PiiEntity] = []
+
+        # (c) Veto de zona: la zona entera habla de obra.
+        zone_vetoed = bool(_BUDGET_VETO_RE.search(text))
+        # (b) Senal de zona financiera.
+        zone_financial = bool(_FINANCIAL_ZONE_RE.search(text))
+
+        # Offsets de inicio de cada linea, para acotar ventanas sin re-escanear.
+        line_starts: list[int] = [0]
+        for idx, ch in enumerate(text):
+            if ch == "\n":
+                line_starts.append(idx + 1)
+
+        def _line_bounds(pos: int) -> tuple[int, int]:
+            start = text.rfind("\n", 0, pos) + 1
+            end = text.find("\n", pos)
+            return start, (len(text) if end == -1 else end)
+
+        for match in _MONEY_RE.finditer(text):
+            value = match.group("value")
+            start, end = match.start("value"), match.end("value")
+            line_start, line_end = _line_bounds(start)
+            line = text[line_start:line_end]
+
+            # (c) Veto por linea: fila de partida o linea con marcador de obra.
+            if zone_vetoed or _BUDGET_VETO_RE.search(line) or _BUDGET_LINE_RE.match(line):
+                continue
+
+            # Numero de colegiado: tiene forma de importe y no se anonimiza.
+            if _COLEGIADO_NEAR_RE.search(text[max(0, start - 40):end]):
+                continue
+
+            # (a) Etiqueta proxima: misma linea (antes o despues del valor) o
+            # una ventana hacia atras que alcanza la linea anterior.
+            window = text[max(0, start - _MONEY_LABEL_WINDOW):end]
+            has_label = bool(
+                _MONEY_LABEL_RE.search(line) or _MONEY_LABEL_RE.search(window)
+            )
+
+            if not has_label and not zone_financial:
+                continue
+
+            entities.append(PiiEntity(
+                entity_type="MONEY",
+                start=start,
+                end=end,
+                score=0.9,
+                source="money_context",
+                text=value,
+            ))
+
+        return entities
 
     @staticmethod
     def _detect_csv(text: str) -> list[PiiEntity]:
