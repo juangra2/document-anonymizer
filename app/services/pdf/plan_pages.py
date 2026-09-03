@@ -9,10 +9,6 @@ página, dimensiones nativas de imágenes embebidas (sin decodificar), conteo de
 paths vectoriales y bloques de texto — por lo que cuesta O(ms) por página y se
 ejecuta ANTES de cualquier get_pixmap u OCR.
 
-Umbrales calibrados con TOMO_04 (plano vectorial real del ayuntamiento,
-A1 apaisado 2384×1684 pt): 60.494 drawings, 3.645 bloques de texto con mediana
-de 18 chars y solo 1 bloque-párrafo (≥150 chars).  Un administrativo A4 tiene
-<200 paths y decenas de bloques-párrafo.
 """
 from __future__ import annotations
 
@@ -83,6 +79,18 @@ import re as _re
 
 # "Situación/Emplazamiento:" del cajetín → dirección del proyecto (PII del
 # plano).  Local a este módulo: fuera del cajetín "situación" es prosa común.
+# Numero de colegiado: por requisito del ayuntamiento NO se anonimiza.  Se
+# localiza para excluirlo de la redaccion aunque el NER desborde el nombre del
+# arquitecto hacia su etiqueta ("Luis Ortenbach Alonso Arquitecto Colegiado").
+# Entre la etiqueta y el numero cabe cualquier marca corta ("nº", "núm.:",
+# "ns" cuando el OCR degrada la "º"), en la misma linea o en la siguiente.
+_COLEGIADO_RE = _re.compile(
+    r"(?i)(?:col[·.]?legiat|colegiad[oa])"
+    r"[^\d\r\n]{0,12}"
+    r"(?:\r?\n[^\S\r\n]*)?"
+    r"[\d][\d.]*"
+)
+
 _TB_ADDRESS_RE = _re.compile(
     r"(?im)^[^\S\r\n]*(?:situaci[oó]n?|emplazamiento|localizaci[oó]n)"
     r"[^\S\r\n]*:[^\S\r\n]*\n?(?P<value>[^\n]+(?:\n[^\n:]+)?)"
@@ -174,6 +182,27 @@ def redact_plan_page(page: fitz.Page, analyzer, mode: str = "strict"):
             "ADDRESS", m.start("value"), m.end("value"), 0.9,
             "labeled_field", m.group("value"),
         ))
+
+    # El numero de colegiado se preserva: se recorta todo span que lo invada y
+    # se descarta el que quede vacio.  Sin esto, un span de PERSON desbordado
+    # ("... Arquitecto Colegiado n 6.402") se llevaria el numero por delante.
+    protected = [(m.start(), m.end()) for m in _COLEGIADO_RE.finditer(zone_text)]
+    if protected:
+        trimmed: list[PiiEntity] = []
+        for e in entities:
+            start, end = e.start, e.end
+            for p_start, p_end in protected:
+                if start < p_end and p_start < end:      # solapan
+                    if start < p_start:
+                        end = min(end, p_start)
+                    else:
+                        start = max(start, p_end)
+            if end - start >= 3:
+                trimmed.append(PiiEntity(
+                    e.entity_type, start, end, e.score, e.source,
+                    zone_text[start:end],
+                ))
+        entities = trimmed
 
     px_rects: list[fitz.Rect] = []
     for e in entities:

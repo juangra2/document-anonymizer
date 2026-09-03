@@ -42,7 +42,9 @@ ALL_PII_TYPES: list[str] = [
     "REGISTRY_NUMBER",
     "CERT_SERIAL",
     "CSV",
-    "PROFESSIONAL_LICENSE",
+    # PROFESSIONAL_LICENSE fuera: el numero de colegiado NO se anonimiza
+    # (requisito del ayuntamiento).  Se sigue detectando internamente,
+    # pero nunca se redacta.
     "POSTAL_CODE",
     "URL",
     "DATE_OF_BIRTH",
