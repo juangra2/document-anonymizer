@@ -110,8 +110,11 @@ _HEADER_CONFIG = ZoneDetectorConfig(
 _FOOTER_CONFIG = ZoneDetectorConfig(
     # IBAN_CODE: mismo criterio que en cabecera — dato financiero, nunca
     # contacto de plantilla; el mod-97 evita falsos positivos.
+    # DATE_TIME / DATE_OF_BIRTH: por requisito del ayuntamiento se anonimiza
+    # TODA fecha, sin excepcion — tambien la del bloque de firma electronica y
+    # la del pie de pagina, que antes quedaban fuera de alcance.
     entity_types=["CASE_NUMBER", "URL", "CERT_SERIAL", "REGISTRY_NUMBER", "CSV",
-                  "IBAN_CODE"],
+                  "IBAN_CODE", "DATE_TIME", "DATE_OF_BIRTH"],
     apply_layout_analysis=False,
 )
 
@@ -123,6 +126,9 @@ _MARGINALIA_CONFIG = ZoneDetectorConfig(
         "ES_NIE",
         "EMAIL_ADDRESS",
         "PHONE_NUMBER",
+        # Toda fecha se anonimiza, tambien en anotaciones marginales.
+        "DATE_TIME",
+        "DATE_OF_BIRTH",
     ],
     apply_layout_analysis=False,
 )
