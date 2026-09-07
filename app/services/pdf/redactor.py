@@ -25,7 +25,7 @@ from app.core.config import settings
 from app.schemas.report import DetectedEntityInfo, ProcessingLimits, ProcessingReport
 from app.services.layout.models import PageZone, ZoneType
 from app.services.layout.segmenters import DigitalPageSegmenter
-from app.services.layout.zone_config import get_detector_config
+from app.services.layout.zone_config import ALL_PII_TYPES, get_detector_config
 from app.services.pdf.extractor import extract_page_text, rects_for_span
 from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pdf.full_redaction import classify_pages
@@ -74,6 +74,14 @@ def redact_pdf_digital(
         for page_index, page in enumerate(doc):
             reason = full_redaction_pages.get(page_index)
             if reason:
+                # La página se pinta entera, pero SÍ se analiza para el informe:
+                # una página en negro que reporta cero entidades es engañosa
+                # para la auditoría, y además haría contar como no detectado lo
+                # que en realidad está redactado al 100 %.  El análisis no
+                # decide aquí qué se tacha — eso ya está decidido.
+                all_entities.extend(
+                    _entities_for_audit(analyzer, page.get_text(), mode)
+                )
                 _redact_whole_page(page)
                 redacted_count += 1
                 continue
@@ -410,6 +418,28 @@ def _center_in_any(rect: fitz.Rect, containers: list[fitz.Rect]) -> bool:
         if c.x0 - 1.5 <= cx <= c.x1 + 1.5 and c.y0 - 1.5 <= cy <= c.y1 + 1.5:
             return True
     return False
+
+
+def _entities_for_audit(
+    analyzer: PiiAnalyzer, text: str, mode: str,
+) -> list[PiiEntity]:
+    """Entidades de una página de redacción total, solo para el informe.
+
+    No influye en la redacción (la página entera ya se tacha): sirve para que el
+    informe diga QUÉ datos contenía y para que una página completamente
+    protegida no figure como PII no detectada.
+    """
+    if not text or not text.strip():
+        return []
+    allowed = set(ALL_PII_TYPES)
+    return [
+        PiiEntity(
+            entity_type=e.entity_type, start=e.start, end=e.end,
+            score=e.score, source=e.source, text=text[e.start:e.end],
+        )
+        for e in analyzer.analyze(text, mode=mode, zone_type=None, context_text=text)
+        if e.entity_type in allowed
+    ]
 
 
 def _redact_whole_page(page: fitz.Page) -> None:

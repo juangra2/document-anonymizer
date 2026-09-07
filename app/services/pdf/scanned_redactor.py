@@ -30,7 +30,7 @@ from app.core.config import settings
 from app.schemas.report import DetectedEntityInfo, OcrInfo, ProcessingLimits, ProcessingReport
 from app.services.layout.models import PageZone, ZoneToken, ZoneType
 from app.services.layout.segmenters import OcrPageSegmenter
-from app.services.layout.zone_config import get_detector_config
+from app.services.layout.zone_config import ALL_PII_TYPES, get_detector_config
 from app.services.ocr.base import OcrEngine
 from app.services.ocr.factory import get_ocr_engine, get_word_ocr_engine
 from app.services.ocr.models import OcrPage
@@ -163,9 +163,25 @@ def redact_pdf_scanned(
                     draw = ImageDraw.Draw(work_image)
                     draw.rectangle([0, 0, work_image.width, work_image.height],
                                    fill="black")
+                    # La página se pinta entera, pero se analiza igualmente para
+                    # el informe: una página en negro que reporta cero entidades
+                    # es engañosa para la auditoría y haría figurar como no
+                    # detectado lo que está redactado al 100 %.
+                    audit_entities = [
+                        PiiEntity(
+                            entity_type=e.entity_type, start=e.start, end=e.end,
+                            score=e.score, source=e.source,
+                            text=page_ocr_text[e.start:e.end],
+                        )
+                        for e in analyzer.analyze(
+                            page_ocr_text, mode=mode, zone_type=None,
+                            context_text=page_ocr_text,
+                        )
+                        if e.entity_type in set(ALL_PII_TYPES)
+                    ]
                     return {
                         "image": work_image,
-                        "entities": [],
+                        "entities": audit_entities,
                         "residuals": [],
                         "rect_count": 1,
                         "confidence": ocr_page.avg_confidence,
