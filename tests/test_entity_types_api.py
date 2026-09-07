@@ -50,12 +50,33 @@ def test_known_types_are_the_valid_values_for_disabling():
 # --- C2: desactivar tipos en la petición -------------------------------------
 
 def test_unknown_type_is_rejected():
+    # El tipado con Enum rechaza el valor y lista los admitidos.
     response = client.post(
         "/anonymize?disabled_types=NO_EXISTE",
         files={"file": ("in.pdf", BytesIO(_sample_pdf()), "application/pdf")},
     )
     assert response.status_code == 422
-    assert "entity-types" in response.json()["detail"]
+
+
+def test_several_types_are_disabled_with_repeated_parameters():
+    response = client.post(
+        "/anonymize?output=zip&disabled_types=DATE_TIME&disabled_types=URL",
+        files={"file": ("in.pdf", BytesIO(_sample_pdf()), "application/pdf")},
+    )
+    assert response.status_code == 200
+    with zipfile.ZipFile(BytesIO(response.content)) as zf:
+        report = json.loads(zf.read("report.json"))
+    assert set(report["entity_types_disabled"]) == {"DATE_TIME", "URL"}
+
+
+def test_swagger_offers_the_valid_values():
+    # El parámetro se renderiza como selector, no como texto libre.
+    spec = client.get("/openapi.json").json()
+    params = spec["paths"]["/anonymize"]["post"]["parameters"]
+    schema = next(p for p in params if p["name"] == "disabled_types")["schema"]
+    assert "EntityType" in json.dumps(schema)
+    enum_values = spec["components"]["schemas"]["EntityType"]["enum"]
+    assert set(enum_values) == set(ALL_PII_TYPES)
 
 
 def test_disabling_a_type_leaves_it_in_the_document():

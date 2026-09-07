@@ -1,7 +1,21 @@
 """Esquema de `GET /entity-types` — catálogo de tipos anonimizables."""
 from __future__ import annotations
 
+from enum import Enum
+
 from pydantic import BaseModel, Field
+
+from app.services.layout.zone_config import ALL_PII_TYPES
+
+
+# Enum construido desde la lista canonica de tipos redactables: Swagger lo
+# renderiza como selector con los valores validos en vez de un texto libre,
+# y una peticion con un tipo inexistente se rechaza antes de llegar al codigo.
+EntityType = Enum(  # type: ignore[misc]
+    "EntityType",
+    {name: name for name in ALL_PII_TYPES},
+    type=str,
+)
 
 
 class EntityTypeResponse(BaseModel):

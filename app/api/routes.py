@@ -19,7 +19,7 @@ from app.core.errors import (
     TooManyPagesError,
     UnsupportedDocumentError,
 )
-from app.schemas.entity_types import EntityTypeResponse
+from app.schemas.entity_types import EntityType, EntityTypeResponse
 from app.schemas.report import InputFileInfo
 from app.services.pii.entity_catalog import entity_catalog, known_type_ids
 from app.services.pdf.pipeline import PdfAnonymizationPipeline
@@ -62,13 +62,22 @@ def build_zip_response_bytes(
     return zip_buffer.getvalue()
 
 
-def _parse_disabled_types(raw: str | None) -> frozenset[str]:
-    """Valida la lista de tipos desactivados que llega por query."""
-    if not raw or not raw.strip():
+def _parse_disabled_types(raw: list[EntityType] | None) -> frozenset[str]:
+    """Normaliza los tipos desactivados que llegan por query.
+
+    La validacion la hace ya el tipado con Enum: FastAPI devuelve 422 con la
+    lista de valores admitidos antes de entrar aqui.  Se conserva la
+    comprobacion como red de seguridad para llamadas internas que no pasen por
+    la capa HTTP.
+    """
+    if not raw:
         return frozenset()
-    requested = {t.strip().upper() for t in raw.split(",") if t.strip()}
-    valid = known_type_ids()
-    unknown = sorted(requested - valid)
+
+    requested = {
+        (item.value if isinstance(item, EntityType) else str(item)).strip().upper()
+        for item in raw
+    }
+    unknown = sorted(requested - known_type_ids())
     if unknown:
         raise HTTPException(
             status_code=422,
@@ -114,15 +123,14 @@ async def anonymize(
             "Intended for evaluation and audit. Disabled by default for privacy."
         ),
     ),
-    disabled_types: str | None = Query(
+    disabled_types: list[EntityType] | None = Query(
         default=None,
         description=(
-            "Tipos de dato que NO se anonimizan en esta peticion, separados por "
-            "comas (por ejemplo: DATE_TIME,URL). Si se omite, se aplican todos "
-            "los tipos activos. Los identificadores validos y su nombre legible "
-            "estan en GET /entity-types."
+            "Tipos de dato que NO se anonimizan en esta peticion. Si se omite, "
+            "se aplican todos. Cada valor va en su propio parametro: "
+            "?disabled_types=DATE_TIME&disabled_types=URL. El nombre legible de "
+            "cada tipo esta en GET /entity-types."
         ),
-        examples=["DATE_TIME,URL"],
     ),
 ) -> Response:
     # Único modo de redacción; el parámetro se retiró de la API (un query param
