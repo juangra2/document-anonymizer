@@ -34,6 +34,7 @@ from app.services.layout.zone_config import ALL_PII_TYPES, get_detector_config
 from app.services.ocr.base import OcrEngine
 from app.services.ocr.factory import get_ocr_engine, get_word_ocr_engine
 from app.services.ocr.models import OcrPage
+from app.services.ocr.orientation import resolve_orientation
 from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pdf.full_redaction import classify_page
 from app.services.pdf.plan_pages import is_image_dominant_page, is_plan_page, redact_plan_page
@@ -58,6 +59,13 @@ def _run_with_timeout(fn, timeout_s: int):
         return future.result(timeout=timeout_s)
     finally:
         executor.shutdown(wait=False)
+
+
+def _restore(image: Image.Image, angle: int) -> Image.Image:
+    """Devuelve la imagen a su orientación original tras trabajar rotada."""
+    if not angle:
+        return image
+    return image.rotate(-angle, expand=True)
 
 
 # Metadata-only page classifiers shared with the hybrid/digital paths.
@@ -95,6 +103,8 @@ def redact_pdf_scanned(
     skipped_pages: list[int] = []
     plan_pages_done: list[int] = []
     full_redaction_pages: dict[int, str] = {}
+    rotated_pages: dict[int, int] = {}
+    poor_ocr_pages: list[int] = []
     warnings: list[str] = []
 
     try:
@@ -118,12 +128,35 @@ def redact_pdf_scanned(
                 Runs under a per-page timeout; draws on a copy so the caller can
                 fall back to the un-redacted original if it times out.
                 """
+                # Orientación: un escaneo con el contenido girado devuelve
+                # RUIDO, no vacío, y sin corregirlo no se detecta ni se avisa de
+                # nada.  Se decide ANTES que MinerU para que el motor de layout
+                # también vea la página derecha.  Se trabaja todo en el espacio
+                # rotado y la imagen redactada se gira de vuelta al final: así
+                # no hay conversión de coordenadas que pueda fallar.
+                def _ocr_word(img: Image.Image) -> OcrPage:
+                    path = tmp_dir / f"page_{page_index + 1}_w{img.width}x{img.height}.png"
+                    img.save(path)
+                    return word_engine.analyze_image(
+                        image_path=path, page_index=page_index,
+                    )
+
+                orientation = resolve_orientation(image, _ocr_word)
+                if orientation.angle:
+                    image = image.rotate(orientation.angle, expand=True)
+                ocr_page = orientation.ocr_page
                 work_image = image.copy()
 
                 # Zone classification from the layout engine (MinerU), if any.
+                # Con la página rotada no se puede reutilizar el pase nativo,
+                # que se hizo sobre la orientación original.
                 layout_page: OcrPage | None = None
                 if provides_layout:
-                    if native_ocr_pages is not None and page_index < len(native_ocr_pages):
+                    if (
+                        native_ocr_pages is not None
+                        and page_index < len(native_ocr_pages)
+                        and not orientation.angle
+                    ):
                         layout_page = native_ocr_pages[page_index]
                     else:
                         layout_path = tmp_dir / f"page_{page_index + 1}_layout.png"
@@ -132,22 +165,25 @@ def redact_pdf_scanned(
                             image_path=layout_path, page_index=page_index,
                         )
 
-                # Word/line-level OCR — used for redaction geometry.
-                page_image_path = tmp_dir / f"page_{page_index + 1}.png"
-                image.save(page_image_path)
-                ocr_page = word_engine.analyze_image(
-                    image_path=page_image_path, page_index=page_index,
-                )
-
                 # A1: detect PII on the layout engine's clean, ordered text
                 # (MinerU) when available — its blocks keep IBANs/CSV/names
                 # contiguous, unlike the reordered word stream — and map the
                 # spans to the word-level boxes for tight geometry.  Without a
                 # layout engine, detect and place on the word OCR directly.
-                if layout_page is not None:
+                # `layout_page.tokens` puede venir VACÍO aunque el motor haya
+                # respondido: MinerU no devuelve nada, por ejemplo, en una
+                # tarjeta de identidad pequeña sobre un A4 casi en blanco.  Sin
+                # este repliegue la página se quedaba sin zonas y no se redactaba
+                # nada, otro fallo silencioso; EasyOCR sí lee esas páginas.
+                if layout_page is not None and layout_page.tokens:
                     zoned_page = segmenter.segment(layout_page, image=work_image)
                     easy_words = ocr_page.tokens
                 else:
+                    if layout_page is not None and not layout_page.tokens:
+                        logger.info(
+                            "Page %d: layout engine returned no text; falling "
+                            "back to word OCR for zoning.", page_index,
+                        )
                     zoned_page = segmenter.segment(ocr_page, image=work_image)
                     easy_words = None
 
@@ -180,12 +216,14 @@ def redact_pdf_scanned(
                         if e.entity_type in set(ALL_PII_TYPES)
                     ]
                     return {
-                        "image": work_image,
+                        "image": _restore(work_image, orientation.angle),
                         "entities": audit_entities,
                         "residuals": [],
                         "rect_count": 1,
                         "confidence": ocr_page.avg_confidence,
                         "full_redaction": full_reason,
+                        "rotated": orientation.angle,
+                        "poor_ocr": orientation.poor_quality,
                     }
 
                 page_rects, page_entities = _collect_redaction_rects(
@@ -216,11 +254,13 @@ def redact_pdf_scanned(
                     )
 
                 return {
-                    "image": work_image,
+                    "image": _restore(work_image, orientation.angle),
                     "entities": page_entities,
                     "residuals": residuals,
                     "rect_count": len(page_rects),
                     "confidence": ocr_page.avg_confidence,
+                    "rotated": orientation.angle,
+                    "poor_ocr": orientation.poor_quality,
                 }
 
             for page_index, page in enumerate(source_doc):
@@ -291,6 +331,11 @@ def redact_pdf_scanned(
                     _append_image_as_pdf_page(output_doc, image, page.rect)
                     continue
 
+                if result.get("rotated"):
+                    rotated_pages[page_index] = result["rotated"]
+                if result.get("poor_ocr"):
+                    poor_ocr_pages.append(page_index)
+
                 if result.get("full_redaction"):
                     full_redaction_pages[page_index] = result["full_redaction"]
                     logger.info("Page %d fully redacted (%s).", page_index,
@@ -333,6 +378,22 @@ def redact_pdf_scanned(
         warnings.append(
             "Residual PII-like entities detected after OCR redaction. Manual review required."
         )
+    if rotated_pages:
+        detail = ", ".join(
+            f"{idx + 1}: {angle}°" for idx, angle in sorted(rotated_pages.items())
+        )
+        warnings.append(
+            f"Scanned pages auto-rotated before OCR ({detail})."
+        )
+    if poor_ocr_pages:
+        # Fallo silencioso: sin este aviso el usuario creería que el documento
+        # está limpio cuando en realidad el OCR no ha podido leerlo.
+        warnings.append(
+            "Low-quality OCR text on pages "
+            f"{[i + 1 for i in sorted(poor_ocr_pages)]}: content may not have "
+            "been detected. Manual review required."
+        )
+
     if full_redaction_pages:
         by_reason: dict[str, list[int]] = {}
         for idx, why in sorted(full_redaction_pages.items()):
@@ -365,7 +426,7 @@ def redact_pdf_scanned(
         residual_entities_by_type=residual_by_type,
         manual_review_required=(
             bool(low_confidence_pages) or residual_count > 0 or bool(skipped_pages)
-            or bool(full_redaction_pages)
+            or bool(full_redaction_pages) or bool(poor_ocr_pages)
         ),
         warnings=warnings,
         redaction_mode=mode,

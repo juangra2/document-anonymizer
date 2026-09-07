@@ -114,6 +114,19 @@ class Settings(BaseSettings):
     # for a dense legal paragraph; 0 disables the cap.
     ocr_mineru_max_new_tokens: int = 2048
 
+    # Correccion automatica de orientacion en paginas escaneadas.  Un escaneo
+    # con el contenido girado 90 grados hace que el OCR devuelva ruido, no
+    # vacio, y sin esto no se detecta ni se avisa de nada (ver
+    # services/ocr/orientation.py).
+    ocr_auto_rotate_enabled: bool = True
+    # Caracteres por token por debajo de los cuales el texto se considera
+    # ruido.  Medido sobre el corpus: paginas normales 14.2-35.1, pagina
+    # girada 2.1-2.8, la misma pagina corregida 10.5-12.0.
+    ocr_min_chars_per_token: float = 8.0
+    # Tokens minimos para molestarse en probar otras orientaciones: por debajo
+    # la pagina esta practicamente en blanco y rotarla no aporta.
+    ocr_rotate_min_tokens: int = 8
+
     ocr_pdf_render_dpi: int = 200
     ocr_second_pass_verification: bool = True
 
