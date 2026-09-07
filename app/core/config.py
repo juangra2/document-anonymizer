@@ -126,6 +126,10 @@ class Settings(BaseSettings):
     # Tokens minimos para molestarse en probar otras orientaciones: por debajo
     # la pagina esta practicamente en blanco y rotarla no aporta.
     ocr_rotate_min_tokens: int = 8
+    # Lado maximo de la copia reducida con la que se ELIGE el giro.  Medido: el
+    # OCR de un A4 completo a 200 DPI tarda 74 s y el de la copia 9 s; decidir
+    # la orientacion no necesita resolucion completa.
+    ocr_orientation_probe_px: int = 1000
 
     ocr_pdf_render_dpi: int = 200
     ocr_second_pass_verification: bool = True

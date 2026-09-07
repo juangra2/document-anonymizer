@@ -52,11 +52,31 @@ class OrientationResult:
 
 
 def text_quality(ocr_page: OcrPage) -> float:
-    """Caracteres por token: alto en texto legible, muy bajo en ruido de OCR."""
+    """Caracteres por token: alto en texto legible, muy bajo en ruido de OCR.
+
+    Sirve para decidir SI la página está ilegible (umbral calibrado sobre el
+    corpus), no para elegir ENTRE dos giros — ver `orientation_score`.
+    """
     texts = [t.text for t in ocr_page.tokens if t.text and t.text.strip()]
     if not texts:
         return 0.0
     return sum(len(t) for t in texts) / len(texts)
+
+
+def orientation_score(ocr_page: OcrPage) -> float:
+    """Puntuación para ELEGIR entre giros: longitud de token × confianza.
+
+    Los caracteres por token no bastan aquí: a 270° el texto sale invertido
+    (`'>>>>>>>nyaf>>9I3…'`) y produce tokens igual de largos que a 90°, con lo
+    que la página se leía al revés y las señales no disparaban.  El texto dado
+    la vuelta sí se distingue por la confianza del OCR — medido sobre el DNI
+    real: a 90° 0.39 frente a 0.21 a 270° —, así que se exige lo uno y lo otro.
+    """
+    tokens = [t for t in ocr_page.tokens if t.text and t.text.strip()]
+    if not tokens:
+        return 0.0
+    confidence = sum(t.confidence for t in tokens) / len(tokens)
+    return text_quality(ocr_page) * confidence
 
 
 def _looks_like_noise(ocr_page: OcrPage) -> bool:
@@ -67,6 +87,20 @@ def _looks_like_noise(ocr_page: OcrPage) -> bool:
         # cada página en blanco de un expediente largo.
         return False
     return text_quality(ocr_page) < settings.ocr_min_chars_per_token
+
+
+def _probe(image: Image.Image) -> Image.Image:
+    """Copia reducida para *elegir* el ángulo, no para leer el documento.
+
+    Medido sobre un A4 a 200 DPI: el OCR de la imagen completa tarda 74 s y el
+    de la copia reducida 9 s.  Decidir la orientación no necesita resolución
+    completa — solo comparar qué giro produce texto y cuál ruido —, así que las
+    pruebas se hacen en pequeño y el OCR bueno se hace una sola vez.
+    """
+    probe = image.copy()
+    probe.thumbnail((settings.ocr_orientation_probe_px,
+                     settings.ocr_orientation_probe_px))
+    return probe
 
 
 def resolve_orientation(image: Image.Image, run_ocr) -> OrientationResult:
@@ -80,12 +114,25 @@ def resolve_orientation(image: Image.Image, run_ocr) -> OrientationResult:
     if not settings.ocr_auto_rotate_enabled or not _looks_like_noise(base):
         return OrientationResult(0, base, text_quality(base), poor_quality=False)
 
-    best_angle, best_page, best_quality = 0, base, text_quality(base)
+    # La página parece ruido: se prueban los otros giros en pequeño y solo el
+    # ganador se vuelve a leer a resolución completa.
+    probe = _probe(image)
+    probe_scores = {0: orientation_score(run_ocr(probe))}
     for angle in _CANDIDATE_ANGLES:
-        candidate = run_ocr(image.rotate(angle, expand=True))
-        quality = text_quality(candidate)
-        if quality > best_quality:
-            best_angle, best_page, best_quality = angle, candidate, quality
+        probe_scores[angle] = orientation_score(
+            run_ocr(probe.rotate(angle, expand=True))
+        )
+
+    best_angle = max(probe_scores, key=probe_scores.get)
+    best_page, best_quality = base, text_quality(base)
+    if best_angle:
+        candidate = run_ocr(image.rotate(best_angle, expand=True))
+        if orientation_score(candidate) > orientation_score(base):
+            best_page, best_quality = candidate, text_quality(candidate)
+        else:
+            # La resolución completa desmiente a la prueba: nos quedamos con el
+            # original antes que empeorar el resultado.
+            best_angle = 0
 
     if best_angle:
         logger.info(

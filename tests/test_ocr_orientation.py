@@ -92,3 +92,38 @@ def test_restore_returns_the_original_geometry():
     for angle in (0, 90, 180, 270):
         rotated = image.rotate(angle, expand=True) if angle else image
         assert _restore(rotated, angle).size == image.size
+
+
+def test_choice_between_rotations_uses_confidence_not_only_length():
+    """Elegir 90° o 270° no puede decidirse por longitud de token.
+
+    A 270° el texto sale invertido y produce tokens IGUAL de largos que a 90°
+    (medido sobre un DNI real: 10.5 frente a 9.8 caracteres por token), de modo
+    que la página se leía al revés y las señales del documento no disparaban.
+    La confianza del OCR sí los separa (0.21 frente a 0.39).
+    """
+    from app.services.ocr.orientation import orientation_score
+
+    legible = OcrPage(page_index=0, width=100, height=100, tokens=[
+        OcrToken(text="DOCUMENTO NACIONAL", confidence=0.39,
+                 rect=fitz.Rect(0, 0, 50, 8)),
+        OcrToken(text="NACIONALIDAD ESPA", confidence=0.39,
+                 rect=fitz.Rect(0, 10, 50, 18)),
+    ])
+    reversed_text = OcrPage(page_index=0, width=100, height=100, tokens=[
+        OcrToken(text=">>>>>>>>>nyaf>>9I3", confidence=0.21,
+                 rect=fitz.Rect(0, 0, 50, 8)),
+        OcrToken(text="ayYo2>>>>>>*24837429", confidence=0.21,
+                 rect=fitz.Rect(0, 10, 50, 18)),
+    ])
+    # El texto invertido tiene tokens MÁS largos...
+    assert text_quality(reversed_text) > text_quality(legible)
+    # ...pero la puntuación de orientación elige el legible.
+    assert orientation_score(legible) > orientation_score(reversed_text)
+
+
+def test_probe_downscales_for_the_angle_decision():
+    from app.services.ocr.orientation import _probe
+
+    probe = _probe(Image.new("RGB", (1654, 2338)))
+    assert max(probe.size) <= settings.ocr_orientation_probe_px
