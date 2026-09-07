@@ -1224,11 +1224,23 @@ class PiiAnalyzer:
         "WORK_OF_ART",
     ]
 
-    def __init__(self) -> None:
+    def __init__(self, disabled_types: frozenset[str] | None = None) -> None:
         # Engine is built lazily on the first NER call so importing/constructing
         # the analyzer never triggers a model download or load.
         self._engine: AnalyzerEngine | None = None
         self._ner_backend: str | None = None  # actual backend used after fallback
+        # Tipos que esta peticion NO quiere anonimizar (bloque C).  Se filtran en
+        # la salida de analyze(), de modo que TODOS los caminos que consumen el
+        # analizador — redactor digital, escaneado, cajetin de planos y la
+        # verificacion posterior — respetan la eleccion sin tocar sus firmas.
+        self.disabled_types: frozenset[str] = disabled_types or frozenset()
+
+    def with_disabled_types(self, disabled_types) -> "PiiAnalyzer":
+        """Clon ligero para una peticion: comparte el motor NER ya cargado."""
+        import copy as _copy
+        clone = _copy.copy(self)
+        clone.disabled_types = frozenset(disabled_types or ())
+        return clone
 
     # ------------------------------------------------------------------
     # Lazy engine construction
@@ -1369,6 +1381,9 @@ class PiiAnalyzer:
                     and _CASE_FILE_VALUE_RE.match(text[e.start:e.end])
                 )
             ]
+
+        if self.disabled_types:
+            merged = [e for e in merged if e.entity_type not in self.disabled_types]
         return merged
 
     @staticmethod

@@ -19,7 +19,9 @@ from app.core.errors import (
     TooManyPagesError,
     UnsupportedDocumentError,
 )
+from app.schemas.entity_types import EntityTypeResponse
 from app.schemas.report import InputFileInfo
+from app.services.pii.entity_catalog import entity_catalog, known_type_ids
 from app.services.pdf.pipeline import PdfAnonymizationPipeline
 from app.services.storage.temp_storage import TempJobDirectory
 from app.utils.files import (
@@ -60,6 +62,44 @@ def build_zip_response_bytes(
     return zip_buffer.getvalue()
 
 
+def _parse_disabled_types(raw: str | None) -> frozenset[str]:
+    """Valida la lista de tipos desactivados que llega por query."""
+    if not raw or not raw.strip():
+        return frozenset()
+    requested = {t.strip().upper() for t in raw.split(",") if t.strip()}
+    valid = known_type_ids()
+    unknown = sorted(requested - valid)
+    if unknown:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Tipos de dato desconocidos: {', '.join(unknown)}. "
+                "Consulte GET /entity-types para ver los identificadores validos."
+            ),
+        )
+    return frozenset(requested)
+
+
+@router.get("/entity-types", response_model=list[EntityTypeResponse])
+async def list_entity_types() -> list[EntityTypeResponse]:
+    """Tipos de dato que el sistema puede anonimizar.
+
+    Devuelve, para cada tipo: su identificador tecnico, un nombre legible en
+    castellano, una descripcion breve de que captura y si esta activo por
+    defecto.  El frontend pinta con esto la lista de casillas y envia los que el
+    usuario desmarque en `disabled_types` de POST /anonymize.
+    """
+    return [
+        EntityTypeResponse(
+            id=info.id,
+            label=info.label,
+            description=info.description,
+            default_enabled=info.default_enabled,
+        )
+        for info in entity_catalog()
+    ]
+
+
 @router.post("/anonymize")
 async def anonymize(
     file: UploadFile = File(...),
@@ -74,10 +114,22 @@ async def anonymize(
             "Intended for evaluation and audit. Disabled by default for privacy."
         ),
     ),
+    disabled_types: str | None = Query(
+        default=None,
+        description=(
+            "Tipos de dato que NO se anonimizan en esta peticion, separados por "
+            "comas (por ejemplo: DATE_TIME,URL). Si se omite, se aplican todos "
+            "los tipos activos. Los identificadores validos y su nombre legible "
+            "estan en GET /entity-types."
+        ),
+        examples=["DATE_TIME,URL"],
+    ),
 ) -> Response:
     # Único modo de redacción; el parámetro se retiró de la API (un query param
     # extra como ?mode=... se ignora, comportamiento estándar de FastAPI).
     mode = settings.default_redaction_mode
+
+    disabled = _parse_disabled_types(disabled_types)
 
     supported_content_types = {
         "application/pdf",
@@ -125,6 +177,7 @@ async def anonymize(
                     output_path,
                     temp_job.job_id,
                     mode,
+                    disabled,
                 )
             else:
                 assert_pdf_magic(input_path)
@@ -136,6 +189,7 @@ async def anonymize(
                     temp_job.job_id,
                     mode,
                     include_entities,
+                    disabled,
                 )
 
             output_bytes = output_path.read_bytes()

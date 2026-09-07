@@ -34,8 +34,17 @@ class ImageAnonymizationPipeline:
         output_path: Path,
         job_id: str,
         mode: str = "strict",
+        disabled_types: frozenset[str] | None = None,
     ) -> ProcessingReport:
         started = perf_counter()
+
+        # Tipos que esta peticion no quiere anonimizar (bloque C): se aplica con
+        # un clon del analizador que comparte el motor NER ya cargado.
+        disabled = frozenset(disabled_types or ())
+        analyzer = (
+            self._analyzer.with_disabled_types(disabled) if disabled
+            else self._analyzer
+        )
 
         image = Image.open(input_path).convert("RGB")
 
@@ -48,7 +57,7 @@ class ImageAnonymizationPipeline:
 
         rects, entities = _collect_redaction_rects(
             zoned_page=zoned_page,
-            analyzer=self._analyzer,
+            analyzer=analyzer,
             mode=mode,
         )
 
@@ -80,7 +89,7 @@ class ImageAnonymizationPipeline:
             selectable_text_chars=0,
             entities_detected=len(entities),
             entities_redacted=len(rects),
-            entities_by_type=self._analyzer.count_by_type(entities),
+            entities_by_type=analyzer.count_by_type(entities),
             residual_entities=0,
             residual_entities_by_type={},
             manual_review_required=manual_review_required,
@@ -104,6 +113,11 @@ class ImageAnonymizationPipeline:
             ),
         )
 
+        from app.services.layout.zone_config import ALL_PII_TYPES
+        report.entity_types_applied = sorted(
+            t for t in ALL_PII_TYPES if t not in disabled
+        )
+        report.entity_types_disabled = sorted(disabled)
         report.processing_ms = int((perf_counter() - started) * 1000)
         return report
 

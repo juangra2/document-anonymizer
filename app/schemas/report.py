@@ -103,6 +103,11 @@ class ProcessingReport(BaseModel):
 
     redaction_strategy: str = "physical_pdf_redaction"
     redaction_mode: Literal["strict"] = "strict"
+
+    # Bloque C — configuración de tipos aplicada en esta petición.  Permite al
+    # usuario ver el efecto de su selección: qué se buscó y qué se dejó fuera.
+    entity_types_applied: list[str] = Field(default_factory=list)
+    entity_types_disabled: list[str] = Field(default_factory=list)
     output_format: Literal["pdf", "zip"] = "pdf"
 
     security_checks: SecurityChecks = Field(default_factory=SecurityChecks)

@@ -1,0 +1,26 @@
+"""Esquema de `GET /entity-types` — catálogo de tipos anonimizables."""
+from __future__ import annotations
+
+from pydantic import BaseModel, Field
+
+
+class EntityTypeResponse(BaseModel):
+    """Un tipo de dato que el sistema puede anonimizar."""
+
+    id: str = Field(
+        description="Identificador técnico. Es el valor que se envía en "
+                    "`disabled_types` de POST /anonymize.",
+        examples=["IBAN_CODE"],
+    )
+    label: str = Field(
+        description="Nombre legible en castellano, para mostrar al usuario.",
+        examples=["Cuenta bancaria"],
+    )
+    description: str = Field(
+        description="Qué captura este tipo, en lenguaje no técnico.",
+        examples=["Cuentas IBAN y cuentas antiguas de veinte dígitos."],
+    )
+    default_enabled: bool = Field(
+        default=True,
+        description="Si el tipo se anonimiza cuando no se envía configuración.",
+    )

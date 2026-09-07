@@ -4,6 +4,7 @@ from time import perf_counter
 from app.core.config import settings
 from app.schemas.report import ProcessingReport, VerificationSummary
 from app.services.layout.segmenters import OcrPageSegmenter
+from app.services.layout.zone_config import ALL_PII_TYPES
 from app.services.ocr.factory import get_ocr_engine
 from app.services.pdf.hybrid_redactor import redact_pdf_hybrid_secure
 from app.services.pdf.inspector import PdfInspection, inspect_pdf_for_phase1
@@ -32,9 +33,44 @@ class PdfAnonymizationPipeline:
         job_id: str,
         mode: str = "strict",
         collect_entities: bool = False,
+        disabled_types: frozenset[str] | None = None,
     ) -> ProcessingReport:
         started = perf_counter()
         inspection = inspect_pdf_for_phase1(input_path)
+
+        # Tipos que esta peticion no quiere anonimizar (bloque C).  Se aplica
+        # con un clon del analizador que comparte el motor NER ya cargado, de
+        # modo que ningun redactor cambia de firma y la verificacion posterior
+        # tampoco marca como residual lo que el usuario decidio no anonimizar.
+        disabled = frozenset(disabled_types or ())
+        base_analyzer = self._analyzer
+        base_verifier = self._verifier
+        if disabled:
+            self._analyzer = base_analyzer.with_disabled_types(disabled)
+            self._verifier = DocumentVerifier(
+                analyzer=self._analyzer,
+                ocr_engine=self._ocr_engine,
+                segmenter=self._segmenter,
+            )
+        try:
+            report = self._dispatch(
+                input_path, output_path, job_id, mode, inspection, collect_entities,
+            )
+        finally:
+            self._analyzer = base_analyzer
+            self._verifier = base_verifier
+
+        report.entity_types_applied = sorted(
+            t for t in ALL_PII_TYPES if t not in disabled
+        )
+        report.entity_types_disabled = sorted(disabled)
+        report.redaction_mode = mode
+        report.processing_ms = int((perf_counter() - started) * 1000)
+        return report
+
+    def _dispatch(
+        self, input_path, output_path, job_id, mode, inspection, collect_entities,
+    ) -> ProcessingReport:
 
         if settings.pdf_processing_mode == "raster_ocr":
             report = self._process_pdf_as_raster_ocr(input_path, output_path, job_id, mode, collect_entities)
@@ -43,8 +79,6 @@ class PdfAnonymizationPipeline:
         else:
             report = self._process_pdf_auto(input_path, output_path, job_id, mode, inspection, collect_entities)
 
-        report.redaction_mode = mode
-        report.processing_ms = int((perf_counter() - started) * 1000)
         return report
 
     # ------------------------------------------------------------------
