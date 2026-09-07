@@ -60,6 +60,19 @@ class Settings(BaseSettings):
     # "No paragraphs": at most this many text blocks of ≥150 chars.
     plan_max_paragraph_blocks: int = 5
 
+    # Redaccion total de pagina (bloque B): copia de DNI y autoliquidacion
+    # tributaria.  Se decide por SENALES TEXTUALES sobre el texto ya extraido
+    # (vale igual para PDF digital y para OCR), nunca por analisis visual: un
+    # DNI escaneado y pegado en un A4 no conserva proporciones de tarjeta.
+    #
+    # El modo de fallo es caro — un falso positivo pinta una pagina entera —, de
+    # ahi que los umbrales se expongan: ante FP sobre documentacion normal se
+    # sube el umbral y se pierde recall antes que arriesgar una pagina en negro.
+    full_redaction_enabled: bool = True
+    # Senales distintas necesarias para clasificar la pagina.
+    dni_scan_min_signals: int = 2
+    tax_form_min_signals: int = 2
+
     # Detect and redact handwritten signatures (embedded images / ink) in the
     # digital PDF path, anchored to a signature cue ("Fdo.", "Firma", …).
     # Off by default: the current heuristics over-redact (legitimate text/logos);

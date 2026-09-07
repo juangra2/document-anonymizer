@@ -28,6 +28,7 @@ from app.services.layout.segmenters import DigitalPageSegmenter
 from app.services.layout.zone_config import get_detector_config
 from app.services.pdf.extractor import extract_page_text, rects_for_span
 from app.services.pdf.inspector import inspect_pdf_for_phase1
+from app.services.pdf.full_redaction import classify_pages
 from app.services.pdf.plan_pages import is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services.pii.institution_filter import filter_institutional
@@ -63,7 +64,20 @@ def redact_pdf_digital(
         plan_pages_skipped: list[int] = []
         plan_pages_done: list[int] = []
 
+        # Redacción total (copia de DNI, autoliquidación): se clasifica sobre el
+        # texto de TODAS las páginas de una vez, porque la propagación a una
+        # página contigua exige comparar sus referencias de impreso.
+        full_redaction_pages = classify_pages(
+            [page.get_text() for page in doc]
+        )
+
         for page_index, page in enumerate(doc):
+            reason = full_redaction_pages.get(page_index)
+            if reason:
+                _redact_whole_page(page)
+                redacted_count += 1
+                continue
+
             # Plan pages (A1/A0 drawings) never enter the normal pipeline: NER
             # on fragment soup yields noise and the 300-DPI QR render alone
             # exceeds 70 MP.  Only the title block (cajetín) carries PII, so it
@@ -109,6 +123,16 @@ def redact_pdf_digital(
                 page.add_redact_annot(rect, fill=(0, 0, 0))
 
             _apply_redactions_safe(page)
+
+        if full_redaction_pages:
+            by_reason: dict[str, list[int]] = {}
+            for idx, why in sorted(full_redaction_pages.items()):
+                by_reason.setdefault(why, []).append(idx + 1)
+            detail = "; ".join(f"{why}: {pages}" for why, pages in sorted(by_reason.items()))
+            warnings.append(
+                "Pages fully redacted as identity-document copies or tax "
+                f"self-assessment forms ({detail}). Manual review required."
+            )
 
         if plan_pages_done:
             warnings.append(
@@ -176,7 +200,7 @@ def redact_pdf_digital(
         entities_redacted=redacted_count,
         entities_by_type=entities_by_type,
         residual_entities=0,
-        manual_review_required=bool(plan_pages_skipped),
+        manual_review_required=bool(plan_pages_skipped) or bool(full_redaction_pages),
         warnings=warnings,
         redaction_mode=mode,
         limits=ProcessingLimits(
@@ -386,6 +410,17 @@ def _center_in_any(rect: fitz.Rect, containers: list[fitz.Rect]) -> bool:
         if c.x0 - 1.5 <= cx <= c.x1 + 1.5 and c.y0 - 1.5 <= cy <= c.y1 + 1.5:
             return True
     return False
+
+
+def _redact_whole_page(page: fitz.Page) -> None:
+    """Pinta la página entera: copia de DNI o impreso de autoliquidación.
+
+    No se ejecuta análisis selectivo de entidades — todo el contenido de estos
+    documentos es identificativo.  Se redacta el rectángulo completo de la
+    página, eliminando también el contenido de las imágenes embebidas.
+    """
+    page.add_redact_annot(page.rect, fill=(0, 0, 0))
+    _apply_redactions_safe(page)
 
 
 def _apply_redactions_safe(page: fitz.Page) -> None:

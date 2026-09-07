@@ -35,6 +35,7 @@ from app.services.ocr.base import OcrEngine
 from app.services.ocr.factory import get_ocr_engine, get_word_ocr_engine
 from app.services.ocr.models import OcrPage
 from app.services.pdf.inspector import inspect_pdf_for_phase1
+from app.services.pdf.full_redaction import classify_page
 from app.services.pdf.plan_pages import is_image_dominant_page, is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services.pii.gazetteer import normalize as _norm_token
@@ -93,6 +94,7 @@ def redact_pdf_scanned(
     low_confidence_pages: list[int] = []
     skipped_pages: list[int] = []
     plan_pages_done: list[int] = []
+    full_redaction_pages: dict[int, str] = {}
     warnings: list[str] = []
 
     try:
@@ -148,6 +150,27 @@ def redact_pdf_scanned(
                 else:
                     zoned_page = segmenter.segment(ocr_page, image=work_image)
                     easy_words = None
+
+                # Redacción total (copia de DNI, autoliquidación): se decide
+                # sobre el texto que acaba de producir el OCR.  Aquí la
+                # clasificación es POR PÁGINA — el path escaneado procesa
+                # página a página y no dispone del texto de las vecinas para
+                # propagar; en la práctica cada ejemplar de un impreso repite su
+                # cabecera, así que puntúa por sí solo.
+                page_ocr_text = "\n".join(z.text for z in zoned_page.zones if z.text)
+                full_reason = classify_page(page_ocr_text)
+                if full_reason:
+                    draw = ImageDraw.Draw(work_image)
+                    draw.rectangle([0, 0, work_image.width, work_image.height],
+                                   fill="black")
+                    return {
+                        "image": work_image,
+                        "entities": [],
+                        "residuals": [],
+                        "rect_count": 1,
+                        "confidence": ocr_page.avg_confidence,
+                        "full_redaction": full_reason,
+                    }
 
                 page_rects, page_entities = _collect_redaction_rects(
                     zoned_page=zoned_page,
@@ -252,6 +275,11 @@ def redact_pdf_scanned(
                     _append_image_as_pdf_page(output_doc, image, page.rect)
                     continue
 
+                if result.get("full_redaction"):
+                    full_redaction_pages[page_index] = result["full_redaction"]
+                    logger.info("Page %d fully redacted (%s).", page_index,
+                                result["full_redaction"])
+
                 all_entities.extend(result["entities"])
                 all_residual_entities.extend(result["residuals"])
                 redacted_count += result["rect_count"]
@@ -289,6 +317,15 @@ def redact_pdf_scanned(
         warnings.append(
             "Residual PII-like entities detected after OCR redaction. Manual review required."
         )
+    if full_redaction_pages:
+        by_reason: dict[str, list[int]] = {}
+        for idx, why in sorted(full_redaction_pages.items()):
+            by_reason.setdefault(why, []).append(idx + 1)
+        detail = "; ".join(f"{why}: {pages}" for why, pages in sorted(by_reason.items()))
+        warnings.append(
+            "Pages fully redacted as identity-document copies or tax "
+            f"self-assessment forms ({detail}). Manual review required."
+        )
     if skipped_pages:
         warnings.append(
             "Pages skipped (image-dominant or OCR timeout) and not fully redacted: "
@@ -312,6 +349,7 @@ def redact_pdf_scanned(
         residual_entities_by_type=residual_by_type,
         manual_review_required=(
             bool(low_confidence_pages) or residual_count > 0 or bool(skipped_pages)
+            or bool(full_redaction_pages)
         ),
         warnings=warnings,
         redaction_mode=mode,
