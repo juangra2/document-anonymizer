@@ -180,6 +180,16 @@ class Settings(BaseSettings):
     # la orientacion no necesita resolucion completa.
     ocr_orientation_probe_px: int = 1000
 
+    # Carpeta con los pesos de EasyOCR (detector craft_mlt_25k.pth y
+    # reconocedor latin_g2.pth).  Se declara para poder llevarlos dentro de la
+    # imagen: en el servidor del ayuntamiento puede no haber salida a internet,
+    # y EasyOCR los descarga en el primer uso si no los encuentra.  Vacio =
+    # ubicacion por defecto (~/.EasyOCR/model).
+    easyocr_model_path: str = ""
+    # Permitir que EasyOCR descargue lo que le falte.  En el despliegue final
+    # va a false: mejor fallar al arrancar que quedarse colgado pidiendo red.
+    easyocr_allow_download: bool = True
+
     ocr_pdf_render_dpi: int = 200
     ocr_second_pass_verification: bool = True
 

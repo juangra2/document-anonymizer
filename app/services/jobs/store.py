@@ -231,6 +231,15 @@ class JobStore:
         self._remove_files(job)
         return True
 
+    def stats(self) -> dict[str, int]:
+        """Carga actual, para el endpoint de salud."""
+        with self._lock:
+            return {
+                "running": sum(1 for j in self._jobs.values() if j.status == "running"),
+                "queued": sum(1 for j in self._jobs.values() if j.status == "queued"),
+                "max_concurrent_documents": self._workers,
+            }
+
     def queue_position(self, job: Job) -> int | None:
         """Cuántos trabajos hay por delante.  0 = es el siguiente."""
         with self._lock:

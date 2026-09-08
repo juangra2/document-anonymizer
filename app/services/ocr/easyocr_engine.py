@@ -5,6 +5,7 @@ import fitz
 import numpy as np
 from PIL import Image
 
+from app.core.config import settings
 from app.services.ocr.base import OcrEngine
 from app.services.ocr.models import OcrPage, OcrToken
 
@@ -13,7 +14,15 @@ class EasyOcrEngine(OcrEngine):
     """Token-level OCR via EasyOCR.  Fallback engine when MinerU is unavailable."""
 
     def __init__(self, use_gpu: bool = True) -> None:
-        self._reader = easyocr.Reader(["es", "en"], gpu=use_gpu)
+        # La carpeta de pesos y el permiso de descarga se configuran porque en
+        # el servidor de destino puede no haber salida a internet: los modelos
+        # viajan dentro de la imagen y EasyOCR debe buscarlos ahí, no pedirlos.
+        options: dict = {"gpu": use_gpu}
+        if settings.easyocr_model_path:
+            options["model_storage_directory"] = settings.easyocr_model_path
+        if not settings.easyocr_allow_download:
+            options["download_enabled"] = False
+        self._reader = easyocr.Reader(["es", "en"], **options)
 
     @property
     def engine_name(self) -> str:
