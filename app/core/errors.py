@@ -36,3 +36,27 @@ class ProcessingError(AnonymizerError):
 
 class RedactionVerificationError(AnonymizerError):
     """Raised when residual PII is detected after redaction."""
+
+# Código estable por tipo de error, para que el cliente pueda reaccionar sin
+# leer el mensaje.  Los mensajes de la API son técnicos y en inglés; la frase
+# que ve el usuario la elige el frontend a partir de este código, que es lo que
+# permite traducir la interfaz sin tocar el backend.
+_ERROR_CODES: list[tuple[type, str]] = [
+    (DocumentTooLargeError, "document_too_large"),
+    (TooManyPagesError, "too_many_pages"),
+    (EmptyPdfError, "empty_pdf"),
+    (EncryptedPdfError, "encrypted_pdf"),
+    (ScannedPdfNotSupportedError, "scanned_not_supported"),
+    (FileValidationError, "invalid_file"),
+    (UnsupportedDocumentError, "unsupported_document"),
+    (RedactionVerificationError, "verification_failed"),
+    (AnonymizerError, "processing_failed"),
+]
+
+
+def error_code_for(exc: BaseException) -> str:
+    """Código estable del error, de la subclase más específica a la más general."""
+    for error_type, code in _ERROR_CODES:
+        if isinstance(exc, error_type):
+            return code
+    return "internal_error"

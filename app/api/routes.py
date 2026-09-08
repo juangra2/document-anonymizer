@@ -21,6 +21,7 @@ from app.core.errors import (
 )
 from app.schemas.entity_types import EntityType, EntityTypeResponse
 from app.schemas.report import InputFileInfo
+from app.services.jobs import job_store
 from app.services.pii.entity_catalog import (
     entity_catalog,
     known_type_ids,
@@ -198,27 +199,28 @@ async def anonymize(
                 "image/tiff",
             } or suffix in {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
 
+            # Esta ruta no pasa por la cola, pero sí compite por la misma GPU:
+            # pide uno de los permisos de proceso concurrente para que dos
+            # peticiones a la vez se serialicen en vez de agotar la memoria de
+            # la tarjeta.  Se pide dentro del hilo de trabajo, no aquí, para no
+            # bloquear el bucle de eventos mientras espera turno.
             if is_image:
-                report = await run_in_threadpool(
-                    image_pipeline.process,
-                    input_path,
-                    output_path,
-                    temp_job.job_id,
-                    mode,
-                    disabled,
-                )
+                def _run() -> object:
+                    with job_store.slot():
+                        return image_pipeline.process(
+                            input_path, output_path, temp_job.job_id, mode, disabled,
+                        )
             else:
                 assert_pdf_magic(input_path)
 
-                report = await run_in_threadpool(
-                    pdf_pipeline.process,
-                    input_path,
-                    output_path,
-                    temp_job.job_id,
-                    mode,
-                    include_entities,
-                    disabled,
-                )
+                def _run() -> object:
+                    with job_store.slot():
+                        return pdf_pipeline.process(
+                            input_path, output_path, temp_job.job_id, mode,
+                            include_entities, disabled,
+                        )
+
+            report = await run_in_threadpool(_run)
 
             output_bytes = output_path.read_bytes()
 

@@ -20,7 +20,31 @@ class Settings(BaseSettings):
     delete_temp_files: bool = True
     log_pii: bool = False
 
-    result_ttl_minutes: int = 30
+    # --- Trabajos asíncronos ------------------------------------------------
+    # El documento se procesa en una cola en proceso y el cliente consulta el
+    # estado por su identificador.  La cola NO sobrevive a un reinicio: los
+    # trabajos en curso se pierden y hay que volver a subir el documento.  Es
+    # una decisión consciente — un broker externo (Redis, Celery) añadiría un
+    # servicio más que operar para un solo nodo con una sola GPU.
+    #
+    # Documentos procesados a la vez.  Es también el número de trabajadores y
+    # el límite de acceso a la GPU: con más de uno, dos peticiones simultáneas
+    # de OCR agotan la memoria de la tarjeta (medido: 500 por CUDA OOM).
+    max_concurrent_documents: int = 1
+    # Trabajos admitidos en cola antes de rechazar con 503.  Evita que una
+    # tanda de subidas acumule gigas de PDF en disco esperando turno.
+    job_queue_max: int = 20
+    # Minutos que se conserva el resultado antes de borrarlo del disco.  El
+    # documento original se borra en cuanto termina el proceso (salvo
+    # store_original), porque ya no hace falta para nada.
+    result_ttl_minutes: int = 60
+    # Cada cuánto barre el limpiador.  Un trabajo caduca aunque nadie lo
+    # consulte: el borrado no puede depender de que el cliente vuelva.
+    job_sweep_interval_s: int = 60
+
+    # Prefijo de ruta cuando la aplicación se sirve tras un proxy inverso
+    # (p. ej. "/anonimizador").  Vacío si cuelga de la raíz del dominio.
+    root_path: str = ""
 
     presidio_score_threshold: float = 0.55
     default_redaction_mode: Literal["strict"] = "strict"
