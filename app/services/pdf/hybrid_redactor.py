@@ -33,6 +33,7 @@ from app.services.pdf.scanned_redactor import (
     _render_page_to_image,
 )
 from app.services.pii.analyzer import PiiAnalyzer
+from app.services import progress
 from app.services.pii.models import PiiEntity
 from PIL import ImageDraw
 
@@ -46,6 +47,11 @@ def redact_pdf_hybrid_secure(
     collect_entities: bool = False,
 ) -> ProcessingReport:
     inspection = inspect_pdf_for_phase1(input_path)
+
+    # Se reclama el aviso de avance ANTES del pase digital: ese pase recorre las
+    # mismas paginas, y si informara el, el avance llegaria al 100 % justo antes
+    # de empezar el OCR, que es la parte lenta.
+    on_page = progress.claim(len(inspection.page_inspections))
 
     ocr_engine = get_ocr_engine()
     segmenter = OcrPageSegmenter()
@@ -80,6 +86,7 @@ def redact_pdf_hybrid_secure(
         try:
             for page_info in inspection.page_inspections:
                 page_index = page_info.page_index
+                on_page(page_index)
                 page = redacted_doc[page_index]
 
                 # Plan pages (A1/A0 drawings): the digital pass already located

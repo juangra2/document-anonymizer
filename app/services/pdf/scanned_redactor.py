@@ -39,6 +39,7 @@ from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pdf.full_redaction import DNI_SCAN, classify_page
 from app.services.pdf.plan_pages import is_image_dominant_page, is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
+from app.services import progress
 from app.services.pii.gazetteer import normalize as _norm_token
 from app.services.pii.models import PiiEntity
 from app.services.vision.card_region import card_regions
@@ -308,7 +309,10 @@ def redact_pdf_scanned(
                     "poor_ocr": orientation.poor_quality,
                 }
 
+            on_page = progress.claim(source_doc.page_count)
+
             for page_index, page in enumerate(source_doc):
+                on_page(page_index)
                 # Plan pages (A1/A0 drawings) are detected from metadata BEFORE
                 # rendering: rasterising them is the expensive step the page
                 # budget cannot cover.  Only the title block is analysed and

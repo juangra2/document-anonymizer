@@ -34,6 +34,7 @@ from uuid import uuid4
 from app.core.config import settings
 from app.core.errors import error_code_for
 from app.schemas.report import ProcessingReport
+from app.services import progress
 
 logger = logging.getLogger(__name__)
 
@@ -271,15 +272,19 @@ class JobStore:
             job.status = "running"
             job.started_at = _now()
 
+        def on_progress(done: int, total: int) -> None:
+            self.report_progress(job.id, done, total)
+
         try:
-            report = self._pipeline().process(
-                job.input_path,
-                job.output_path,
-                job.id,
-                settings.default_redaction_mode,
-                job.include_entities,
-                job.disabled_types,
-            )
+            with progress.track(on_progress):
+                report = self._pipeline().process(
+                    job.input_path,
+                    job.output_path,
+                    job.id,
+                    settings.default_redaction_mode,
+                    job.include_entities,
+                    job.disabled_types,
+                )
         except Exception as exc:  # noqa: BLE001 — el trabajo registra el fallo
             logger.exception("job %s failed", job.id)
             with self._lock:

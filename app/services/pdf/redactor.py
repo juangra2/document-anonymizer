@@ -31,6 +31,7 @@ from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pdf.full_redaction import classify_pages
 from app.services.pdf.plan_pages import is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
+from app.services import progress
 from app.services.pii.institution_filter import filter_institutional
 from app.services.pii.models import PiiEntity
 from app.services.vision.code_detector import detect_redactable_codes, detect_visual_code_rects
@@ -71,7 +72,10 @@ def redact_pdf_digital(
             [page.get_text() for page in doc]
         )
 
+        on_page = progress.claim(doc.page_count)
+
         for page_index, page in enumerate(doc):
+            on_page(page_index)
             reason = full_redaction_pages.get(page_index)
             if reason:
                 # La página se pinta entera, pero SÍ se analiza para el informe:
