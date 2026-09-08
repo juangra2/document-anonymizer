@@ -36,11 +36,12 @@ from app.services.ocr.factory import get_ocr_engine, get_word_ocr_engine
 from app.services.ocr.models import OcrPage
 from app.services.ocr.orientation import resolve_orientation
 from app.services.pdf.inspector import inspect_pdf_for_phase1
-from app.services.pdf.full_redaction import classify_page
+from app.services.pdf.full_redaction import DNI_SCAN, classify_page
 from app.services.pdf.plan_pages import is_image_dominant_page, is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services.pii.gazetteer import normalize as _norm_token
 from app.services.pii.models import PiiEntity
+from app.services.vision.card_region import card_regions
 from app.services.vision.code_detector import detect_visual_code_rects
 from app.services.vision.scanned_marks import detect_stamp_rects
 
@@ -104,6 +105,8 @@ def redact_pdf_scanned(
     plan_pages_done: list[int] = []
     full_redaction_pages: dict[int, str] = {}
     rotated_pages: dict[int, int] = {}
+    cropped_pages: list[int] = []
+    crop_fallbacks: dict[int, str] = {}
     poor_ocr_pages: list[int] = []
     warnings: list[str] = []
 
@@ -196,9 +199,49 @@ def redact_pdf_scanned(
                 page_ocr_text = "\n".join(z.text for z in zoned_page.zones if z.text)
                 full_reason = classify_page(page_ocr_text)
                 if full_reason:
+                    # Copia de DNI: se intenta redactar solo la tarjeta, que
+                    # ocupa una fraccion pequena de un A4 casi vacio.  El
+                    # recorte NO se aplica por confianza en el detector: se
+                    # pinta, se vuelve a leer con OCR y se exige que no quede
+                    # texto legible fuera.  Si queda algo, pagina entera.
+                    crop_rects: list[fitz.Rect] = []
+                    crop_reason: str | None = None
+                    if full_reason == DNI_SCAN and settings.dni_crop_enabled:
+                        crop_rects, crop_reason = card_regions(
+                            work_image,
+                            [t.rect for t in ocr_page.tokens if t.text.strip()],
+                            dpi=settings.ocr_pdf_render_dpi,
+                        )
+                        if crop_rects:
+                            probe = work_image.copy()
+                            probe_draw = ImageDraw.Draw(probe)
+                            for rect in crop_rects:
+                                probe_draw.rectangle(
+                                    [int(rect.x0), int(rect.y0),
+                                     int(rect.x1), int(rect.y1)],
+                                    fill="black",
+                                )
+                            leftover = [
+                                t for t in _ocr_word(probe).tokens if t.text.strip()
+                            ]
+                            if leftover:
+                                crop_rects = []
+                                crop_reason = (
+                                    f"quedaba texto legible fuera "
+                                    f"({len(leftover)} fragmentos)"
+                                )
+
                     draw = ImageDraw.Draw(work_image)
-                    draw.rectangle([0, 0, work_image.width, work_image.height],
-                                   fill="black")
+                    if crop_rects:
+                        for rect in crop_rects:
+                            draw.rectangle(
+                                [int(rect.x0), int(rect.y0),
+                                 int(rect.x1), int(rect.y1)],
+                                fill="black",
+                            )
+                    else:
+                        draw.rectangle([0, 0, work_image.width, work_image.height],
+                                       fill="black")
                     # La página se pinta entera, pero se analiza igualmente para
                     # el informe: una página en negro que reporta cero entidades
                     # es engañosa para la auditoría y haría figurar como no
@@ -219,9 +262,11 @@ def redact_pdf_scanned(
                         "image": _restore(work_image, orientation.angle),
                         "entities": audit_entities,
                         "residuals": [],
-                        "rect_count": 1,
+                        "rect_count": len(crop_rects) or 1,
                         "confidence": ocr_page.avg_confidence,
                         "full_redaction": full_reason,
+                        "cropped": bool(crop_rects),
+                        "crop_fallback_reason": crop_reason if not crop_rects else None,
                         "rotated": orientation.angle,
                         "poor_ocr": orientation.poor_quality,
                     }
@@ -338,6 +383,10 @@ def redact_pdf_scanned(
 
                 if result.get("full_redaction"):
                     full_redaction_pages[page_index] = result["full_redaction"]
+                    if result.get("cropped"):
+                        cropped_pages.append(page_index)
+                    elif result.get("crop_fallback_reason"):
+                        crop_fallbacks[page_index] = result["crop_fallback_reason"]
                     logger.info("Page %d fully redacted (%s).", page_index,
                                 result["full_redaction"])
 
@@ -392,6 +441,19 @@ def redact_pdf_scanned(
             "Low-quality OCR text on pages "
             f"{[i + 1 for i in sorted(poor_ocr_pages)]}: content may not have "
             "been detected. Manual review required."
+        )
+
+    if cropped_pages:
+        warnings.append(
+            "Identity-document pages redacted by cropping the card area: "
+            f"{[i + 1 for i in sorted(cropped_pages)]}."
+        )
+    if crop_fallbacks:
+        detail = "; ".join(
+            f"{idx + 1}: {why}" for idx, why in sorted(crop_fallbacks.items())
+        )
+        warnings.append(
+            f"Identity-document pages redacted in full instead of cropped ({detail})."
         )
 
     if full_redaction_pages:

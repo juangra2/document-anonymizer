@@ -73,6 +73,24 @@ class Settings(BaseSettings):
     dni_scan_min_signals: int = 2
     tax_form_min_signals: int = 2
 
+    # Recorte de la tarjeta en copias de DNI.  Un DNI escaneado en plano ocupa
+    # una fraccion pequena de un A4 casi vacio, asi que pintar la pagina entera
+    # es correcto pero visualmente drastico.  El recorte NO se aplica por
+    # confianza: se pinta, se vuelve a pasar OCR y se exige que no quede texto
+    # legible fuera; si queda, se redacta la pagina completa.
+    dni_crop_enabled: bool = True
+    # Margen alrededor de la region detectada.  Generoso a proposito: la tarjeta
+    # viene inclinada respecto al eje y el contorno no es exacto.
+    dni_crop_margin_mm: float = 8.0
+    # Fraccion de pagina admisible para la region recortada.  Por encima del
+    # maximo no hay nada que ganar recortando.
+    dni_crop_min_frac: float = 0.02
+    dni_crop_max_frac: float = 0.60
+    # Relleno minimo (area de tinta / area del rectangulo) para tomar una mancha
+    # por contenido real.  Medido: 0.007 en el moteado de ruido que abarca la
+    # hoja entera, frente a 0.21-0.52 en la tarjeta.
+    dni_crop_min_fill: float = 0.05
+
     # Detect and redact handwritten signatures (embedded images / ink) in the
     # digital PDF path, anchored to a signature cue ("Fdo.", "Firma", …).
     # Off by default: the current heuristics over-redact (legitimate text/logos);
