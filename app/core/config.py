@@ -126,6 +126,13 @@ class Settings(BaseSettings):
     #               --local-dir model/MinerU2.5-Pro-2604-1.2B
     ocr_mineru_model_path: str = "model/MinerU2.5-Pro-2604-1.2B"
 
+    # Tipos de bloque cuyo CONTENIDO no se pide al VLM de MinerU.  Un bloque
+    # "image" no aporta texto util —el texto ya lo da EasyOCR— y en cambio
+    # dispara una transcripcion larguisima: medido sobre un DNI escaneado, la
+    # deteccion de layout tarda 3.9 s y devuelve UN bloque de tipo image, cuya
+    # extraccion se llevaba ~27 minutos para acabar descartada por degenerada.
+    ocr_mineru_skip_block_types: str = "image,image_block,chart"
+
     # Cap on tokens the MinerU VLM may generate per block.  Bounds the runaway
     # generation seen on noisy regions (e.g. a dotted line decoded as an endless
     # "α₁ 与 α₂ 与 …" formula that took >11 min on one page).  Generous enough

@@ -179,7 +179,16 @@ class MinerUEngine(OcrEngine):
         client = self._get_client()
 
         try:
-            blocks = client.two_step_extract(image)
+            # No se pide al VLM el contenido de bloques no textuales: sobre un
+            # escaneo clasificado como una sola "image", esa extraccion tardaba
+            # ~27 minutos y su resultado se descartaba por degenerado.  Sin
+            # texto util, el llamador se repliega al OCR de palabras.
+            from app.core.config import settings
+            skip = [
+                t.strip() for t in settings.ocr_mineru_skip_block_types.split(",")
+                if t.strip()
+            ]
+            blocks = client.two_step_extract(image, not_extract_list=skip or None)
         except Exception as exc:
             logger.error(
                 "MinerU two_step_extract failed on page %d: %s — returning empty page",
