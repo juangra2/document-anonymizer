@@ -15,6 +15,7 @@ from io import BytesIO
 from typing import Literal
 
 from fastapi import APIRouter, File, HTTPException, Query, Request, Response, UploadFile
+from fastapi.responses import FileResponse
 
 from app.core.config import settings
 from app.core.errors import DocumentTooLargeError, FileValidationError
@@ -193,7 +194,6 @@ async def get_job_result(
     job = _require_job(job_id)
     report = _require_finished_report(job)
 
-    pdf_bytes = job.output_path.read_bytes()
     pdf_filename = build_download_filename(
         job.filename, suffix="_anonymized", extension="pdf",
     )
@@ -206,7 +206,7 @@ async def get_job_result(
     if output == "zip":
         buffer = BytesIO()
         with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr(pdf_filename, pdf_bytes)
+            zf.write(job.output_path, arcname=pdf_filename)
             zf.writestr("report.json", report.model_dump_json(indent=2) + "\n")
         zip_filename = build_download_filename(
             job.filename, suffix="_anonymization_result", extension="zip",
@@ -220,13 +220,14 @@ async def get_job_result(
             },
         )
 
-    return Response(
-        content=pdf_bytes,
+    # Se envía en flujo desde el disco: con expedientes de cientos de páginas el
+    # PDF de salida pesa decenas de MB y cargarlo entero en memoria por cada
+    # descarga no aporta nada.
+    return FileResponse(
+        path=job.output_path,
         media_type="application/pdf",
-        headers={
-            **headers,
-            "Content-Disposition": f'attachment; filename="{pdf_filename}"',
-        },
+        filename=pdf_filename,
+        headers=headers,
     )
 
 

@@ -12,6 +12,7 @@ import fitz
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.config import settings
 from app.main import app
 from app.services.jobs import job_store
 
@@ -267,3 +268,56 @@ def test_queue_position_counts_the_documents_ahead():
         assert store.queue_position(second) == 1
     finally:
         store.shutdown(timeout=1.0)
+
+
+# --- servido tras un proxy inverso -------------------------------------------
+
+def test_the_location_header_respects_the_path_prefix():
+    """Tras un proxy la aplicación puede colgar de /anonimizador, no de la raíz.
+
+    Si la cabecera se construyera con el host o la ruta absolutos, apuntaría al
+    servidor interno y el navegador no llegaría.
+    """
+    prefixed = TestClient(app, root_path="/anonimizador")
+    response = prefixed.post(
+        "/jobs",
+        files={"file": ("expediente.pdf", BytesIO(_pdf()), "application/pdf")},
+    )
+    assert response.status_code == 202
+    job_id = response.json()["job_id"]
+    assert response.headers["Location"] == f"/anonimizador/jobs/{job_id}"
+    _wait(job_id)
+
+
+# --- límites de entrada ------------------------------------------------------
+
+def test_a_document_over_the_page_limit_fails_with_a_stable_code(monkeypatch):
+    """El fallo llega como estado del trabajo, no como error de la subida.
+
+    El número de páginas no se conoce hasta abrir el PDF, y para entonces la
+    petición de subida ya ha respondido.  El frontend traduce `code` a una
+    frase; el mensaje de la API es técnico a propósito.
+    """
+    monkeypatch.setattr(settings, "max_pdf_pages", 2)
+    job_id = _upload(pages=3).json()["job_id"]
+    state = _wait(job_id)
+
+    assert state["status"] == "failed"
+    assert state["error"]["code"] == "too_many_pages"
+    assert state["result"] is None
+    assert state["expires_at"], "un trabajo fallido tambien caduca y se borra"
+
+
+def test_a_failed_job_keeps_no_original_on_disk():
+    from app.core.config import settings as live
+
+    original = live.max_pdf_pages
+    live.max_pdf_pages = 2
+    try:
+        job_id = _upload(pages=3).json()["job_id"]
+        _wait(job_id)
+    finally:
+        live.max_pdf_pages = original
+
+    job = job_store.get(job_id)
+    assert not job.input_path.exists(), "un fallo no puede dejar el original ahi"

@@ -5,13 +5,21 @@ services:
       - "8000:8000"
     environment:
       TEMP_ROOT: /tmp/anonymizer
-      MAX_UPLOAD_MB: 25
+      MAX_UPLOAD_MB: 200
+      MAX_PDF_PAGES: 300
       STORE_ORIGINAL: "false"
       STORE_REDACTED_TEMP: "true"
       DELETE_TEMP_FILES: "true"
       LOG_PII: "false"
       PRESIDIO_SCORE_THRESHOLD: 0.55
       MIN_DIGITAL_TEXT_CHARS: 30
+      # Un documento a la vez: es el limite de acceso a la GPU.
+      MAX_CONCURRENT_DOCUMENTS: 1
+      JOB_QUEUE_MAX: 20
+      RESULT_TTL_MINUTES: 60
+    # Los trabajos viven aqui hasta caducar: con 200 MB por documento y 20 en
+    # cola, los 512 MB de antes se llenaban con tres expedientes.  Es memoria,
+    # no disco, asi que el tamano se revisa al montar el despliegue definitivo.
     tmpfs:
-      - /tmp/anonymizer:size=512m,mode=0700
+      - /tmp/anonymizer:size=8g,mode=0700
     read_only: false

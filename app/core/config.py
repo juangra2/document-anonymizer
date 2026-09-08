@@ -9,8 +9,23 @@ class Settings(BaseSettings):
 
     temp_root: str = "/tmp/anonymizer"
 
-    max_upload_mb: int = 25
-    max_pdf_pages: int = 50
+    # Limites de entrada.  Los anteriores (25 MB / 50 paginas) venian de la
+    # primera fase y habrian rechazado los expedientes reales del ayuntamiento,
+    # que son cientos de paginas concatenadas.
+    #
+    # Medido en este equipo (portatil con RTX 4060, un solo documento a la vez):
+    #
+    #   camino digital     600 paginas en 8 min 34 s (0.86 s/pag), pico 1.2 GB
+    #                      301 paginas en 4 min 55 s (0.98 s/pag), pico 1.1 GB
+    #   camino escaneado    10 paginas en 17 min (101.8 s/pag),    pico 2.5 GB
+    #
+    # El tiempo escala lineal y la memoria es plana: el documento no se sostiene
+    # entero en RAM, asi que el techo no lo pone la maquina sino la paciencia.
+    # 300 paginas son ~5 min si el PDF es digital y varias horas si esta
+    # escaneado entero; el presupuesto por pagina (ocr_page_timeout_s) y la cola
+    # son lo que evita que un documento asi bloquee el servicio para siempre.
+    max_upload_mb: int = 200
+    max_pdf_pages: int = 300
     min_digital_text_chars: int = 30
 
     pdf_processing_mode: Literal["auto", "raster_ocr", "hybrid_secure"] = "hybrid_secure"
