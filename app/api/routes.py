@@ -21,7 +21,11 @@ from app.core.errors import (
 )
 from app.schemas.entity_types import EntityType, EntityTypeResponse
 from app.schemas.report import InputFileInfo
-from app.services.pii.entity_catalog import entity_catalog, known_type_ids
+from app.services.pii.entity_catalog import (
+    entity_catalog,
+    known_type_ids,
+    mandatory_type_ids,
+)
 from app.services.pdf.pipeline import PdfAnonymizationPipeline
 from app.services.storage.temp_storage import TempJobDirectory
 from app.utils.files import (
@@ -86,6 +90,20 @@ def _parse_disabled_types(raw: list[EntityType] | None) -> frozenset[str]:
                 "Consulte GET /entity-types para ver los identificadores validos."
             ),
         )
+
+    # Los tipos obligatorios se rechazan aqui, no se ignoran en silencio: una
+    # peticion que cree haber desactivado el DNI debe enterarse de que no es
+    # posible, en vez de recibir un documento distinto del que pidio.
+    forbidden = sorted(requested & mandatory_type_ids())
+    if forbidden:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Tipos de dato obligatorios, no se pueden desactivar: "
+                f"{', '.join(forbidden)}. Identifican directamente a una "
+                "persona fisica. GET /entity-types marca cuales lo son."
+            ),
+        )
     return frozenset(requested)
 
 
@@ -94,8 +112,9 @@ async def list_entity_types() -> list[EntityTypeResponse]:
     """Tipos de dato que el sistema puede anonimizar.
 
     Devuelve, para cada tipo: su identificador tecnico, un nombre legible en
-    castellano, una descripcion breve de que captura y si esta activo por
-    defecto.  El frontend pinta con esto la lista de casillas y envia los que el
+    castellano, una descripcion breve de que captura, si esta activo por
+    defecto y si es obligatorio.  El frontend pinta con esto la lista de
+    casillas —las obligatorias, marcadas y bloqueadas— y envia los que el
     usuario desmarque en `disabled_types` de POST /anonymize.
     """
     return [
@@ -104,6 +123,7 @@ async def list_entity_types() -> list[EntityTypeResponse]:
             label=info.label,
             description=info.description,
             default_enabled=info.default_enabled,
+            mandatory=info.mandatory,
         )
         for info in entity_catalog()
     ]

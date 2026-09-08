@@ -22,23 +22,30 @@ class EntityTypeInfo:
     label: str
     description: str
     default_enabled: bool = True
+    # Tipo que el cliente NO puede desactivar: identifica directamente a una
+    # persona física, así que dejarlo fuera vaciaría de sentido la
+    # anonimización.  La interfaz lo pinta marcado y bloqueado; la API rechaza
+    # la petición que intente desactivarlo, para que la garantía no dependa de
+    # que el frontend se comporte.
+    mandatory: bool = False
 
 
 # Orden pensado para la interfaz: primero lo que el usuario reconoce al vuelo.
 _CATALOG: tuple[EntityTypeInfo, ...] = (
     EntityTypeInfo("PERSON", "Nombre de persona",
                    "Nombres y apellidos de personas físicas, incluidos los que "
-                   "acompañan a una firma («Fdo.: …»)."),
+                   "acompañan a una firma («Fdo.: …»).", mandatory=True),
     EntityTypeInfo("ES_DNI", "DNI / NIF",
                    "Documento nacional de identidad, con o sin puntos "
-                   "(12345678A, 47.215.601-M)."),
+                   "(12345678A, 47.215.601-M).", mandatory=True),
     EntityTypeInfo("ES_NIE", "NIE",
                    "Número de identidad de extranjero (X, Y o Z seguidos de "
-                   "siete cifras y letra)."),
+                   "siete cifras y letra).", mandatory=True),
     EntityTypeInfo("ES_CIF", "CIF de entidad",
                    "Código de identificación fiscal de empresas y entidades."),
     EntityTypeInfo("ES_NSS", "Número de la Seguridad Social",
-                   "Número de afiliación a la Seguridad Social."),
+                   "Número de afiliación a la Seguridad Social.",
+                   mandatory=True),
     EntityTypeInfo("PASSPORT", "Pasaporte", "Número de pasaporte."),
     EntityTypeInfo("ORGANIZATION", "Nombre de empresa",
                    "Razón social de empresa privada. Las instituciones "
@@ -53,8 +60,11 @@ _CATALOG: tuple[EntityTypeInfo, ...] = (
                    "internacional."),
     EntityTypeInfo("EMAIL_ADDRESS", "Correo electrónico",
                    "Direcciones de correo electrónico."),
+    # Cubre también la cuenta antigua (CCC) de veinte dígitos: no son dos tipos
+    # distintos en el detector, así que marcar este obligatorio protege ambas.
     EntityTypeInfo("IBAN_CODE", "Cuenta bancaria",
-                   "Cuentas IBAN y cuentas antiguas de veinte dígitos."),
+                   "Cuentas IBAN y cuentas antiguas de veinte dígitos (CCC).",
+                   mandatory=True),
     EntityTypeInfo("MONEY", "Importe económico",
                    "Importes ligados a una persona o a una cuenta: nóminas, "
                    "transferencias, liquidaciones. No se anonimizan los "
@@ -62,7 +72,7 @@ _CATALOG: tuple[EntityTypeInfo, ...] = (
     EntityTypeInfo("CREDIT_CARD", "Tarjeta bancaria",
                    "Números de tarjeta de crédito o débito."),
     EntityTypeInfo("DATE_OF_BIRTH", "Fecha de nacimiento",
-                   "Fecha de nacimiento de una persona."),
+                   "Fecha de nacimiento de una persona.", mandatory=True),
     EntityTypeInfo("DATE_TIME", "Fecha",
                    "Cualquier fecha del documento, incluidas las de registro y "
                    "firma."),
@@ -118,5 +128,10 @@ def entity_catalog() -> list[EntityTypeInfo]:
 
 
 def known_type_ids() -> set[str]:
-    """Identificadores válidos que el cliente puede desactivar."""
+    """Identificadores válidos que el cliente puede enviar."""
     return {info.id for info in entity_catalog()}
+
+
+def mandatory_type_ids() -> set[str]:
+    """Tipos que siempre se anonimizan, aunque el cliente pida desactivarlos."""
+    return {info.id for info in entity_catalog() if info.mandatory}

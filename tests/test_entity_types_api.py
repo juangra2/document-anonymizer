@@ -143,3 +143,58 @@ def test_clone_shares_the_loaded_ner_engine():
     clone = analyzer.with_disabled_types({"URL"})
     assert clone._engine is analyzer._engine
     assert analyzer.disabled_types == frozenset()
+
+
+# --- D0: tipos obligatorios ---------------------------------------------------
+
+MANDATORY = {"PERSON", "ES_DNI", "ES_NIE", "ES_NSS", "IBAN_CODE", "DATE_OF_BIRTH"}
+
+
+def test_catalog_marks_the_mandatory_types():
+    marked = {i["id"] for i in client.get("/entity-types").json() if i["mandatory"]}
+    assert marked == MANDATORY
+
+
+def test_mandatory_types_are_also_enabled_by_default():
+    # Un tipo obligatorio y apagado por defecto sería contradictorio.
+    for item in client.get("/entity-types").json():
+        if item["mandatory"]:
+            assert item["default_enabled"], item["id"]
+
+
+def test_disabling_a_mandatory_type_is_rejected():
+    response = client.post(
+        "/anonymize?disabled_types=ES_DNI",
+        files={"file": ("in.pdf", BytesIO(_sample_pdf()), "application/pdf")},
+    )
+    assert response.status_code == 422
+    assert "ES_DNI" in response.json()["detail"]
+
+
+def test_the_rejection_names_every_mandatory_type_requested():
+    response = client.post(
+        "/anonymize?disabled_types=ES_DNI&disabled_types=PERSON&disabled_types=URL",
+        files={"file": ("in.pdf", BytesIO(_sample_pdf()), "application/pdf")},
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "ES_DNI" in detail and "PERSON" in detail
+    assert "URL" not in detail, "solo se listan los que impiden la peticion"
+
+
+def test_a_rejected_request_anonymizes_nothing():
+    # La peticion se corta antes de procesar: no hay salida a medias.
+    response = client.post(
+        "/anonymize?disabled_types=PERSON",
+        files={"file": ("in.pdf", BytesIO(_sample_pdf()), "application/pdf")},
+    )
+    assert response.status_code == 422
+    assert "X-Job-Id" not in response.headers
+
+
+def test_optional_types_can_still_be_disabled():
+    response = client.post(
+        "/anonymize?output=zip&disabled_types=URL&disabled_types=DATE_TIME",
+        files={"file": ("in.pdf", BytesIO(_sample_pdf()), "application/pdf")},
+    )
+    assert response.status_code == 200
