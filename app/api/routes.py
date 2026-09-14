@@ -19,6 +19,7 @@ from app.core.errors import (
     TooManyPagesError,
     UnsupportedDocumentError,
 )
+from app.api.query_normalization import normalize_type_id
 from app.schemas.entity_types import EntityType, EntityTypeResponse
 from app.schemas.report import InputFileInfo
 from app.services.jobs import job_store
@@ -68,20 +69,22 @@ def build_zip_response_bytes(
 
 
 def _parse_disabled_types(raw: list[EntityType] | None) -> frozenset[str]:
-    """Normaliza los tipos desactivados que llegan por query.
+    """Valida los tipos desactivados que llegan por query.
 
-    La validacion la hace ya el tipado con Enum: FastAPI devuelve 422 con la
-    lista de valores admitidos antes de entrar aqui.  Se conserva la
-    comprobacion como red de seguridad para llamadas internas que no pasen por
-    la capa HTTP.
+    Por HTTP, el valor ya llega normalizado (DisabledTypesQueryMiddleware) y el
+    Enum ya ha rechazado lo inexistente.  Aquí se rechazan los obligatorios, y
+    se repite la comprobación de inexistentes para llamadas internas.
     """
     if not raw:
         return frozenset()
 
+    # La normalización real ocurre antes de validar (query_normalization); aquí
+    # se aplica la misma función para las llamadas internas que no pasan por HTTP.
     requested = {
-        (item.value if isinstance(item, EntityType) else str(item)).strip().upper()
+        normalize_type_id(item.value if isinstance(item, EntityType) else str(item))
         for item in raw
     }
+    requested.discard("")
     unknown = sorted(requested - known_type_ids())
     if unknown:
         raise HTTPException(
@@ -147,10 +150,14 @@ async def anonymize(
     disabled_types: list[EntityType] | None = Query(
         default=None,
         description=(
-            "Tipos de dato que NO se anonimizan en esta peticion. Si se omite, "
-            "se aplican todos. Cada valor va en su propio parametro: "
-            "?disabled_types=DATE_TIME&disabled_types=URL. El nombre legible de "
-            "cada tipo esta en GET /entity-types."
+            "Tipos de dato que NO se anonimizan en esta peticion. Cada valor va en su "
+            "propio parametro: ?disabled_types=DATE_TIME&disabled_types=URL. "
+            "Se normaliza antes de validar: se quitan los espacios sobrantes, se "
+            "pasa a mayúsculas (date_time equivale a DATE_TIME) y se ignoran los "
+            "valores vacíos, de modo que una lista vacía (?disabled_types=) equivale "
+            "a no enviar el parametro. Se rechaza con 422, sin procesar nada, un "
+            "tipo inexistente o un tipo obligatorio (marcado mandatory en "
+            "GET /entity-types). No se admite separar varios valores con comas."
         ),
     ),
 ) -> Response:

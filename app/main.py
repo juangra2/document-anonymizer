@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api.health import router as health_router
+from app.api.query_normalization import DisabledTypesQueryMiddleware
 from app.api.jobs import router as jobs_router
 from app.api.routes import router as anonymize_router
 from app.core.config import settings
@@ -28,3 +29,7 @@ app = FastAPI(title=settings.app_name, root_path=settings.root_path, lifespan=li
 app.include_router(health_router)
 app.include_router(jobs_router)
 app.include_router(anonymize_router)
+
+# Normaliza disabled_types (mayúsculas, espacios, lista vacía) antes de que el
+# Enum lo valide: hecha dentro de la ruta, la normalización llegaba tarde.
+app.add_middleware(DisabledTypesQueryMiddleware)

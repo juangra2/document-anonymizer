@@ -117,9 +117,16 @@ async def create_job(
     ),
     disabled_types: list[EntityType] | None = Query(
         default=None,
-        description="Tipos de dato que NO se anonimizan. Cada valor en su propio "
-                    "parametro. Los marcados como obligatorios en "
-                    "GET /entity-types se rechazan con 422.",
+        description=(
+            "Tipos de dato que NO se anonimizan en esta peticion. Cada valor va en su "
+            "propio parametro: ?disabled_types=DATE_TIME&disabled_types=URL. "
+            "Se normaliza antes de validar: se quitan los espacios sobrantes, se "
+            "pasa a mayúsculas (date_time equivale a DATE_TIME) y se ignoran los "
+            "valores vacíos, de modo que una lista vacía (?disabled_types=) equivale "
+            "a no enviar el parametro. Se rechaza con 422, sin procesar nada, un "
+            "tipo inexistente o un tipo obligatorio (marcado mandatory en "
+            "GET /entity-types). No se admite separar varios valores con comas."
+        ),
     ),
 ) -> JobResponse:
     """Encola un PDF para anonimizar y devuelve el trabajo con su identificador.
