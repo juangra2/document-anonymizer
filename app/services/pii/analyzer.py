@@ -173,7 +173,17 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
 LABELED_FIELD_PATTERNS_VAL_CAT: list[tuple[str, str]] = [
     (
         "PERSON",
-        r"(?im)^[^\S\r\n]*(?:nom(?:[^\S\r\n]+complet|[^\S\r\n]+i[^\S\r\n]+cognoms)?|cognoms|sollicitant|titular)[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
+        # Cargos en valenciano, espejo de la lista castellana: sin ellos el nombre
+        # tras «Representant:» o «Interessada:» dependía solo del NER.  El punto
+        # volado de «sol·licitant» es opcional (la extracción lo conserva).
+        r"(?im)^[^\S\r\n]*(?:nom(?:[^\S\r\n]+complet|[^\S\r\n]+i[^\S\r\n]+cognoms)?|cognoms|sol[·.]?licitant|titular"
+        # Femenino valenciano: interessat → interessada, beneficiari → beneficiària.
+        r"|interessa(?:t(?:/da)?|da)|benefici(?:ari(?:/[àa]ria)?|[àa]ria)|ordenant|promotor(?:/a|a)?"
+        r"|propieta(?:ri(?:/[àa]ria)?|[àa]ria)|representant(?:[^\S\r\n]+legal)?|arquitect(?:e(?:/a)?|a)"
+        r"|t[eè]cnic(?:/a|a)?|metge(?:/essa|ssa)?(?:[^\S\r\n]+responsable)?|pacient"
+        r"|treballador(?:/a|a)?|persona[^\S\r\n]+treballadora|emplea(?:t(?:/da)?|da)"
+        r"|notifica(?:t(?:/da)?|da)|destinata(?:ri(?:/[àa]ria)?|[àa]ria)|empadrona(?:t(?:/da)?|da)|persona[^\S\r\n]+empadronada)"
+        r"[^\S\r\n]*:[^\S\r\n]*(?P<value>[^\r\n:]+?)[^\S\r\n]*$",
     ),
     (
         "DATE_OF_BIRTH",
