@@ -513,7 +513,8 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         # Also handles form-field variant "Nacido/a el:DATE" (colon separator
         # used in compressed solicitud_generica form fields).
         # Named group "value" captures only the date so the prefix is not redacted.
-        r"(?i)nacid[ao](?:/(?:[ao]|nacid[ao]))?\s+(?:el[^\S\r\n]*:?|la[^\S\r\n]*:?)[^\S\r\n]*(?P<value>"
+        # Valenciano: "Nascut/da el: 24/10/1954", "nascuda el 3 de maig de 1980".
+        r"(?i)(?:nacid[ao](?:/(?:[ao]|nacid[ao]))?|nascu(?:t|da)(?:/(?:t|da))?)\s+(?:el[^\S\r\n]*:?|la[^\S\r\n]*:?)[^\S\r\n]*(?P<value>"
         r"(?:0?[1-9]|[12]\d|3[01])[/.\-][^\S\r\n]*(?:0?[1-9]|1[0-2])[/.\-][^\S\r\n]*(?:19|20)\d{2}"
         r"(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?"
         r"|(?:0?[1-9]|[12]\d|3[01])\s+de\s+"
@@ -531,7 +532,10 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         # Abbreviated forms: "D.N." (Data de Naixement, Catalan),
         # "F.N." (Fecha de Nacimiento), "F. nac.", "F. nacim.", "Fecha nacim."
         # handle acuerdo_adscripcion, formulario_medico, contrato_laboral formats.
-        r"(?i)(?:nacimiento|D\.N\.|F\.N\.|F\.[^\S\r\n]*nac(?:im?)?\.?|F\.[^\S\r\n]*naix\.?|F\.[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nac(?:im?)?\.?)[^\S\r\n]*:[^\S\r\n]*(?P<value>"
+        # "naixement:" cubre "Data de naixement: X" a media línea, que el patrón
+        # anclado de LABELED_FIELD_PATTERNS_VAL_CAT no ve ("… C/C: i Data de
+        # naixement: 24/02/1967"), y la etiqueta partida en varias líneas.
+        r"(?i)(?:nacimiento|naixement|D\.N\.|F\.N\.|F\.[^\S\r\n]*nac(?:im?)?\.?|F\.[^\S\r\n]*naix\.?|F\.[^\S\r\n]+nacimiento|fecha[^\S\r\n]+nac(?:im?)?\.?)[^\S\r\n]*:[^\S\r\n]*(?P<value>"
         r"(?:0?[1-9]|[12]\d|3[01])[/.\-](?:0?[1-9]|1[0-2])[/.\-](?:19|20)\d{2}"
         r"(?:[^\S\r\n]+(?:[01]?\d|2[0-3]):[0-5]\d)?)",
         0.95,

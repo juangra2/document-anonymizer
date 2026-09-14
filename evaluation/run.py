@@ -55,6 +55,17 @@ def save_results_json(doc_results, aggregated: dict, path: Path) -> None:
     print(f"Results JSON saved to: {path}")
 
 
+def _disabled_types_arg(value: str | None) -> list[str] | None:
+    """'optional' = todos los tipos no obligatorios; si no, lista separada por comas."""
+    if not value:
+        return None
+    if value.strip().lower() == "optional":
+        from app.services.pii.entity_catalog import known_type_ids, mandatory_type_ids
+
+        return sorted(known_type_ids() - mandatory_type_ids())
+    return [t.strip().upper() for t in value.split(",") if t.strip()]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Evaluation pipeline for the document anonymizer.",
@@ -93,6 +104,11 @@ def main() -> None:
         help="JSONL file to save results incrementally (enables resume on crash).",
     )
     parser.add_argument(
+        "--disabled-types", default=None,
+        help="Tipos a desactivar en cada peticion, separados por comas, u 'optional' "
+             "para todos los no obligatorios (compuerta evaluation.mandatory_gate).",
+    )
+    parser.add_argument(
         "--resume", action="store_true",
         help="Skip documents already in --checkpoint file.",
     )
@@ -106,6 +122,7 @@ def main() -> None:
         iou_threshold=args.iou_threshold,
         checkpoint_path=args.checkpoint,
         resume=args.resume,
+        disabled_types=_disabled_types_arg(args.disabled_types),
     )
 
     if not doc_results:

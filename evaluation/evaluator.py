@@ -43,7 +43,11 @@ def load_ground_truth(labels_dir: Path) -> dict[str, dict]:
 # API call
 # ---------------------------------------------------------------------------
 
-def call_api(pdf_path: Path, timeout: int = _DEFAULT_TIMEOUT) -> tuple[dict, str | None]:
+def call_api(
+    pdf_path: Path,
+    timeout: int = _DEFAULT_TIMEOUT,
+    disabled_types: list[str] | None = None,
+) -> tuple[dict, str | None]:
     """POST pdf_path to /anonymize?output=zip&include_entities=true.
 
     Returns (report_dict, error_string). error_string is None on success.
@@ -56,7 +60,9 @@ def call_api(pdf_path: Path, timeout: int = _DEFAULT_TIMEOUT) -> tuple[dict, str
                 params={
                     "output": "zip",
                     "include_entities": "true",
-                    "mode": "strict",
+                    # Tipos desactivados en la peticion (compuerta del bloque 2b):
+                    # httpx repite la clave por cada valor.
+                    "disabled_types": list(disabled_types or []),
                 },
                 timeout=timeout,
             )
@@ -102,6 +108,7 @@ def evaluate_single(
     pdf_path: Path,
     gt: dict[str, dict],
     iou_threshold: float = 0.5,
+    disabled_types: list[str] | None = None,
 ) -> DocResult | None:
     """Evaluate one document. Returns None when no ground truth exists."""
     doc_id = pdf_path.stem
@@ -109,7 +116,7 @@ def evaluate_single(
     if gt_doc is None:
         return None
 
-    report, error = call_api(pdf_path)
+    report, error = call_api(pdf_path, disabled_types=disabled_types)
     if error:
         result = _all_gt_as_fn(gt_doc)
         result = DocResult(
@@ -149,6 +156,7 @@ def run_evaluation(
     verbose: bool = True,
     checkpoint_path: Path | None = None,
     resume: bool = False,
+    disabled_types: list[str] | None = None,
 ) -> list[DocResult]:
     """Evaluate all PDFs in pdfs_dir against labels_dir ground truth.
 
@@ -198,7 +206,7 @@ def run_evaluation(
     try:
         with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = {
-                executor.submit(evaluate_single, pdf, gt, iou_threshold): pdf
+                executor.submit(evaluate_single, pdf, gt, iou_threshold, disabled_types): pdf
                 for pdf in pdf_files
             }
             for future in as_completed(futures):
