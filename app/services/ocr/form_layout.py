@@ -9,6 +9,11 @@ import unicodedata
 import fitz
 
 from app.services.ocr.models import OcrToken
+from app.services.layout.value_split import (
+    detect_column_gutter,
+    median_word_height,
+    split_labeled_row,
+)
 from app.services.pii.label_types import label_entity_type
 
 
@@ -439,13 +444,23 @@ class OcrFormLayoutAnalyzer:
     def typed_rects_for_form_values(
         self,
         tokens: list[OcrToken],
+        page_width: float | None = None,
     ) -> list[tuple[fitz.Rect, str | None]]:
         """Como rects_for_form_values, con el tipo que anuncia cada etiqueta.
 
         Solo se fusionan rects del mismo tipo: en una fila «Teléfono … Pasaporte …»
         cada valor conserva el suyo y puede liberarse por separado.
         """
-        return self.merge_close_typed_rects(self._typed_form_items(tokens))
+        # El canal de columnas se calcula una vez por página y lo consulta el
+        # corte del valor de cada fila; se limpia al salir.
+        self._gutter_x = (
+            detect_column_gutter(self.group_tokens_by_row(tokens), page_width)
+            if page_width else None
+        )
+        try:
+            return self.merge_close_typed_rects(self._typed_form_items(tokens))
+        finally:
+            self._gutter_x = None
 
     def _typed_form_items(
         self,
@@ -540,18 +555,28 @@ class OcrFormLayoutAnalyzer:
         if not valid_value_tokens:
             return []
 
-        # Importante: una sola caja continua para cubrir valores partidos.
-        value_rect = self._rect_for_tokens(valid_value_tokens)
-        label_type = label_entity_type(" ".join(token.text for token in label_tokens))
-
-        return [(
-            padded_rect(
-                value_rect,
-                padding_x=4.0,
-                padding_y=3.0,
-            ),
-            label_type,
-        )]
+        # Una caja continua por valor, para cubrir valores partidos, pero cortada
+        # donde el valor termina: canal de columnas, siguiente etiqueta o salto
+        # grande (value_split).  Cada trozo lleva el tipo de su etiqueta.
+        segments = split_labeled_row(
+            label_tokens,
+            valid_value_tokens,
+            find_label=lambda words: self._find_label_prefix_token_end_index(list(words)),
+            height=median_word_height(row),
+            gutter_x=getattr(self, "_gutter_x", None),
+        )
+        return [
+            (
+                padded_rect(
+                    self._rect_for_tokens(segment.value_words),
+                    padding_x=4.0,
+                    padding_y=3.0,
+                ),
+                label_entity_type(segment.label_text),
+            )
+            for segment in segments
+            if segment.value_words
+        ]
 
     def _rects_for_inline_label_value(
         self,

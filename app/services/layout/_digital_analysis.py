@@ -11,6 +11,11 @@ import statistics
 import fitz
 
 from app.services.pdf.extractor import PageText, WordBox
+from app.services.layout.value_split import (
+    detect_column_gutter,
+    median_word_height,
+    split_labeled_row,
+)
 from app.services.pii.label_types import label_entity_type
 from app.services.pdf.table_layout import (
     find_label_length_at_row_start,
@@ -93,14 +98,23 @@ TABLE_STOP_PREFIXES = {
 }
 
 
-def analyze_digital_layout(page_text: PageText) -> DigitalLayoutAnalysis:
+def analyze_digital_layout(
+    page_text: PageText, page_width: float | None = None,
+) -> DigitalLayoutAnalysis:
     rows = group_words_by_visual_row(page_text.words)
+    # Canal entre columnas (castellano | valenciano) y altura de línea: los
+    # necesita el corte del valor de cada campo (value_split).
+    gutter_x = detect_column_gutter(rows, page_width) if page_width else None
+    height = median_word_height(page_text.words)
 
     typed_redactions: list[tuple[fitz.Rect, str | None]] = []
     protected_rects: list[fitz.Rect] = []
     layout_zone_rects: list[fitz.Rect] = []
 
-    _collect_field_value_rows(rows, typed_redactions, protected_rects, layout_zone_rects)
+    _collect_field_value_rows(
+        rows, typed_redactions, protected_rects, layout_zone_rects,
+        gutter_x=gutter_x, height=height,
+    )
     _collect_vertical_field_value_rows(rows, typed_redactions, protected_rects, layout_zone_rects)
     _collect_multicolumn_tables(rows, typed_redactions, protected_rects, layout_zone_rects)
 
@@ -118,6 +132,8 @@ def _collect_field_value_rows(
     redaction_rects: list[tuple[fitz.Rect, str | None]],
     protected_rects: list[fitz.Rect],
     layout_zone_rects: list[fitz.Rect],
+    gutter_x: float | None = None,
+    height: float = 10.0,
 ) -> None:
     for row in rows:
         if len(row) < 2:
@@ -138,10 +154,21 @@ def _collect_field_value_rows(
         if not _has_table_like_gap(label_words, value_words):
             continue
 
-        protected_rects.append(_rect_for_words(label_words, padding=0.8))
-        label_type = label_entity_type(" ".join(w.text for w in label_words))
-        redaction_rects.append((_rect_for_words(value_words, padding=0.8), label_type))
         layout_zone_rects.append(_rect_for_words(row, padding=1.2))
+        # El valor termina en el canal de columnas, en la siguiente etiqueta de
+        # la fila o en un salto grande.  Cada trozo lleva el tipo de SU etiqueta;
+        # un resto sin etiqueta se sigue tachando, sin tipo.
+        for segment in split_labeled_row(
+            label_words, value_words,
+            find_label=_field_label_length, height=height, gutter_x=gutter_x,
+        ):
+            if segment.label_words:
+                protected_rects.append(_rect_for_words(segment.label_words, padding=0.8))
+            if segment.value_words:
+                redaction_rects.append((
+                    _rect_for_words(segment.value_words, padding=0.8),
+                    label_entity_type(segment.label_text),
+                ))
 
 
 def _collect_vertical_field_value_rows(
@@ -473,6 +500,11 @@ def _cell_rect_for_column_and_row(
 def _padded_rect(rect: fitz.Rect, padding_x: float, padding_y: float) -> fitz.Rect:
     return fitz.Rect(rect.x0 - padding_x, rect.y0 - padding_y,
                      rect.x1 + padding_x, rect.y1 + padding_y)
+
+
+def _field_label_length(words) -> int | None:
+    """Etiqueta de formulario reconocida al inicio de *words* (camino digital)."""
+    return find_label_length_at_row_start([normalize_token(w.text) for w in words])
 
 
 def _dedupe_typed_rects(

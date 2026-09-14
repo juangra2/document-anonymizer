@@ -100,7 +100,7 @@ class DigitalPageSegmenter:
             text=page_text.text,
             words=[w for row in middle_rows for w in row],
         )
-        layout = analyze_digital_layout(middle_page_text)
+        layout = analyze_digital_layout(middle_page_text, page_width=page_rect.width)
 
         zones: list[PageZone] = []
 
@@ -390,7 +390,7 @@ class OcrPageSegmenter:
         if header_tokens:
             zones.append(self._tokens_to_zone(ZoneType.HEADER, header_tokens))
 
-        zones.extend(self._build_middle_zones(middle_tokens))
+        zones.extend(self._build_middle_zones(middle_tokens, page_width=ocr_page.width))
 
         if footer_tokens:
             zones.append(self._tokens_to_zone(ZoneType.FOOTER, footer_tokens))
@@ -404,11 +404,14 @@ class OcrPageSegmenter:
     def _build_middle_zones(
         self,
         middle_tokens: list[OcrToken],
+        page_width: float | None = None,
     ) -> list[PageZone]:
         if not middle_tokens:
             return []
 
-        typed_form = self._form_analyzer.typed_rects_for_form_values(middle_tokens)
+        typed_form = self._form_analyzer.typed_rects_for_form_values(
+            middle_tokens, page_width=page_width,
+        )
         table_rects = self._table_analyzer.rects_for_tables(middle_tokens)
 
         # Se fusionan solo rects del mismo tipo, para que cada valor pueda
