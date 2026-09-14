@@ -1367,8 +1367,28 @@ class PiiAnalyzer:
         entities.extend(self._detect_private_companies(text))
         entities.extend(self._detect_ner_entities(text, zone_type=zone_type))
 
-        merged = self._merge_overlaps(entities)
-        merged.extend(self._extract_postal_codes_from_addresses(text, merged))
+        # Los tipos desactivados se quitan ANTES de resolver solapes.  La fusión
+        # se queda con un único span por solape y descarta el resto; si un tipo
+        # desactivado ganaba ("CAS-001 Diego Ferrer Email: …" absorbiendo a
+        # PERSON y EMAIL) y se filtraba después, lo que contenía quedaba sin
+        # tapar.  Filtrando primero, lo absorbido compite por su cuenta.
+        disabled = self.disabled_types
+        candidates = (
+            [e for e in entities if e.entity_type not in disabled] if disabled else entities
+        )
+        merged = self._merge_overlaps(candidates)
+
+        # El código postal se deriva de las direcciones detectadas, estén o no
+        # activas: el CP es un tipo propio y no puede perderse porque se haya
+        # desactivado ADDRESS.  Sin tipos desactivados es la misma lista.
+        addresses = (
+            self._merge_overlaps(entities) if "ADDRESS" in disabled else merged
+        )
+        known_cp = {(e.start, e.end) for e in merged if e.entity_type == "POSTAL_CODE"}
+        merged.extend(
+            cp for cp in self._extract_postal_codes_from_addresses(text, addresses)
+            if (cp.start, cp.end) not in known_cp
+        )
 
         # Policy: the administrative case-file number (E-03001-2022-000074-00) is
         # a public reference; keep it unless explicitly enabled.  The output
