@@ -972,7 +972,9 @@ _MONEY_RE = re.compile(
     r"|\d{1,3}(?:\.\d{3})+"                          # 2.500
     r"|\d+(?=[^\S\r\n]*(?:€|EUR\b|euros?\b))"        # 300 €
     r")"
-    r"(?![\d,])"
+    # Ni cifra ni coma detrás, ni otro grupo con punto: sin esto "10.217.195"
+    # casaba dentro de la IP "10.217.195.85".
+    r"(?![\d,]|\.\d)"
 )
 
 # (a) Etiquetas que ligan el importe a una persona o a una cuenta.  Incluyen los
@@ -1022,6 +1024,9 @@ _COLEGIADO_NEAR_RE = re.compile(r"(?i)coleg(?:iad[oa]|iat)")
 
 # Ventana hacia atras (caracteres) en la que se busca la etiqueta de (a).
 _MONEY_LABEL_WINDOW = 140
+
+# Cuatro grupos 0-255 separados por punto: direccion IPv4, no importe.
+_IPV4_LIKE_RE = re.compile(r"(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)")
 
 
 
@@ -2451,6 +2456,11 @@ class PiiAnalyzer:
 
             # (c) Veto por linea: fila de partida o linea con marcador de obra.
             if zone_vetoed or _BUDGET_VETO_RE.search(line) or _BUDGET_LINE_RE.match(line):
+                continue
+
+            # Una IPv4 tiene forma de miles con puntos ("90.241.195.223").  En
+            # una pagina con senales financieras el gate la dejaba pasar.
+            if _IPV4_LIKE_RE.fullmatch(value):
                 continue
 
             # Un porcentaje no es un importe ("Cuota SS (6,35%)", "IRPF (15%)").
