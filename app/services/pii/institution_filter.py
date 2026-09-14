@@ -281,6 +281,7 @@ def filter_institutional(
     page_text: str,
     zoned_page: ZonedPage,
     entities: list[PiiEntity],
+    person_spans: list[tuple[int, int]] | None = None,
 ) -> set[int]:
     """Indices of *entities* that are institutional contact data → suppress.
 
@@ -294,9 +295,13 @@ def filter_institutional(
     ranges = letterhead_ranges(page_text, zoned_page)
     allowlist = institutional_allowlist(page_text, zoned_page, entities)
     form_ranges = _form_ranges(zoned_page)
-    person_spans = sorted(
-        (e.start, e.end) for e in entities if e.entity_type == "PERSON"
-    )
+    # La prueba de "hay una persona en medio" puede venir de fuera: el redactor
+    # la calcula sin filtrar cuando PERSON está desactivado.  Si se sacara de
+    # las entidades ya filtradas, desactivar PERSON haría pasar por
+    # institucional el teléfono de un particular (F5).
+    if person_spans is None:
+        person_spans = [(e.start, e.end) for e in entities if e.entity_type == "PERSON"]
+    person_spans = sorted(person_spans)
 
     suppress: set[int] = set()
     for i, e in enumerate(entities):

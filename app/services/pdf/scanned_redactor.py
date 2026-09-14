@@ -41,7 +41,8 @@ from app.services.pdf.plan_pages import is_image_dominant_page, is_plan_page, re
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services import progress
 from app.services.pii.code_policy import QR_TYPE, code_may_stay_visible
-from app.services.pii.label_types import select_structural_rects, structural_rects_released
+from app.services.pii.label_types import structural_rects_released
+from app.services.pdf.redaction_plan import RedactionPlan
 from app.services.pii.gazetteer import normalize as _norm_token
 from app.services.pii.models import PiiEntity
 from app.services.vision.card_region import card_regions
@@ -552,9 +553,12 @@ def _collect_redaction_rects(
     When *easy_words* is provided (A1), PII is detected on the layout engine's
     clean text but redaction rects are taken from those word-level OCR boxes for
     tight, aligned geometry; otherwise rects come from the zone's own tokens.
+
+    Todo pasa por un RedactionPlan, igual que en el camino digital: el filtro de
+    tipos desactivados en un único sitio y el recuento sin depender de
+    `collect_entities`.
     """
-    rects: list[fitz.Rect] = []
-    entities: list[PiiEntity] = []
+    plan = RedactionPlan(disabled_types=frozenset(analyzer.disabled_types))
     easy_line_h = _median_height(easy_words) if easy_words else 0.0
 
     # Contexto de pagina para el gate de importes (ver PiiAnalyzer.analyze).
@@ -564,64 +568,48 @@ def _collect_redaction_rects(
 
         # SIGNATURE / QR_CODE → full zone rect
         if zone.is_auto_redact:
-            if zone.zone_type == ZoneType.QR_CODE and code_may_stay_visible(zone.text, analyzer):
-                # QR_CODE desactivado y el contenido no lleva ningún obligatorio.
-                continue
-            rects.append(zone.rect)
-            # Se cuenta siempre que se redacta, pida o no la petición la lista de
-            # entidades: el resumen por tipo no puede depender de include_entities.
             if zone.zone_type == ZoneType.QR_CODE:
-                entities.append(PiiEntity(
-                    entity_type="QR_CODE",
-                    start=0,
-                    end=len(zone.text or ""),
-                    score=0.99,
-                    source="visual_qr",
-                    text=zone.text,
-                ))
+                if code_may_stay_visible(zone.text, analyzer):
+                    continue
+                plan.add_entity(
+                    PiiEntity(
+                        entity_type="QR_CODE", start=0, end=len(zone.text or ""),
+                        score=0.99, source="visual_qr", text=zone.text,
+                    ),
+                    [zone.rect],
+                    always=True,
+                )
+            else:
+                plan.add_rect(zone.rect, None)
             continue
 
         # FORM / TABLE with pre-computed structural rects (heuristic segmenter).
-        # Only skip PII analysis when rects are present; MinerU creates TABLE/FORM
-        # zones without pre-computed rects, so those must fall through to PII.
         if zone.zone_type in (ZoneType.FORM, ZoneType.TABLE) and zone.layout_redact_rects:
-            # Cada rect lleva el tipo de su etiqueta: los de un tipo desactivado no
-            # se pintan y el del colegiado nunca.  Lo que no tiene tipo se pinta.
-            active_rects, _ = select_structural_rects(
-                zone.layout_redact_rects, zone.layout_redact_types, analyzer.disabled_types,
-            )
-            rects.extend(active_rects)
-            if structural_rects_released(zone.layout_redact_types, analyzer.disabled_types):
-                # Lo que cubría el rect descartado ya no está tapado.  La zona FORM
-                # del OCR no tiene texto propio: se reconstruye desde sus tokens y
-                # se tapan sus entidades activas, igual que en una zona BODY.
-                for r, entity in _released_form_entities(
+            types = zone.layout_redact_types or []
+            for index, rect in enumerate(zone.layout_redact_rects):
+                plan.add_rect(rect, types[index] if index < len(types) else None, structural=True)
+            if structural_rects_released(types, analyzer.disabled_types):
+                # Lo que cubría el rect descartado ya no está tapado: se reconstruye
+                # el texto de la zona y se tapan sus entidades activas.
+                for entity, rects in _released_form_entities(
                     zone, analyzer, mode, page_context, easy_words, easy_line_h,
                 ):
-                    if not _center_in_any(r, rects):
-                        rects.append(r)
-                    if entity is not None:
-                        entities.append(entity)
+                    plan.add_entity(entity, rects)
                 continue
-            if collect_entities and zone.text.strip():
-                cfg = get_detector_config(zone.zone_type)
-                if cfg.entity_types is not None:
-                    form_entities = analyzer.analyze(
-                        zone.text, mode=mode, zone_type=zone.zone_type.value,
-                        context_text=page_context,
-                    )
-                    allowed = set(cfg.entity_types)
-                    for entity in form_entities:
-                        if entity.entity_type not in allowed:
-                            continue
-                        entities.append(PiiEntity(
-                            entity_type=entity.entity_type,
-                            start=entity.start,
-                            end=entity.end,
-                            score=entity.score,
-                            source=entity.source,
+            cfg = get_detector_config(zone.zone_type)
+            if zone.text.strip() and cfg.entity_types is not None:
+                allowed = set(cfg.entity_types)
+                for entity in analyzer.analyze(
+                    zone.text, mode=mode, zone_type=zone.zone_type.value,
+                    context_text=page_context,
+                ):
+                    if entity.entity_type in allowed:
+                        # Valor ya tapado por el rect estructural: se cuenta, no se pinta.
+                        plan.add_entity(PiiEntity(
+                            entity_type=entity.entity_type, start=entity.start, end=entity.end,
+                            score=entity.score, source=entity.source,
                             text=zone.text[entity.start:entity.end],
-                        ))
+                        ), [])
             continue
 
         # BODY / HEADER / FOOTER → PII analysis
@@ -629,39 +617,27 @@ def _collect_redaction_rects(
         if not zone.text.strip() or cfg.entity_types is None:
             continue
 
-        local_entities = analyzer.analyze(
+        allowed = set(cfg.entity_types)
+        for entity in analyzer.analyze(
             zone.text,
             mode=mode,
             zone_type=zone.zone_type.value,
             context_text=page_context,
-        )
-        allowed = set(cfg.entity_types)
-        local_entities = [e for e in local_entities if e.entity_type in allowed]
-
-        for entity in local_entities:
+        ):
+            if entity.entity_type not in allowed:
+                continue
             if easy_words is not None:
-                entity_rects = _entity_rects_via_easy(
-                    entity, zone, easy_words, easy_line_h
-                )
+                entity_rects = _entity_rects_via_easy(entity, zone, easy_words, easy_line_h)
             else:
                 entity_rects = _entity_rects_from_zone(entity, zone)
-
-            # Skip tokens that are part of existing redaction areas
-            for r in entity_rects:
-                if not _center_in_any(r, rects):
-                    rects.append(r)
-
             if entity_rects:
-                entities.append(PiiEntity(
-                    entity_type=entity.entity_type,
-                    start=entity.start,
-                    end=entity.end,
-                    score=entity.score,
-                    source=entity.source,
+                plan.add_entity(PiiEntity(
+                    entity_type=entity.entity_type, start=entity.start, end=entity.end,
+                    score=entity.score, source=entity.source,
                     text=zone.text[entity.start:entity.end],
-                ))
+                ), entity_rects)
 
-    return rects, entities
+    return plan.rects, plan.entities
 
 
 _WORD_TOK_RE = re.compile(r"[0-9A-Za-zÁÉÍÓÚÑÜáéíóúñüÀÈÒÏÇàèòïç]+")
@@ -972,10 +948,10 @@ def _padded(rect: fitz.Rect, px: float = 2.0, py: float = 2.0) -> fitz.Rect:
 
 
 def _released_form_entities(zone, analyzer, mode, page_context, easy_words, easy_line_h):
-    """Rects y entidades de una zona FORM cuyo rect estructural se ha liberado.
+    """Entidades activas de una zona FORM cuyo rect estructural se ha liberado.
 
-    Devuelve pares (rect, entidad o None): la entidad solo acompaña a su primer
-    rect, para contarla una vez.
+    Devuelve pares (entidad, rects).  La zona FORM del OCR no tiene texto propio:
+    se reconstruye desde sus tokens.
     """
     from app.services.layout.models import PageZone, ZoneType as _ZT
     from app.services.layout.segmenters import _build_ocr_zone_text_and_tokens
@@ -1006,12 +982,11 @@ def _released_form_entities(zone, analyzer, mode, page_context, easy_words, easy
             entity_rects = _entity_rects_via_easy(entity, work, easy_words, easy_line_h)
         else:
             entity_rects = _entity_rects_from_zone(entity, work)
-        for i, r in enumerate(entity_rects):
-            out.append((r, PiiEntity(
-                entity_type=entity.entity_type, start=entity.start, end=entity.end,
-                score=entity.score, source=entity.source,
-                text=work.text[entity.start:entity.end],
-            ) if i == 0 else None))
+        out.append((PiiEntity(
+            entity_type=entity.entity_type, start=entity.start, end=entity.end,
+            score=entity.score, source=entity.source,
+            text=work.text[entity.start:entity.end],
+        ), entity_rects))
     return out
 
 

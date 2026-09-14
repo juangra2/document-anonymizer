@@ -33,7 +33,8 @@ from app.services.pdf.plan_pages import is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services import progress
 from app.services.pii.code_policy import code_may_stay_visible
-from app.services.pii.label_types import select_structural_rects, structural_rects_released
+from app.services.pii.label_types import structural_rects_released
+from app.services.pdf.redaction_plan import RedactionPlan
 from app.services.pii.institution_filter import filter_institutional
 from app.services.pii.models import PiiEntity
 from app.services.vision.code_detector import detect_redactable_codes, detect_visual_code_rects
@@ -277,83 +278,77 @@ def _collect_redaction_rects(
     mode: str,
     collect_entities: bool = False,
 ) -> tuple[list[fitz.Rect], list[PiiEntity], int]:
-    """Return (rects_to_redact, pii_entities_found, layout_rect_count)."""
-    rects: list[fitz.Rect] = []
-    entities: list[PiiEntity] = []
-    layout_count = 0
+    """Return (rects_to_redact, pii_entities_found, layout_rect_count).
 
-    # BODY/HEADER/FOOTER entity rects are deferred so institutional contact data
-    # (issuer phone/address/CP) can be filtered out at page level before emission.
-    pii_entity_rects: dict[int, list[fitz.Rect]] = {}
+    Todo lo que se tacha o se cuenta pasa por un RedactionPlan: el filtro de
+    tipos desactivados vive en un único sitio, y los rects pintados y las
+    entidades contadas salen de la misma lista, pida o no la petición la lista
+    de entidades (`collect_entities` ya no cambia el recuento).
+    """
+    plan = RedactionPlan(disabled_types=frozenset(analyzer.disabled_types))
+    all_protected = [r for zone in zoned_page.zones for r in zone.layout_protected_rects]
 
-    # Collect all protected rects across zones to filter entity-based rects
-    all_protected: list[fitz.Rect] = []
-    for zone in zoned_page.zones:
-        all_protected.extend(zone.layout_protected_rects)
+    # Entidades de formulario: cuentan y sirven de prueba para la supresión
+    # institucional, pero sus valores ya los tapa el rect estructural.
+    form_entities: list[PiiEntity] = []
+    # BODY/HEADER/FOOTER: sus rects esperan a la supresión institucional.
+    candidates: list[tuple[PiiEntity, list[fitz.Rect]]] = []
 
     for zone in zoned_page.zones:
 
         # SIGNATURE / QR_CODE → full zone rect
         if zone.is_auto_redact:
-            if zone.zone_type == ZoneType.QR_CODE and code_may_stay_visible(zone.text, analyzer):
-                # QR_CODE desactivado y el contenido no lleva ningún obligatorio.
-                continue
-            rects.append(zone.rect)
-            # Se cuenta siempre que se redacta, pida o no la petición la lista de
-            # entidades: el resumen por tipo no puede depender de include_entities.
             if zone.zone_type == ZoneType.QR_CODE:
-                entities.append(PiiEntity(
-                    entity_type="QR_CODE",
-                    start=0,
-                    end=len(zone.text or ""),
-                    score=0.99,
-                    source="visual_qr",
-                    text=zone.text,
-                ))
+                if code_may_stay_visible(zone.text, analyzer):
+                    continue
+                # Si llega aquí con QR_CODE desactivado es porque su contenido lleva
+                # un obligatorio o no se puede leer: se tacha igual (excepción).
+                plan.add_entity(
+                    PiiEntity(
+                        entity_type="QR_CODE", start=0, end=len(zone.text or ""),
+                        score=0.99, source="visual_qr", text=zone.text,
+                    ),
+                    [zone.rect],
+                    always=True,
+                )
+            else:
+                plan.add_rect(zone.rect, None)
             continue
 
         # FORM / TABLE with pre-computed structural rects (heuristic segmenter).
-        # Only skip PII analysis when rects are present; MinerU creates TABLE/FORM
-        # zones without pre-computed rects, so those must fall through to PII.
+        # MinerU creates TABLE/FORM zones without pre-computed rects, so those
+        # fall through to PII analysis.
         if zone.zone_type in (ZoneType.FORM, ZoneType.TABLE) and zone.layout_redact_rects:
-            # Cada rect lleva el tipo de su etiqueta: los de un tipo desactivado no
-            # se pintan y el del colegiado nunca.  Lo que no tiene tipo se pinta.
-            active_rects, untyped = select_structural_rects(
-                zone.layout_redact_rects, zone.layout_redact_types, analyzer.disabled_types,
-            )
-            rects.extend(active_rects)
-            layout_count += untyped
-            # Si se ha dejado de pintar un rect por un tipo desactivado, lo demás
-            # que cubría ya no está tapado: se analiza la zona y se tapan sus
-            # entidades activas.  Sin tipos desactivados no ocurre nunca.
-            released = structural_rects_released(zone.layout_redact_types, analyzer.disabled_types)
-            if (collect_entities or released) and zone.text.strip():
-                cfg = get_detector_config(zone.zone_type)
-                if cfg.entity_types is not None:
-                    form_entities = analyzer.analyze(
-                        zone.text, mode=mode, zone_type=zone.zone_type.value,
-                        context_text=page_text.text,
+            types = zone.layout_redact_types or []
+            for index, rect in enumerate(zone.layout_redact_rects):
+                plan.add_rect(rect, types[index] if index < len(types) else None, structural=True)
+            # Si un rect se ha dejado de pintar por un tipo desactivado, lo que
+            # cubría se tapa por entidad.  Si no, el valor ya está tapado y la
+            # entidad solo se cuenta.
+            released = structural_rects_released(types, analyzer.disabled_types)
+            cfg = get_detector_config(zone.zone_type)
+            if zone.text.strip() and cfg.entity_types is not None:
+                allowed = set(cfg.entity_types)
+                for entity in analyzer.analyze(
+                    zone.text, mode=mode, zone_type=zone.zone_type.value,
+                    context_text=page_text.text,
+                ):
+                    if entity.entity_type not in allowed:
+                        continue
+                    absolute = PiiEntity(
+                        entity_type=entity.entity_type,
+                        start=zone.page_text_offset + entity.start,
+                        end=zone.page_text_offset + entity.end,
+                        score=entity.score,
+                        source=entity.source,
+                        text=zone.text[entity.start:entity.end],
                     )
-                    allowed = set(cfg.entity_types)
-                    for entity in form_entities:
-                        if entity.entity_type not in allowed:
-                            continue
-                        if released:
-                            for r in rects_for_span(
-                                page_text,
-                                zone.page_text_offset + entity.start,
-                                zone.page_text_offset + entity.end,
-                            ):
-                                if not _center_in_any(r, all_protected) and not _center_in_any(r, rects):
-                                    rects.append(r)
-                        entities.append(PiiEntity(
-                            entity_type=entity.entity_type,
-                            start=zone.page_text_offset + entity.start,
-                            end=zone.page_text_offset + entity.end,
-                            score=entity.score,
-                            source=entity.source,
-                            text=zone.text[entity.start:entity.end],
-                        ))
+                    form_entities.append(absolute)
+                    rects = [
+                        r for r in rects_for_span(page_text, absolute.start, absolute.end)
+                        if not _center_in_any(r, all_protected)
+                    ] if released else []
+                    plan.add_entity(absolute, rects)
             continue
 
         # BODY / HEADER / FOOTER → PII analysis with zone-specific types
@@ -361,80 +356,88 @@ def _collect_redaction_rects(
         if not zone.text.strip() or cfg.entity_types is None:
             continue
 
-        local_entities = analyzer.analyze(
-            zone.text,
-            mode=mode,
-            zone_type=zone.zone_type.value,
-            # El gate de importes necesita la pagina: cada fila de tabla es una
-            # zona propia y ahi no se distingue nomina de presupuesto de obra.
-            context_text=page_text.text,
-        )
-
-        # Filter to types relevant for this zone
         allowed = set(cfg.entity_types)
-        local_entities = [e for e in local_entities if e.entity_type in allowed]
+        local_entities = [
+            e for e in analyzer.analyze(
+                zone.text,
+                mode=mode,
+                zone_type=zone.zone_type.value,
+                # El gate de importes necesita la pagina: cada fila de tabla es una
+                # zona propia y ahi no se distingue nomina de presupuesto de obra.
+                context_text=page_text.text,
+            )
+            if e.entity_type in allowed
+        ]
 
-        # Celda-nombre aislada (valor de formulario sin etiqueta en la zona).
-        if "PERSON" in allowed and not any(
-            e.entity_type == "PERSON" for e in local_entities
-        ):
+        # Celda-nombre aislada (valor de formulario sin etiqueta en la zona).  Pasa
+        # por el plan como cualquier otra: con PERSON desactivado no se tacha (F10).
+        if "PERSON" in allowed and not any(e.entity_type == "PERSON" for e in local_entities):
             span = _standalone_name_cell(zone.text)
             if span is not None:
                 local_entities.append(PiiEntity(
-                    entity_type="PERSON",
-                    start=span[0],
-                    end=span[1],
-                    score=0.85,
-                    source="standalone_name_cell",
+                    entity_type="PERSON", start=span[0], end=span[1],
+                    score=0.85, source="standalone_name_cell",
                 ))
 
         for entity in local_entities:
             abs_start = zone.page_text_offset + entity.start
             abs_end = zone.page_text_offset + entity.end
-
-            entity_rects = [
-                r
-                for r in rects_for_span(page_text, abs_start, abs_end)
-                if not _center_in_any(r, all_protected)
-            ]
-
-            idx = len(entities)
-            entities.append(PiiEntity(
-                entity_type=entity.entity_type,
-                start=abs_start,
-                end=abs_end,
-                score=entity.score,
-                source=entity.source,
-                text=zone.text[entity.start:entity.end],
+            candidates.append((
+                PiiEntity(
+                    entity_type=entity.entity_type, start=abs_start, end=abs_end,
+                    score=entity.score, source=entity.source,
+                    text=zone.text[entity.start:entity.end],
+                ),
+                [
+                    r for r in rects_for_span(page_text, abs_start, abs_end)
+                    if not _center_in_any(r, all_protected)
+                ],
             ))
-            pii_entity_rects[idx] = entity_rects
 
     # Suppress institutional contact data (issuer's own phone/address/CP) before
     # emitting BODY/HEADER/FOOTER entity rects: it is not personal data under RGPD.
-    suppressed = filter_institutional(page_text.text, zoned_page, entities)
-
-    for idx, entity_rects in pii_entity_rects.items():
-        if idx in suppressed:
+    evidence = None
+    if "PERSON" in analyzer.disabled_types:
+        evidence = _person_evidence(zoned_page, page_text, analyzer, mode)
+    filter_input = form_entities + [entity for entity, _ in candidates]
+    suppressed = filter_institutional(page_text.text, zoned_page, filter_input, person_spans=evidence)
+    offset = len(form_entities)
+    for index, (entity, rects) in enumerate(candidates):
+        if offset + index in suppressed:
             continue
-        rects.extend(entity_rects)
+        plan.add_entity(entity, rects)
 
-    if suppressed:
-        entities = [e for i, e in enumerate(entities) if i not in suppressed]
+    return plan.rects, plan.entities, plan.untyped_structural
 
-    # Deduplicate by (start, end, entity_type): the FORM zone text is a sparse
-    # reconstruction of form-word characters, but as a safety net remove any exact
-    # duplicates that might arise from overlapping zone text ranges.
-    if collect_entities and entities:
-        seen: set[tuple[int, int, str]] = set()
-        deduped: list[PiiEntity] = []
-        for e in entities:
-            key = (e.start, e.end, e.entity_type)
-            if key not in seen:
-                seen.add(key)
-                deduped.append(e)
-        entities = deduped
 
-    return rects, entities, layout_count
+def _person_evidence(zoned_page, page_text, analyzer: PiiAnalyzer, mode: str) -> list[tuple[int, int]]:
+    """Spans de PERSON de la página SIN filtrar tipos desactivados.
+
+    Solo se calcula cuando PERSON está desactivado (hoy no alcanzable por la API:
+    PERSON es obligatorio).  La supresión institucional necesita saber si hay una
+    persona entre el nombre de una institución y un teléfono aunque no se vaya a
+    tachar.
+    """
+    unfiltered = analyzer.with_disabled_types(frozenset())
+    spans: list[tuple[int, int]] = []
+    for zone in zoned_page.zones:
+        if zone.is_auto_redact or not zone.text.strip():
+            continue
+        cfg = get_detector_config(zone.zone_type)
+        if cfg.entity_types is None or "PERSON" not in set(cfg.entity_types):
+            continue
+        found = [
+            e for e in unfiltered.analyze(
+                zone.text, mode=mode, zone_type=zone.zone_type.value, context_text=page_text.text,
+            )
+            if e.entity_type == "PERSON"
+        ]
+        if not found and zone.zone_type not in (ZoneType.FORM, ZoneType.TABLE):
+            span = _standalone_name_cell(zone.text)
+            if span is not None:
+                spans.append((zone.page_text_offset + span[0], zone.page_text_offset + span[1]))
+        spans.extend((zone.page_text_offset + e.start, zone.page_text_offset + e.end) for e in found)
+    return spans
 
 
 def _center_in_any(rect: fitz.Rect, containers: list[fitz.Rect]) -> bool:

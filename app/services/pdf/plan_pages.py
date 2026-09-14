@@ -183,6 +183,12 @@ def redact_plan_page(page: fitz.Page, analyzer, mode: str = "strict"):
             "labeled_field", m.group("value"),
         ))
 
+    # Las heurísticas del cajetín (LOCATION→PERSON, "Situación:") añaden entidades
+    # después del analizador: pasan por el mismo filtro de tipos desactivados (F11).
+    from app.services.pdf.redaction_plan import RedactionPlan
+    plan_filter = RedactionPlan(disabled_types=frozenset(getattr(analyzer, "disabled_types", ())))
+    entities = [e for e in entities if plan_filter.admits(e.entity_type)]
+
     # El numero de colegiado se preserva: se recorta todo span que lo invada y
     # se descarta el que quede vacio.  Sin esto, un span de PERSON desbordado
     # ("... Arquitecto Colegiado n 6.402") se llevaria el numero por delante.
