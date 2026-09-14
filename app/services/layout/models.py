@@ -68,6 +68,10 @@ class PageZone:
     # Redactors apply these directly without running PII detection.
     layout_redact_rects: list[fitz.Rect] = field(default_factory=list)
     layout_protected_rects: list[fitz.Rect] = field(default_factory=list)
+    # Tipo de dato de cada rect de layout_redact_rects (misma longitud), sacado de
+    # su etiqueta o cabecera.  None = sin tipo atribuible: se redacta siempre.
+    # Es lo que permite que disabled_types libere un valor estructural.
+    layout_redact_types: list[str | None] = field(default_factory=list)
 
     # For digital zones: start offset of zone.text within the full PageText.text.
     # Used by the digital redactor to translate local entity offsets to absolute

@@ -33,6 +33,7 @@ from app.services.pdf.plan_pages import is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services import progress
 from app.services.pii.code_policy import code_may_stay_visible
+from app.services.pii.label_types import select_structural_rects, structural_rects_released
 from app.services.pii.institution_filter import filter_institutional
 from app.services.pii.models import PiiEntity
 from app.services.vision.code_detector import detect_redactable_codes, detect_visual_code_rects
@@ -315,9 +316,18 @@ def _collect_redaction_rects(
         # Only skip PII analysis when rects are present; MinerU creates TABLE/FORM
         # zones without pre-computed rects, so those must fall through to PII.
         if zone.zone_type in (ZoneType.FORM, ZoneType.TABLE) and zone.layout_redact_rects:
-            rects.extend(zone.layout_redact_rects)
-            layout_count += len(zone.layout_redact_rects)
-            if collect_entities and zone.text.strip():
+            # Cada rect lleva el tipo de su etiqueta: los de un tipo desactivado no
+            # se pintan y el del colegiado nunca.  Lo que no tiene tipo se pinta.
+            active_rects, untyped = select_structural_rects(
+                zone.layout_redact_rects, zone.layout_redact_types, analyzer.disabled_types,
+            )
+            rects.extend(active_rects)
+            layout_count += untyped
+            # Si se ha dejado de pintar un rect por un tipo desactivado, lo demás
+            # que cubría ya no está tapado: se analiza la zona y se tapan sus
+            # entidades activas.  Sin tipos desactivados no ocurre nunca.
+            released = structural_rects_released(zone.layout_redact_types, analyzer.disabled_types)
+            if (collect_entities or released) and zone.text.strip():
                 cfg = get_detector_config(zone.zone_type)
                 if cfg.entity_types is not None:
                     form_entities = analyzer.analyze(
@@ -328,6 +338,14 @@ def _collect_redaction_rects(
                     for entity in form_entities:
                         if entity.entity_type not in allowed:
                             continue
+                        if released:
+                            for r in rects_for_span(
+                                page_text,
+                                zone.page_text_offset + entity.start,
+                                zone.page_text_offset + entity.end,
+                            ):
+                                if not _center_in_any(r, all_protected) and not _center_in_any(r, rects):
+                                    rects.append(r)
                         entities.append(PiiEntity(
                             entity_type=entity.entity_type,
                             start=zone.page_text_offset + entity.start,

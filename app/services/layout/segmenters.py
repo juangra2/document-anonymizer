@@ -179,6 +179,7 @@ class DigitalPageSegmenter:
                 ],
                 source="digital",
                 layout_redact_rects=layout.redaction_rects,
+                layout_redact_types=layout.redaction_types,
                 layout_protected_rects=layout.protected_rects,
                 page_text_offset=form_text_start,
             ))
@@ -407,12 +408,16 @@ class OcrPageSegmenter:
         if not middle_tokens:
             return []
 
-        form_rects = self._form_analyzer.rects_for_form_values(middle_tokens)
+        typed_form = self._form_analyzer.typed_rects_for_form_values(middle_tokens)
         table_rects = self._table_analyzer.rects_for_tables(middle_tokens)
-        all_layout_rects = form_rects + table_rects
 
-        # Merge close rects to avoid fragmenting a single form block
-        merged_layout = self._form_analyzer.merge_close_rects(all_layout_rects)
+        # Se fusionan solo rects del mismo tipo, para que cada valor pueda
+        # liberarse por separado.  Las tablas no anuncian tipo: van sin él.
+        typed_layout = self._form_analyzer.merge_close_typed_rects(
+            typed_form + [(rect, None) for rect in table_rects]
+        )
+        merged_layout = [rect for rect, _ in typed_layout]
+        merged_types = [etype for _, etype in typed_layout]
 
         zones: list[PageZone] = []
 
@@ -438,6 +443,7 @@ class OcrPageSegmenter:
                     confidence=_avg_token_confidence(covered),
                     source="ocr",
                     layout_redact_rects=merged_layout,
+                    layout_redact_types=merged_types,
                 ))
 
             if body_tokens:

@@ -5,12 +5,13 @@ and returns pre-computed redaction rects.  Only imported by segmenters.py.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import statistics
 
 import fitz
 
 from app.services.pdf.extractor import PageText, WordBox
+from app.services.pii.label_types import label_entity_type
 from app.services.pdf.table_layout import (
     find_label_length_at_row_start,
     group_words_by_visual_row,
@@ -23,6 +24,8 @@ class DigitalLayoutAnalysis:
     redaction_rects: list[fitz.Rect]
     protected_rects: list[fitz.Rect]
     layout_zone_rects: list[fitz.Rect]
+    # Tipo de cada rect de redaction_rects, en el mismo orden (None = sin tipo).
+    redaction_types: list[str | None] = field(default_factory=list)
 
 
 SENSITIVE_TABLE_HEADER_KEYWORDS = {
@@ -93,24 +96,26 @@ TABLE_STOP_PREFIXES = {
 def analyze_digital_layout(page_text: PageText) -> DigitalLayoutAnalysis:
     rows = group_words_by_visual_row(page_text.words)
 
-    redaction_rects: list[fitz.Rect] = []
+    typed_redactions: list[tuple[fitz.Rect, str | None]] = []
     protected_rects: list[fitz.Rect] = []
     layout_zone_rects: list[fitz.Rect] = []
 
-    _collect_field_value_rows(rows, redaction_rects, protected_rects, layout_zone_rects)
-    _collect_vertical_field_value_rows(rows, redaction_rects, protected_rects, layout_zone_rects)
-    _collect_multicolumn_tables(rows, redaction_rects, protected_rects, layout_zone_rects)
+    _collect_field_value_rows(rows, typed_redactions, protected_rects, layout_zone_rects)
+    _collect_vertical_field_value_rows(rows, typed_redactions, protected_rects, layout_zone_rects)
+    _collect_multicolumn_tables(rows, typed_redactions, protected_rects, layout_zone_rects)
 
+    typed_redactions = _dedupe_typed_rects(typed_redactions)
     return DigitalLayoutAnalysis(
-        redaction_rects=_dedupe_rects(redaction_rects),
+        redaction_rects=[rect for rect, _ in typed_redactions],
         protected_rects=_dedupe_rects(protected_rects),
         layout_zone_rects=_dedupe_rects(layout_zone_rects),
+        redaction_types=[etype for _, etype in typed_redactions],
     )
 
 
 def _collect_field_value_rows(
     rows: list[list[WordBox]],
-    redaction_rects: list[fitz.Rect],
+    redaction_rects: list[tuple[fitz.Rect, str | None]],
     protected_rects: list[fitz.Rect],
     layout_zone_rects: list[fitz.Rect],
 ) -> None:
@@ -134,13 +139,14 @@ def _collect_field_value_rows(
             continue
 
         protected_rects.append(_rect_for_words(label_words, padding=0.8))
-        redaction_rects.append(_rect_for_words(value_words, padding=0.8))
+        label_type = label_entity_type(" ".join(w.text for w in label_words))
+        redaction_rects.append((_rect_for_words(value_words, padding=0.8), label_type))
         layout_zone_rects.append(_rect_for_words(row, padding=1.2))
 
 
 def _collect_vertical_field_value_rows(
     rows: list[list[WordBox]],
-    redaction_rects: list[fitz.Rect],
+    redaction_rects: list[tuple[fitz.Rect, str | None]],
     protected_rects: list[fitz.Rect],
     layout_zone_rects: list[fitz.Rect],
 ) -> None:
@@ -194,13 +200,13 @@ def _collect_vertical_field_value_rows(
         # valor sigue intersecando el rect y se elimina igualmente.
         if value_rect.y0 < label_rect.y1 < value_rect.y1:
             value_rect.y0 = label_rect.y1 + 0.1
-        redaction_rects.append(value_rect)
+        redaction_rects.append((value_rect, label_entity_type(_row_text(row))))
         layout_zone_rects.append(_rect_for_words(row + next_row, padding=1.2))
 
 
 def _collect_multicolumn_tables(
     rows: list[list[WordBox]],
-    redaction_rects: list[fitz.Rect],
+    redaction_rects: list[tuple[fitz.Rect, str | None]],
     protected_rects: list[fitz.Rect],
     layout_zone_rects: list[fitz.Rect],
 ) -> None:
@@ -252,12 +258,16 @@ def _collect_multicolumn_tables(
                 if _looks_like_header_or_static_text(_row_text(value_words)):
                     continue
 
+                header_type = label_entity_type(_cell_text(cells[col_idx]))
                 if _should_redact_full_cell(_cell_text(cells[col_idx])):
-                    redaction_rects.append(
-                        _cell_rect_for_column_and_row(data_row, x0, x1, padding=0.9)
-                    )
+                    redaction_rects.append((
+                        _cell_rect_for_column_and_row(data_row, x0, x1, padding=0.9),
+                        header_type,
+                    ))
                 else:
-                    redaction_rects.append(_rect_for_words(value_words, padding=0.9))
+                    redaction_rects.append(
+                        (_rect_for_words(value_words, padding=0.9), header_type)
+                    )
 
         row_index += max(1, len(table_rows) + 1)
 
@@ -463,6 +473,28 @@ def _cell_rect_for_column_and_row(
 def _padded_rect(rect: fitz.Rect, padding_x: float, padding_y: float) -> fitz.Rect:
     return fitz.Rect(rect.x0 - padding_x, rect.y0 - padding_y,
                      rect.x1 + padding_x, rect.y1 + padding_y)
+
+
+def _dedupe_typed_rects(
+    items: list[tuple[fitz.Rect, str | None]], tolerance: float = 0.8,
+) -> list[tuple[fitz.Rect, str | None]]:
+    """Como _dedupe_rects, conservando el tipo.
+
+    Si el mismo rect llega con tipos distintos, o con y sin tipo, se queda sin
+    tipo: se redacta siempre, que es lo conservador.
+    """
+    unique: list[list] = []
+    for rect, etype in items:
+        match = next((
+            u for u in unique
+            if abs(rect.x0 - u[0].x0) <= tolerance and abs(rect.y0 - u[0].y0) <= tolerance
+            and abs(rect.x1 - u[0].x1) <= tolerance and abs(rect.y1 - u[0].y1) <= tolerance
+        ), None)
+        if match is None:
+            unique.append([rect, etype])
+        elif match[1] != etype:
+            match[1] = None
+    return [(rect, etype) for rect, etype in unique]
 
 
 def _dedupe_rects(rects: list[fitz.Rect], tolerance: float = 0.8) -> list[fitz.Rect]:

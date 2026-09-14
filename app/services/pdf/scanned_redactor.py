@@ -41,6 +41,7 @@ from app.services.pdf.plan_pages import is_image_dominant_page, is_plan_page, re
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services import progress
 from app.services.pii.code_policy import QR_TYPE, code_may_stay_visible
+from app.services.pii.label_types import select_structural_rects, structural_rects_released
 from app.services.pii.gazetteer import normalize as _norm_token
 from app.services.pii.models import PiiEntity
 from app.services.vision.card_region import card_regions
@@ -584,7 +585,24 @@ def _collect_redaction_rects(
         # Only skip PII analysis when rects are present; MinerU creates TABLE/FORM
         # zones without pre-computed rects, so those must fall through to PII.
         if zone.zone_type in (ZoneType.FORM, ZoneType.TABLE) and zone.layout_redact_rects:
-            rects.extend(zone.layout_redact_rects)
+            # Cada rect lleva el tipo de su etiqueta: los de un tipo desactivado no
+            # se pintan y el del colegiado nunca.  Lo que no tiene tipo se pinta.
+            active_rects, _ = select_structural_rects(
+                zone.layout_redact_rects, zone.layout_redact_types, analyzer.disabled_types,
+            )
+            rects.extend(active_rects)
+            if structural_rects_released(zone.layout_redact_types, analyzer.disabled_types):
+                # Lo que cubría el rect descartado ya no está tapado.  La zona FORM
+                # del OCR no tiene texto propio: se reconstruye desde sus tokens y
+                # se tapan sus entidades activas, igual que en una zona BODY.
+                for r, entity in _released_form_entities(
+                    zone, analyzer, mode, page_context, easy_words, easy_line_h,
+                ):
+                    if not _center_in_any(r, rects):
+                        rects.append(r)
+                    if entity is not None:
+                        entities.append(entity)
+                continue
             if collect_entities and zone.text.strip():
                 cfg = get_detector_config(zone.zone_type)
                 if cfg.entity_types is not None:
@@ -951,6 +969,50 @@ def _rect_for_token_range(
 
 def _padded(rect: fitz.Rect, px: float = 2.0, py: float = 2.0) -> fitz.Rect:
     return fitz.Rect(rect.x0 - px, rect.y0 - py, rect.x1 + px, rect.y1 + py)
+
+
+def _released_form_entities(zone, analyzer, mode, page_context, easy_words, easy_line_h):
+    """Rects y entidades de una zona FORM cuyo rect estructural se ha liberado.
+
+    Devuelve pares (rect, entidad o None): la entidad solo acompaña a su primer
+    rect, para contarla una vez.
+    """
+    from app.services.layout.models import PageZone, ZoneType as _ZT
+    from app.services.layout.segmenters import _build_ocr_zone_text_and_tokens
+    from app.services.ocr.models import OcrToken
+
+    if zone.text.strip():
+        work = zone
+    else:
+        ocr_tokens = [
+            OcrToken(text=t.text, confidence=t.confidence or 1.0, rect=t.rect)
+            for t in zone.tokens if t.text.strip()
+        ]
+        if not ocr_tokens:
+            return []
+        text, tokens = _build_ocr_zone_text_and_tokens(ocr_tokens)
+        work = PageZone(zone_type=_ZT.BODY, rect=zone.rect, text=text, tokens=tokens, source="ocr")
+
+    cfg = get_detector_config(zone.zone_type)
+    if cfg.entity_types is None or not work.text.strip():
+        return []
+    allowed = set(cfg.entity_types)
+    out = []
+    for entity in analyzer.analyze(work.text, mode=mode, zone_type=zone.zone_type.value,
+                                   context_text=page_context):
+        if entity.entity_type not in allowed:
+            continue
+        if easy_words is not None:
+            entity_rects = _entity_rects_via_easy(entity, work, easy_words, easy_line_h)
+        else:
+            entity_rects = _entity_rects_from_zone(entity, work)
+        for i, r in enumerate(entity_rects):
+            out.append((r, PiiEntity(
+                entity_type=entity.entity_type, start=entity.start, end=entity.end,
+                score=entity.score, source=entity.source,
+                text=work.text[entity.start:entity.end],
+            ) if i == 0 else None))
+    return out
 
 
 def _mostly_same(a: fitz.Rect, b: fitz.Rect) -> bool:

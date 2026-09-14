@@ -9,6 +9,7 @@ import unicodedata
 import fitz
 
 from app.services.ocr.models import OcrToken
+from app.services.pii.label_types import label_entity_type
 
 
 @dataclass(frozen=True)
@@ -433,22 +434,39 @@ class OcrFormLayoutAnalyzer:
         self,
         tokens: list[OcrToken],
     ) -> list[fitz.Rect]:
-        rects: list[fitz.Rect] = []
+        return self.merge_close_rects([rect for rect, _ in self._typed_form_items(tokens)])
+
+    def typed_rects_for_form_values(
+        self,
+        tokens: list[OcrToken],
+    ) -> list[tuple[fitz.Rect, str | None]]:
+        """Como rects_for_form_values, con el tipo que anuncia cada etiqueta.
+
+        Solo se fusionan rects del mismo tipo: en una fila «Teléfono … Pasaporte …»
+        cada valor conserva el suyo y puede liberarse por separado.
+        """
+        return self.merge_close_typed_rects(self._typed_form_items(tokens))
+
+    def _typed_form_items(
+        self,
+        tokens: list[OcrToken],
+    ) -> list[tuple[fitz.Rect, str | None]]:
+        items: list[tuple[fitz.Rect, str | None]] = []
 
         rows = self.group_tokens_by_row(tokens)
 
         for row_index, row in enumerate(rows):
-            rects.extend(self._rects_for_labeled_row(row))
+            items.extend(self._rects_for_labeled_row(row))
 
             # Si una etiqueta está sola y el valor cae justo debajo.
-            rects.extend(
+            items.extend(
                 self._rects_for_label_above_value(
                     rows=rows,
                     row_index=row_index,
                 )
             )
 
-        return self.merge_close_rects(rects)
+        return items
     
 
     def has_form_layout(
@@ -472,7 +490,7 @@ class OcrFormLayoutAnalyzer:
     def _rects_for_labeled_row(
         self,
         row: list[OcrToken],
-    ) -> list[fitz.Rect]:
+    ) -> list[tuple[fitz.Rect, str | None]]:
         row_text, spans = self._build_row_text_and_spans(row)
 
         if not row_text.strip():
@@ -524,20 +542,22 @@ class OcrFormLayoutAnalyzer:
 
         # Importante: una sola caja continua para cubrir valores partidos.
         value_rect = self._rect_for_tokens(valid_value_tokens)
+        label_type = label_entity_type(" ".join(token.text for token in label_tokens))
 
-        return [
+        return [(
             padded_rect(
                 value_rect,
                 padding_x=4.0,
                 padding_y=3.0,
-            )
-        ]
+            ),
+            label_type,
+        )]
 
     def _rects_for_inline_label_value(
         self,
         row: list[OcrToken],
         spans: list[RowTokenSpan],
-    ) -> list[fitz.Rect]:
+    ) -> list[tuple[fitz.Rect, str | None]]:
         if len(row) != 1:
             return []
 
@@ -566,7 +586,7 @@ class OcrFormLayoutAnalyzer:
                     local_end=len(text),
                 )
 
-                return [rect] if rect is not None else []
+                return [(rect, label_entity_type(label))] if rect is not None else []
 
         return []
 
@@ -659,7 +679,7 @@ class OcrFormLayoutAnalyzer:
         self,
         rows: list[list[OcrToken]],
         row_index: int,
-    ) -> list[fitz.Rect]:
+    ) -> list[tuple[fitz.Rect, str | None]]:
         current_row = rows[row_index]
 
         if not current_row:
@@ -694,11 +714,12 @@ class OcrFormLayoutAnalyzer:
         if next_top - current_bottom > current_height * 2.2:
             return []
 
-        return [
+        return [(
             padded_rect(
                 self._rect_for_tokens(next_row),
-            )
-        ]
+            ),
+            label_entity_type(row_text),
+        )]
 
     def _rects_for_row_range(
         self,
@@ -898,6 +919,28 @@ class OcrFormLayoutAnalyzer:
             index += 1
 
         return index
+
+    @staticmethod
+    def merge_close_typed_rects(
+        items: list[tuple[fitz.Rect, str | None]],
+    ) -> list[tuple[fitz.Rect, str | None]]:
+        """merge_close_rects que solo une rects contiguos del MISMO tipo."""
+        if not items:
+            return []
+        ordered = sorted(items, key=lambda item: (item[0].y0, item[0].x0))
+        merged: list[list] = []
+        for rect, etype in ordered:
+            if merged:
+                previous, previous_type = merged[-1]
+                same_line = (
+                    abs(previous.y0 - rect.y0) < 8
+                    and abs(previous.y1 - rect.y1) < 10
+                )
+                if same_line and rect.x0 <= previous.x1 + 6 and previous_type == etype:
+                    previous |= rect
+                    continue
+            merged.append([fitz.Rect(rect), etype])
+        return [(rect, etype) for rect, etype in merged]
 
     @staticmethod
     def merge_close_rects(
