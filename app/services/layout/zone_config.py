@@ -58,6 +58,9 @@ ALL_PII_TYPES: list[str] = [
     # Razon social de empresa PRIVADA (requisito del ayuntamiento).  La
     # institucion publica queda excluida por el veto PUBLIC_INSTITUTION_RE.
     "ORGANIZATION",
+    # Codigos QR y de barras.  Desactivable, pero un codigo cuyo contenido lleve
+    # un tipo obligatorio se redacta igual (services/pii/code_policy.py).
+    "QR_CODE",
 ]
 
 

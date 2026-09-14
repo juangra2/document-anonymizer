@@ -40,10 +40,11 @@ from app.services.pdf.full_redaction import DNI_SCAN, classify_page
 from app.services.pdf.plan_pages import is_image_dominant_page, is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services import progress
+from app.services.pii.code_policy import QR_TYPE, code_may_stay_visible
 from app.services.pii.gazetteer import normalize as _norm_token
 from app.services.pii.models import PiiEntity
 from app.services.vision.card_region import card_regions
-from app.services.vision.code_detector import detect_visual_code_rects
+from app.services.vision.code_detector import detect_redactable_codes, detect_visual_code_rects
 from app.services.vision.scanned_marks import detect_stamp_rects
 
 logger = logging.getLogger(__name__)
@@ -351,6 +352,18 @@ def redact_pdf_scanned(
                         page_index,
                     )
                     code_rects = detect_visual_code_rects(image)
+                    if QR_TYPE in analyzer.disabled_types:
+                        # Esta vía solo localiza códigos.  Quedan visibles los que
+                        # se pueden leer y no llevan ningún obligatorio; los que
+                        # no se leen se redactan, porque no se puede descartar PII.
+                        visible = [
+                            rect for rect, payload in detect_redactable_codes(image)
+                            if code_may_stay_visible(payload, analyzer)
+                        ]
+                        code_rects = [
+                            r for r in code_rects
+                            if not any(_mostly_same(r, v) for v in visible)
+                        ]
                     if settings.detect_visual_stamps:
                         code_rects = code_rects + detect_stamp_rects(image)
                     draw = ImageDraw.Draw(image)
@@ -550,12 +563,17 @@ def _collect_redaction_rects(
 
         # SIGNATURE / QR_CODE → full zone rect
         if zone.is_auto_redact:
+            if zone.zone_type == ZoneType.QR_CODE and code_may_stay_visible(zone.text, analyzer):
+                # QR_CODE desactivado y el contenido no lleva ningún obligatorio.
+                continue
             rects.append(zone.rect)
-            if collect_entities and zone.zone_type == ZoneType.QR_CODE and zone.text:
+            # Se cuenta siempre que se redacta, pida o no la petición la lista de
+            # entidades: el resumen por tipo no puede depender de include_entities.
+            if zone.zone_type == ZoneType.QR_CODE:
                 entities.append(PiiEntity(
                     entity_type="QR_CODE",
                     start=0,
-                    end=len(zone.text),
+                    end=len(zone.text or ""),
                     score=0.99,
                     source="visual_qr",
                     text=zone.text,
@@ -933,6 +951,15 @@ def _rect_for_token_range(
 
 def _padded(rect: fitz.Rect, px: float = 2.0, py: float = 2.0) -> fitz.Rect:
     return fitz.Rect(rect.x0 - px, rect.y0 - py, rect.x1 + px, rect.y1 + py)
+
+
+def _mostly_same(a: fitz.Rect, b: fitz.Rect) -> bool:
+    """Dos rects que señalan el mismo objeto (solapan >= 50 % del menor)."""
+    inter = fitz.Rect(a) & b
+    if inter.is_empty:
+        return False
+    smaller = min(a.get_area(), b.get_area()) or 1.0
+    return inter.get_area() >= 0.5 * smaller
 
 
 def _center_in_any(rect: fitz.Rect, containers: list[fitz.Rect]) -> bool:

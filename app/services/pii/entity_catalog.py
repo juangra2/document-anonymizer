@@ -104,8 +104,10 @@ _CATALOG: tuple[EntityTypeInfo, ...] = (
     EntityTypeInfo("ROLE_TABLE_ROW", "Fila de tabla de cargos",
                    "Filas de tabla que asocian un cargo con una persona."),
     EntityTypeInfo("QR_CODE", "Código QR o de barras",
-                   "Códigos QR y de barras, que suelen codificar datos "
-                   "personales."),
+                   "Códigos QR y códigos de barras. Si el contenido del código "
+                   "incluye un dato obligatorio (nombre, DNI, NIE, número de la "
+                   "Seguridad Social, cuenta bancaria o fecha de nacimiento), se "
+                   "oculta aunque este tipo esté desactivado."),
 )
 
 _BY_ID = {info.id: info for info in _CATALOG}

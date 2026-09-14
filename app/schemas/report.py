@@ -96,6 +96,12 @@ class ProcessingReport(BaseModel):
     residual_entities: int = 0
 
     entities_by_type: dict[str, int] = Field(default_factory=dict)
+    # Redacciones estructurales (valor tras una etiqueta de formulario, columna
+    # sensible de tabla) que no se atribuyen a ningún tipo del catálogo.  Van
+    # aparte de entities_by_type para que ese resumen cuadre con
+    # entity_types_applied / entity_types_disabled: antes se contaban bajo una
+    # clave LAYOUT_VALUE que no era ningún tipo.
+    structural_redactions_untyped: int = 0
     residual_entities_by_type: dict[str, int] = Field(default_factory=dict)
 
     manual_review_required: bool = False

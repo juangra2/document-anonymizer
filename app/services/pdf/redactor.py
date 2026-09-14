@@ -32,6 +32,7 @@ from app.services.pdf.full_redaction import classify_pages
 from app.services.pdf.plan_pages import is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services import progress
+from app.services.pii.code_policy import code_may_stay_visible
 from app.services.pii.institution_filter import filter_institutional
 from app.services.pii.models import PiiEntity
 from app.services.vision.code_detector import detect_redactable_codes, detect_visual_code_rects
@@ -199,9 +200,6 @@ def redact_pdf_digital(
 
     entities_by_type = analyzer.count_by_type(all_entities)
 
-    if layout_rect_count:
-        entities_by_type["LAYOUT_VALUE"] = layout_rect_count
-
     return ProcessingReport(
         job_id=job_id,
         status="completed" if not warnings else "completed_with_warnings",
@@ -211,6 +209,7 @@ def redact_pdf_digital(
         entities_detected=len(all_entities) + layout_rect_count,
         entities_redacted=redacted_count,
         entities_by_type=entities_by_type,
+        structural_redactions_untyped=layout_rect_count,
         residual_entities=0,
         manual_review_required=bool(plan_pages_skipped) or bool(full_redaction_pages),
         warnings=warnings,
@@ -295,12 +294,17 @@ def _collect_redaction_rects(
 
         # SIGNATURE / QR_CODE → full zone rect
         if zone.is_auto_redact:
+            if zone.zone_type == ZoneType.QR_CODE and code_may_stay_visible(zone.text, analyzer):
+                # QR_CODE desactivado y el contenido no lleva ningún obligatorio.
+                continue
             rects.append(zone.rect)
-            if collect_entities and zone.zone_type == ZoneType.QR_CODE and zone.text:
+            # Se cuenta siempre que se redacta, pida o no la petición la lista de
+            # entidades: el resumen por tipo no puede depender de include_entities.
+            if zone.zone_type == ZoneType.QR_CODE:
                 entities.append(PiiEntity(
                     entity_type="QR_CODE",
                     start=0,
-                    end=len(zone.text),
+                    end=len(zone.text or ""),
                     score=0.99,
                     source="visual_qr",
                     text=zone.text,

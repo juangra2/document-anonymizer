@@ -15,6 +15,7 @@ Flow
 """
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -230,10 +231,12 @@ def redact_pdf_hybrid_secure(
         selectable_text_chars=inspection.selectable_text_chars,
         entities_detected=digital_report.entities_detected + len(all_ocr_entities),
         entities_redacted=digital_report.entities_redacted + ocr_redacted_count,
-        entities_by_type={
-            **digital_report.entities_by_type,
-            **analyzer.count_by_type(all_ocr_entities),
-        },
+        # Se suman: con {**a, **b} el recuento OCR pisaba al digital del mismo tipo.
+        entities_by_type=dict(
+            Counter(digital_report.entities_by_type)
+            + Counter(analyzer.count_by_type(all_ocr_entities))
+        ),
+        structural_redactions_untyped=digital_report.structural_redactions_untyped,
         residual_entities=residual_count,
         residual_entities_by_type=residual_by_type,
         manual_review_required=(
