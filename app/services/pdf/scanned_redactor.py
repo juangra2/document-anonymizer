@@ -73,6 +73,11 @@ def _restore(image: Image.Image, angle: int) -> Image.Image:
     return image.rotate(-angle, expand=True)
 
 
+def _blacked_out(image: Image.Image) -> Image.Image:
+    """La página entera en negro, con el mismo tamaño y modo que *image*."""
+    return Image.new(image.mode, image.size, "black")
+
+
 # Metadata-only page classifiers shared with the hybrid/digital paths.
 _is_image_dominant_page = is_image_dominant_page
 
@@ -112,6 +117,8 @@ def redact_pdf_scanned(
     cropped_pages: list[int] = []
     crop_fallbacks: dict[int, str] = {}
     poor_ocr_pages: list[int] = []
+    # Páginas tachadas enteras porque el OCR no pudo leerlas: motivo por página.
+    unreadable_pages: dict[int, str] = {}
     warnings: list[str] = []
 
     try:
@@ -379,26 +386,48 @@ def redact_pdf_scanned(
                     _append_image_as_pdf_page(output_doc, image, page.rect)
                     continue
 
-                # Per-page timeout: a stalled page is skipped (un-redacted) and
-                # flagged for manual review rather than hanging the whole job.
+                # Per-page timeout: a stalled page must not hang the whole job.
+                # Sin leerla no se puede descartar que lleve datos, así que se
+                # tacha entera en vez de entregarse intacta.
                 try:
                     result = _run_with_timeout(
                         lambda: _process_page_heavy(page_index, image),
                         settings.ocr_page_timeout_s,
                     )
                 except FuturesTimeout:
-                    logger.warning(
-                        "Page %d exceeded the %ds OCR budget; skipping (manual review).",
-                        page_index, settings.ocr_page_timeout_s,
-                    )
-                    skipped_pages.append(page_index)
-                    _append_image_as_pdf_page(output_doc, image, page.rect)
+                    if settings.redact_unreadable_pages:
+                        logger.warning(
+                            "Page %d exceeded the %ds OCR budget; redacted in full.",
+                            page_index, settings.ocr_page_timeout_s,
+                        )
+                        unreadable_pages[page_index] = "ocr_timeout"
+                        redacted_count += 1
+                        _append_image_as_pdf_page(
+                            output_doc, _blacked_out(image), page.rect,
+                        )
+                    else:
+                        logger.warning(
+                            "Page %d exceeded the %ds OCR budget; skipping (manual review).",
+                            page_index, settings.ocr_page_timeout_s,
+                        )
+                        skipped_pages.append(page_index)
+                        _append_image_as_pdf_page(output_doc, image, page.rect)
                     continue
 
                 if result.get("rotated"):
                     rotated_pages[page_index] = result["rotated"]
                 if result.get("poor_ocr"):
-                    poor_ocr_pages.append(page_index)
+                    if settings.redact_unreadable_pages and not result.get("full_redaction"):
+                        # Ilegible en todos los giros: lo que el OCR no ha leído
+                        # tampoco se ha podido tachar.  Las entidades se conservan
+                        # para el informe; los residuos del segundo pase ya no
+                        # aplican sobre una página en negro.
+                        unreadable_pages[page_index] = "ocr_illegible"
+                        result["image"] = _blacked_out(result["image"])
+                        result["rect_count"] = 1
+                        result["residuals"] = []
+                    else:
+                        poor_ocr_pages.append(page_index)
 
                 if result.get("full_redaction"):
                     full_redaction_pages[page_index] = result["full_redaction"]
@@ -460,6 +489,15 @@ def redact_pdf_scanned(
             "Low-quality OCR text on pages "
             f"{[i + 1 for i in sorted(poor_ocr_pages)]}: content may not have "
             "been detected. Manual review required."
+        )
+    if unreadable_pages:
+        by_reason: dict[str, list[int]] = {}
+        for idx, why in sorted(unreadable_pages.items()):
+            by_reason.setdefault(why, []).append(idx + 1)
+        detail = "; ".join(f"{why}: {pages}" for why, pages in sorted(by_reason.items()))
+        warnings.append(
+            "Pages redacted in full because OCR could not read them "
+            f"({detail}). Manual review required."
         )
 
     if cropped_pages:

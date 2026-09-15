@@ -209,9 +209,17 @@ class Settings(BaseSettings):
     ocr_second_pass_verification: bool = True
 
     # Per-page OCR budget (seconds).  A page that exceeds it (e.g. a very large
-    # blueprint that stalls the OCR engine) is skipped, logged, and flagged for
-    # manual review instead of hanging the whole job.
+    # blueprint that stalls the OCR engine) does not hang the whole job: it is
+    # handled as an unreadable page (see redact_unreadable_pages).
     ocr_page_timeout_s: int = 360
+
+    # Pagina que el OCR no ha podido leer —ilegible en todos los giros o que
+    # agota ocr_page_timeout_s—: se tacha ENTERA.  Entregarla intacta con un
+    # aviso dejaba visible todo su contenido; medido en un presupuesto
+    # escaneado girado: nombre del tecnico, empresa y fecha legibles.  Si no se
+    # ha podido leer, no se puede afirmar que no lleve datos.  False vuelve al
+    # comportamiento anterior (pagina intacta + aviso de revision manual).
+    redact_unreadable_pages: bool = True
 
     # "Image-dominant" page fast path: a page whose largest embedded image covers
     # at least this fraction of the page AND exceeds this pixel count is treated
