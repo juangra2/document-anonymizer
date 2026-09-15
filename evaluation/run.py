@@ -1,8 +1,10 @@
 """Entry point for the evaluation pipeline.
 
 Usage:
-    python -m evaluation.run --input-pdfs input/pdfs/ --input-labels input/labels/ --output evaluation/report.html
-    python -m evaluation.run --input-pdfs input/pdfs/ --input-labels input/labels/ --limit 5
+    python -m evaluation.run --input-pdfs ../corpus-generator/output/pdfs/ \
+        --input-labels ../corpus-generator/output/labels/ --workers 2 --output evaluation/report.html
+    python -m evaluation.run --input-pdfs ../corpus-generator/output/ext_pdfs/ \
+        --input-labels ../corpus-generator/output/ext_labels/ --timeout 900 --limit 5
 """
 from __future__ import annotations
 
@@ -112,6 +114,11 @@ def main() -> None:
         "--resume", action="store_true",
         help="Skip documents already in --checkpoint file.",
     )
+    parser.add_argument(
+        "--timeout", type=int, default=180,
+        help="Segundos de espera por documento.  Los escaneados girados pueden pasar "
+             "de 180 s; un documento que agota la espera cuenta como error de API.",
+    )
     args = parser.parse_args()
 
     doc_results = run_evaluation(
@@ -123,6 +130,7 @@ def main() -> None:
         checkpoint_path=args.checkpoint,
         resume=args.resume,
         disabled_types=_disabled_types_arg(args.disabled_types),
+        timeout=args.timeout,
     )
 
     if not doc_results:

@@ -109,6 +109,7 @@ def evaluate_single(
     gt: dict[str, dict],
     iou_threshold: float = 0.5,
     disabled_types: list[str] | None = None,
+    timeout: int = _DEFAULT_TIMEOUT,
 ) -> DocResult | None:
     """Evaluate one document. Returns None when no ground truth exists."""
     doc_id = pdf_path.stem
@@ -116,7 +117,7 @@ def evaluate_single(
     if gt_doc is None:
         return None
 
-    report, error = call_api(pdf_path, disabled_types=disabled_types)
+    report, error = call_api(pdf_path, timeout=timeout, disabled_types=disabled_types)
     if error:
         result = _all_gt_as_fn(gt_doc)
         result = DocResult(
@@ -157,6 +158,7 @@ def run_evaluation(
     checkpoint_path: Path | None = None,
     resume: bool = False,
     disabled_types: list[str] | None = None,
+    timeout: int = _DEFAULT_TIMEOUT,
 ) -> list[DocResult]:
     """Evaluate all PDFs in pdfs_dir against labels_dir ground truth.
 
@@ -206,7 +208,7 @@ def run_evaluation(
     try:
         with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = {
-                executor.submit(evaluate_single, pdf, gt, iou_threshold, disabled_types): pdf
+                executor.submit(evaluate_single, pdf, gt, iou_threshold, disabled_types, timeout): pdf
                 for pdf in pdf_files
             }
             for future in as_completed(futures):
