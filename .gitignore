@@ -39,8 +39,28 @@ htmlcov/
 .coverage
 coverage.xml
 
-# Samples / debug output (no subir datos reales)
+# Samples / debug output
 samples/debug_ocr/
+
+# DOCUMENTOS REALES CON DATOS PERSONALES — NO SUBIR NUNCA.
+# Los documentos reales de prueba (DNI, expedientes y tomos del ayuntamiento)
+# contienen datos personales de personas identificables.  Subirlos al
+# repositorio, aunque se borren después, los deja para siempre en el
+# historial de git.  Convención: cualquier documento real va en samples/real/,
+# que está ignorada entera.  Las otras dos líneas son una red por si alguno
+# se deja fuera de esa carpeta.  No quites estas reglas.
+samples/real/
+samples/*real*
+samples/DNI*
+
+# Artefactos de evaluación que se regeneran solos.  La referencia vigente vive
+# en evaluation/reference/ y sí está bajo seguimiento.
+evaluation/results*.json
+evaluation/report*.html
+evaluation/checkpoint*.jsonl
+evaluation/*.pdf
+evaluation/work*/
+input/
 
 # Model weights (large binary files — download separately)
 model/
