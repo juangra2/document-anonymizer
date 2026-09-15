@@ -122,8 +122,35 @@ def test_choice_between_rotations_uses_confidence_not_only_length():
     assert orientation_score(legible) > orientation_score(reversed_text)
 
 
-def test_probe_downscales_for_the_angle_decision():
-    from app.services.ocr.orientation import _probe
+def test_opposite_rotations_are_decided_at_full_resolution():
+    """90° y 270° dejan la página apaisada: los separa la confianza a tamaño completo.
 
-    probe = _probe(Image.new("RGB", (1654, 2338)))
-    assert max(probe.size) <= settings.ocr_orientation_probe_px
+    Medido en el corpus de extensión (correcto = 270°): una copia reducida de
+    1000 px elegía mal en 5 de 7 páginas porque en pequeño el texto de un A4 no
+    se lee y la confianza salía igual en ambos giros.  Aquí una franja negra
+    marca el sentido: tras girar 270° queda a la derecha y el OCR simulado lee
+    texto derecho; tras girar 90° queda a la izquierda y lee texto invertido,
+    con tokens más largos pero confianza baja.
+    """
+    image = Image.new("L", (100, 200), 255)
+    image.paste(0, (0, 0, 100, 20))
+    upright = OcrPage(page_index=0, width=200, height=100, tokens=[
+        OcrToken(text="PRESUPUESTO GENERAL", confidence=0.7, rect=fitz.Rect(0, 0, 50, 8)),
+        OcrToken(text="TECNICO REDACTOR", confidence=0.7, rect=fitz.Rect(0, 10, 50, 18)),
+    ])
+    upside_down = OcrPage(page_index=0, width=200, height=100, tokens=[
+        OcrToken(text="ojsendnsajd>>>lejeueb", confidence=0.2, rect=fitz.Rect(0, 0, 50, 8)),
+        OcrToken(text="jojopepaj>>>ooiuoej", confidence=0.2, rect=fitz.Rect(0, 10, 50, 18)),
+    ])
+    sizes = []
+
+    def run(img):
+        sizes.append(max(img.size))
+        if img.width < img.height:
+            return _NOISE
+        return upright if img.getpixel((img.width - 1, img.height // 2)) == 0 else upside_down
+
+    result = resolve_orientation(image, run)
+    assert result.angle == 270
+    assert result.ocr_page is upright
+    assert set(sizes) == {200}, "ningún giro se decide sobre una copia reducida"
