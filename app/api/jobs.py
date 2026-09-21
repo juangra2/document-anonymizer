@@ -63,6 +63,7 @@ def _to_response(job: Job) -> JobResponse:
     return JobResponse(
         job_id=job.id,
         status=job.status,
+        stopping=job.cancel_requested and job.status == "running",
         created_at=job.created_at,
         started_at=job.started_at,
         finished_at=job.finished_at,
@@ -251,9 +252,26 @@ async def get_job_report(job_id: str) -> ProcessingReport:
     return report
 
 
-@router.delete("/{job_id}", status_code=204)
+@router.delete(
+    "/{job_id}",
+    status_code=204,
+    responses={
+        202: {"description": "Se está procesando: se ha pedido la parada y "
+                             "terminará de soltar la página en curso."},
+        204: {"description": "Parado y borrado."},
+        404: {"description": "Trabajo desconocido o ya borrado."},
+    },
+)
 async def delete_job(job_id: str) -> Response:
-    """Borra el trabajo y sus ficheros sin esperar a que caduquen."""
-    if not job_store.delete(job_id):
+    """Para el trabajo y borra sus ficheros sin esperar a que caduquen.
+
+    En cola o terminado el borrado es inmediato (204).  Si se está procesando
+    no se puede cortar a mitad de página: se responde 202, el estado pasa a
+    `stopping` y el trabajo desaparece en cuanto suelte la página que tiene
+    entre manos —como mucho, el presupuesto por página—.  Pedirlo dos veces
+    responde lo mismo la segunda vez.
+    """
+    outcome = job_store.delete(job_id)
+    if outcome == "missing":
         raise HTTPException(status_code=404, detail="Trabajo desconocido o ya borrado.")
-    return Response(status_code=204)
+    return Response(status_code=202 if outcome == "stopping" else 204)

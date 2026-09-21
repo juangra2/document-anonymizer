@@ -17,6 +17,7 @@ from pathlib import Path
 
 from app.core.config import settings
 from app.services.layout.segmenters import OcrPageSegmenter
+from app.services import cancellation
 from app.services.ocr.base import OcrEngine
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services.verification.layers import (
@@ -75,6 +76,10 @@ class DocumentVerifier:
         page_results: list[PageVerificationResult] = []
 
         for page_index in range(page_count):
+            # La comprobación final vuelve a leer el documento con OCR: sin esto
+            # una parada tendría que esperar a que verificara el documento
+            # entero antes de soltar la GPU.
+            cancellation.check()
             page_layer_results: list[LayerResult] = []
 
             if VerificationLayer.TEXTUAL in layers_cfg:

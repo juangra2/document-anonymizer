@@ -55,6 +55,13 @@ class JobResponse(BaseModel):
     job_id: str
     status: Literal["queued", "running", "completed", "failed", "expired"]
 
+    stopping: bool = Field(
+        default=False,
+        description="Se pidió parar este documento y todavía está soltando la "
+                    "página en curso. El estado sigue siendo `running` hasta "
+                    "que termina; a partir de ahí el trabajo ya no existe.",
+    )
+
     created_at: datetime
     started_at: datetime | None = None
     finished_at: datetime | None = None

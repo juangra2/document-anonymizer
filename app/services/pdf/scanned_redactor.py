@@ -21,7 +21,6 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from io import BytesIO
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 import fitz
 from PIL import Image, ImageDraw
@@ -39,7 +38,8 @@ from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pdf.full_redaction import DNI_SCAN, classify_page
 from app.services.pdf.plan_pages import is_image_dominant_page, is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
-from app.services import progress
+from app.services import cancellation, progress
+from app.services.storage.temp_storage import scratch_dir
 from app.services.pii.code_policy import QR_TYPE, code_may_stay_visible
 from app.services.pii.label_types import structural_rects_released
 from app.services.pdf.redaction_plan import RedactionPlan
@@ -122,7 +122,7 @@ def redact_pdf_scanned(
     warnings: list[str] = []
 
     try:
-        with TemporaryDirectory(prefix="pdf_ocr_") as tmp_dir_name:
+        with scratch_dir(prefix="pdf_ocr_") as tmp_dir_name:
             tmp_dir = Path(tmp_dir_name)
 
             # Engines that process the full PDF natively (MinerU) do one pass here.
@@ -136,12 +136,22 @@ def redact_pdf_scanned(
                         "Native PDF analysis failed (%s); falling back to raster OCR", exc
                     )
 
+            # El testigo de parada se toma AQUÍ, en el hilo del trabajo: el hilo
+            # auxiliar que corre cada página con presupuesto de tiempo no hereda
+            # las variables de hilo de quien lo lanza, pero sí ve este objeto.
+            stop = cancellation.current()
+
             def _process_page_heavy(page_index: int, image: Image.Image) -> dict:
                 """OCR + segment + collect + draw + second pass for one page.
 
                 Runs under a per-page timeout; draws on a copy so the caller can
                 fall back to the un-redacted original if it times out.
+
+                Se comprueba la parada entre pasos pesados, no solo entre
+                páginas: en un escaneado cada paso es una llamada al OCR y
+                esperar a la página entera puede ser varios minutos.
                 """
+                stop.check()
                 # Orientación: un escaneo con el contenido girado devuelve
                 # RUIDO, no vacío, y sin corregirlo no se detecta ni se avisa de
                 # nada.  Se decide ANTES que MinerU para que el motor de layout
@@ -156,6 +166,7 @@ def redact_pdf_scanned(
                     )
 
                 orientation = resolve_orientation(image, _ocr_word)
+                stop.check()
                 if orientation.angle:
                     image = image.rotate(orientation.angle, expand=True)
                 ocr_page = orientation.ocr_page
@@ -178,6 +189,7 @@ def redact_pdf_scanned(
                         layout_page = ocr_engine.analyze_image(
                             image_path=layout_path, page_index=page_index,
                         )
+                stop.check()
 
                 # A1: detect PII on the layout engine's clean, ordered text
                 # (MinerU) when available — its blocks keep IBANs/CSV/names
@@ -298,6 +310,7 @@ def redact_pdf_scanned(
                     )
 
                 residuals: list[PiiEntity] = []
+                stop.check()
                 if settings.ocr_second_pass_verification:
                     redacted_path = tmp_dir / f"page_{page_index + 1}_redacted.png"
                     work_image.save(redacted_path)
@@ -323,6 +336,7 @@ def redact_pdf_scanned(
 
             for page_index, page in enumerate(source_doc):
                 on_page(page_index)
+                cancellation.check()
                 # Plan pages (A1/A0 drawings) are detected from metadata BEFORE
                 # rendering: rasterising them is the expensive step the page
                 # budget cannot cover.  Only the title block is analysed and

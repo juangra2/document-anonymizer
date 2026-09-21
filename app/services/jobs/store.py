@@ -14,6 +14,10 @@ Dos garantías que no son evidentes leyendo solo las rutas:
   caducados aunque nadie los consulte, y borra los ficheros del disco, no solo
   la marca en memoria.  El documento original se borra antes, en cuanto acaba
   el proceso: a partir de ahí no hace falta para nada.
+* **Parar un documento en proceso es cooperativo**.  `delete()` no le quita los
+  ficheros al trabajador de debajo —eso dejaba la GPU ocupada con algo que ya
+  no existía—: marca la parada, y es el propio trabajador quien borra al salir,
+  cuando ya nadie está usando nada.
 
 Nada de esto sobrevive a un reinicio, y es deliberado: un broker externo sería
 un servicio más que operar en un despliegue de un solo nodo.
@@ -34,12 +38,17 @@ from uuid import uuid4
 from app.core.config import settings
 from app.core.errors import error_code_for
 from app.schemas.report import ProcessingReport
-from app.services import progress
+from app.services import cancellation, progress
 
 logger = logging.getLogger(__name__)
 
 
 JobStatus = Literal["queued", "running", "completed", "failed", "expired"]
+
+# Resultado de pedir la parada de un trabajo.  "stopping" es el único caso en
+# que el trabajo sigue existiendo al responder: se está procesando y hay que
+# esperar a que suelte la página que tiene entre manos.
+DeleteOutcome = Literal["gone", "stopping", "missing"]
 
 
 class QueueFullError(RuntimeError):
@@ -68,6 +77,9 @@ class Job:
     include_entities: bool = False
 
     status: JobStatus = "queued"
+    # Se pidió parar este documento.  Lo lee el procesamiento entre páginas,
+    # así que se escribe una sola vez y nunca se vuelve a poner en falso.
+    cancel_requested: bool = False
     created_at: datetime = field(default_factory=_now)
     started_at: datetime | None = None
     finished_at: datetime | None = None
@@ -222,14 +234,29 @@ class JobStore:
             self._purge_expired_locked()
             return self._jobs.get(job_id)
 
-    def delete(self, job_id: str) -> bool:
-        """Borra el trabajo y sus ficheros a petición del cliente."""
+    def delete(self, job_id: str) -> DeleteOutcome:
+        """Para el trabajo y borra sus ficheros a petición del cliente.
+
+        En cola o terminado, el borrado es inmediato.  En proceso no se puede:
+        el trabajador está leyendo el original y escribiendo el resultado, así
+        que quitarle los ficheros lo dejaría trabajando sobre algo que ya no
+        existe, con la GPU ocupada.  Se marca la parada y el trabajador borra
+        al salir, en cuanto suelte la página en curso.
+        """
         with self._lock:
-            job = self._jobs.pop(job_id, None)
-        if job is None:
-            return False
+            job = self._jobs.get(job_id)
+            if job is None:
+                return "missing"
+            if job.status == "running":
+                if not job.cancel_requested:
+                    logger.info("job %s: stop requested while running", job.id)
+                job.cancel_requested = True
+                return "stopping"
+            # Un trabajo en cola desaparece del registro y el trabajador que lo
+            # saque de la cola no lo encontrará: no llega a empezar.
+            self._jobs.pop(job_id, None)
         self._remove_files(job)
-        return True
+        return "gone"
 
     def stats(self) -> dict[str, int]:
         """Carga actual, para el endpoint de salud."""
@@ -284,8 +311,12 @@ class JobStore:
         def on_progress(done: int, total: int) -> None:
             self.report_progress(job.id, done, total)
 
+        cancelled = False
+
         try:
-            with progress.track(on_progress):
+            with progress.track(on_progress), cancellation.track(
+                lambda: job.cancel_requested
+            ):
                 report = self._pipeline().process(
                     job.input_path,
                     job.output_path,
@@ -294,27 +325,47 @@ class JobStore:
                     job.include_entities,
                     job.disabled_types,
                 )
+        except cancellation.JobCancelled:
+            cancelled = True
         except Exception as exc:  # noqa: BLE001 — el trabajo registra el fallo
-            logger.exception("job %s failed", job.id)
-            with self._lock:
-                job.status = "failed"
-                job.error_code = error_code_for(exc)
-                job.error_message = str(exc) or exc.__class__.__name__
-                job.finished_at = _now()
-                job.expires_at = job.finished_at + self._ttl
+            # Una parada puede provocar de paso un fallo cualquiera (un fichero
+            # a medias, por ejemplo); si se pidió parar, lo que vale es eso.
+            if job.cancel_requested:
+                cancelled = True
+            else:
+                logger.exception("job %s failed", job.id)
+                with self._lock:
+                    job.status = "failed"
+                    job.error_code = error_code_for(exc)
+                    job.error_message = str(exc) or exc.__class__.__name__
+                    job.finished_at = _now()
+                    job.expires_at = job.finished_at + self._ttl
         else:
             with self._lock:
-                job.report = report
-                job.pages_total = report.pages or job.pages_total
-                job.pages_done = job.pages_total
-                job.status = "completed"
-                job.finished_at = _now()
-                job.expires_at = job.finished_at + self._ttl
+                # La parada pudo llegar entre la última página y este momento:
+                # entonces el resultado no se publica, se tira.
+                if job.cancel_requested:
+                    cancelled = True
+                else:
+                    job.report = report
+                    job.pages_total = report.pages or job.pages_total
+                    job.pages_done = job.pages_total
+                    job.status = "completed"
+                    job.finished_at = _now()
+                    job.expires_at = job.finished_at + self._ttl
         finally:
             # El original ya no hace falta y es el fichero con más PII de los
             # dos: se borra en cuanto termina el proceso, salga bien o mal.
             if not settings.store_original:
                 job.input_path.unlink(missing_ok=True)
+
+        if cancelled:
+            # Lo borra quien lo estaba procesando, no quien pidió la parada: a
+            # estas alturas ya nadie tiene abierto ninguno de estos ficheros.
+            with self._lock:
+                self._jobs.pop(job.id, None)
+            self._remove_files(job)
+            logger.info("job %s stopped and deleted on request", job.id)
 
     def report_progress(self, job_id: str, done: int, total: int) -> None:
         with self._lock:

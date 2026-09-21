@@ -154,6 +154,30 @@ def test_deleting_a_job_removes_its_files_from_disk():
     assert client.get(f"/jobs/{job_id}").status_code == 404
 
 
+def test_stopping_a_running_document_is_accepted_not_immediate(monkeypatch):
+    """202 = «se está parando»; el trabajo aún existe al responder.
+
+    La parada de verdad (que suelte la GPU y borre) se prueba en
+    test_job_cancel.py; aquí solo se fija lo que ve el cliente.
+    """
+    job_id = _upload().json()["job_id"]
+    _wait(job_id)
+    monkeypatch.setattr(job_store, "delete", lambda _id: "stopping")
+
+    assert client.delete(f"/jobs/{job_id}").status_code == 202
+
+
+def test_the_state_says_when_a_document_is_winding_down():
+    job_id = _upload().json()["job_id"]
+    state = _wait(job_id)
+    assert state["stopping"] is False
+
+    job = job_store.get(job_id)
+    job.status = "running"
+    job.cancel_requested = True
+    assert client.get(f"/jobs/{job_id}").json()["stopping"] is True
+
+
 def test_the_original_document_is_removed_as_soon_as_it_is_processed():
     job_id = _upload().json()["job_id"]
     _wait(job_id)

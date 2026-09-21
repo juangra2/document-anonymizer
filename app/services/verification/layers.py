@@ -19,7 +19,6 @@ from __future__ import annotations
 import re
 from io import BytesIO
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from time import perf_counter
 from typing import TYPE_CHECKING
 
@@ -30,6 +29,7 @@ from app.services.pii.analyzer import DIRECT_REGEX_PATTERNS, PiiAnalyzer
 from app.services.pii.models import PiiEntity
 from app.services.verification.models import LayerResult, VerificationLayer
 from app.services.verification.scorer import compute_layer_score
+from app.services.storage.temp_storage import scratch_dir
 
 # Types the system redacts.  Verification must only flag residual PII of these
 # types; LOCATION/ORGANIZATION are detected but never redacted, so counting them
@@ -104,7 +104,7 @@ def check_ocr(
     from PIL import Image
     image = Image.open(BytesIO(image_bytes)).convert("RGB")
 
-    with TemporaryDirectory(prefix="verify_ocr_") as tmp:
+    with scratch_dir(prefix="verify_ocr_") as tmp:
         img_path = Path(tmp) / "page.png"
         image.save(img_path)
         ocr_page = ocr_engine.analyze_image(img_path, page_index)

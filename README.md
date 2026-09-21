@@ -185,7 +185,7 @@ Documentación interactiva en `/docs` con la aplicación arrancada.
 | `GET /jobs/{id}` | Estado, posición en cola, avance por páginas, resumen del resultado o error |
 | `GET /jobs/{id}/result?output=pdf\|zip` | Descarga el PDF anonimizado (o PDF + `report.json` en ZIP) |
 | `GET /jobs/{id}/report` | Informe completo en JSON |
-| `DELETE /jobs/{id}` | Borra el trabajo y sus ficheros sin esperar a que caduquen (204) |
+| `DELETE /jobs/{id}` | Para el trabajo y borra sus ficheros: **204** si es inmediato, **202** si se está procesando y aún tiene que soltar la página en curso |
 | `POST /anonymize` | Camino síncrono: procesa en la propia petición. Admite PDF, PNG, JPG y TIFF |
 | `GET /health` | Señal de vida (siempre 200) con GPU, modelos, cola, límites y problemas detectados |
 | `GET /health/ready` | Igual, pero responde **503** si falta algo esencial (spaCy o EasyOCR) |
@@ -213,6 +213,11 @@ curl -o anonimizado.pdf "http://localhost:8000/jobs/3f2a…/result?output=pdf"
 - **Errores al encolar**: 415 si no es PDF, 413 si supera `MAX_UPLOAD_MB`, 400 si el fichero no es
   un PDF válido, 422 si `disabled_types` es inválido, y 503 con `Retry-After` si la cola está llena.
 - **Al descargar**: 409 si el trabajo no ha terminado o ha fallado, 410 si ya ha caducado.
+- **Al parar** (`DELETE`): en cola o terminado, 204 y desaparece. Procesándose, 204 no es posible
+  —no se puede cortar a mitad de página sin dejar un hilo ocupando la GPU—: responde **202**, el
+  estado sigue siendo `running` con `stopping: true`, y el trabajo desaparece (404) en cuanto
+  suelta la página en curso. En digital es inmediato; en escaneado, como mucho
+  `OCR_PAGE_TIMEOUT_S`. Insistir responde lo mismo; parar algo inexistente, 404.
 - **Un documento a la vez** (`MAX_CONCURRENT_DOCUMENTS=1`): es el límite de acceso a la GPU. El
   camino síncrono `POST /anonymize` comparte ese mismo turno.
 - **No existe un listado de trabajos**, a propósito: el servicio no tiene control de acceso y un

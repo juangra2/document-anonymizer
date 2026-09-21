@@ -15,6 +15,7 @@ from __future__ import annotations
 import fitz
 
 from app.core.config import settings
+from app.services.storage.temp_storage import scratch_dir
 
 # Longitud mínima de un bloque de texto para considerarlo "párrafo".
 _PARAGRAPH_CHARS = 150
@@ -129,9 +130,8 @@ def redact_plan_page(page: fitz.Page, analyzer, mode: str = "strict"):
     from PIL import Image
     image = Image.open(BytesIO(pix.tobytes("png"))).convert("RGB")
 
-    import tempfile
     from pathlib import Path as _Path
-    with tempfile.TemporaryDirectory(prefix="plan_tb_") as td:
+    with scratch_dir(prefix="plan_tb_") as td:
         img_path = _Path(td) / "titleblock.png"
         image.save(img_path)
         ocr_page = get_word_ocr_engine(None).analyze_image(

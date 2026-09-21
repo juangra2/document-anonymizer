@@ -32,7 +32,6 @@ cajetín = franja derecha con 11/12 keywords):
 from __future__ import annotations
 
 import logging
-import tempfile
 import unicodedata
 from io import BytesIO
 from pathlib import Path
@@ -41,6 +40,7 @@ import cv2
 import fitz
 import numpy as np
 from PIL import Image
+from app.services.storage.temp_storage import scratch_dir
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +223,7 @@ def _validate_by_ocr(page: fitz.Page, clip: fitz.Rect) -> bool:
     except Exception:
         return False
 
-    with tempfile.TemporaryDirectory(prefix="titleblock_") as td:
+    with scratch_dir(prefix="titleblock_") as td:
         path = Path(td) / "clip.png"
         image.save(path)
         try:

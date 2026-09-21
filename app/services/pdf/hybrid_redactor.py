@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from collections import Counter
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 import fitz
 
@@ -34,7 +33,8 @@ from app.services.pdf.scanned_redactor import (
     _render_page_to_image,
 )
 from app.services.pii.analyzer import PiiAnalyzer
-from app.services import progress
+from app.services import cancellation, progress
+from app.services.storage.temp_storage import scratch_dir
 from app.services.pii.models import PiiEntity
 from PIL import ImageDraw
 
@@ -67,7 +67,7 @@ def redact_pdf_hybrid_secure(
     ocr_pages_processed = 0
     plan_pages_carried: list[int] = []
 
-    with TemporaryDirectory(prefix="pdf_hybrid_") as tmp_dir_name:
+    with scratch_dir(prefix="pdf_hybrid_") as tmp_dir_name:
         tmp_dir = Path(tmp_dir_name)
         digital_redacted_path = tmp_dir / "digital_redacted.pdf"
 
@@ -88,6 +88,7 @@ def redact_pdf_hybrid_secure(
             for page_info in inspection.page_inspections:
                 page_index = page_info.page_index
                 on_page(page_index)
+                cancellation.check()
                 page = redacted_doc[page_index]
 
                 # Plan pages (A1/A0 drawings): the digital pass already located

@@ -31,7 +31,7 @@ from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pdf.full_redaction import classify_pages
 from app.services.pdf.plan_pages import is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
-from app.services import progress
+from app.services import cancellation, progress
 from app.services.pii.code_policy import code_may_stay_visible
 from app.services.pii.label_types import structural_rects_released
 from app.services.pdf.redaction_plan import RedactionPlan
@@ -79,6 +79,9 @@ def redact_pdf_digital(
 
         for page_index, page in enumerate(doc):
             on_page(page_index)
+            # Parada pedida: el camino digital procesa varias páginas por
+            # segundo, así que aquí se corta practicamente al instante.
+            cancellation.check()
             reason = full_redaction_pages.get(page_index)
             if reason:
                 # La página se pinta entera, pero SÍ se analiza para el informe:
