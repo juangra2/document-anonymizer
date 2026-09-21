@@ -16,6 +16,10 @@ configure_logging()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    # Lo que quedó de una ejecución anterior son documentos que nadie puede ya
+    # descargar —sus identificadores murieron con el proceso— pero que siguen
+    # en disco con datos personales dentro.
+    job_store.purge_previous_runs()
     # Los trabajadores arrancan solos con el primer trabajo; aquí solo se
     # garantiza que paran ordenadamente al cerrar el servidor.
     yield

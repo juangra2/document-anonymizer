@@ -238,6 +238,10 @@ admiten valores separados por comas.
 - **Los trabajos viven en memoria** del proceso y **no sobreviven a un reinicio**: los que estaban
   en cola o en curso se pierden y hay que volver a subirlos. Es una decisión consciente, para no
   operar un broker externo en un único nodo con una única GPU.
+- **Al arrancar se borra lo que quedó de ejecuciones anteriores** en `TEMP_ROOT`. Tras un reinicio
+  esos documentos son inalcanzables por la API —su identificador murió con el proceso— pero siguen
+  en disco con datos personales dentro. En el registro consta cuántas carpetas se han borrado,
+  nunca sus nombres. Presupone que `TEMP_ROOT` es de este servicio y de un solo proceso.
 
 ### Autenticación y proxy inverso
 

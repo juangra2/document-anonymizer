@@ -178,6 +178,61 @@ def test_a_stopped_job_never_publishes_a_result(store, pipeline):
     )
 
 
+def test_leftovers_from_previous_runs_are_removed_at_startup(tmp_path, monkeypatch, caplog):
+    """Un reinicio no puede dejar documentos huérfanos en disco.
+
+    Sus identificadores murieron con el proceso anterior, así que nadie puede
+    volver a pedirlos por la API, pero los ficheros siguen ahí.
+    """
+    from app.core.config import settings
+    from app.services.jobs import job_store
+
+    monkeypatch.setattr(settings, "temp_root", str(tmp_path))
+    viejo = tmp_path / "jobs" / "3f2a9c1e"
+    viejo.mkdir(parents=True)
+    (viejo / "input.pdf").write_bytes(b"%PDF-1.4 documento de antes\n")
+    (viejo / "output_redacted.pdf").write_bytes(b"%PDF-1.4 resultado de antes\n")
+    suelto = tmp_path / "pdf_ocr_abc123"
+    suelto.mkdir()
+    (suelto / "page_1.png").write_bytes(b"imagen de pagina")
+
+    with caplog.at_level("INFO"):
+        removed = job_store.purge_previous_runs()
+
+    assert removed == 2
+    assert not viejo.exists() and not suelto.exists()
+    assert not any(tmp_path.rglob("*.pdf")), "el borrado debe ser efectivo en disco"
+    # El registro dice cuantas, nunca como se llamaban.
+    registro = "\n".join(r.getMessage() for r in caplog.records)
+    assert "2" in registro
+    assert "3f2a9c1e" not in registro and "input.pdf" not in registro
+
+
+def test_purging_survives_a_leftover_that_cannot_be_removed(tmp_path, monkeypatch):
+    """Un resto bloqueado no puede impedir que el servicio arranque."""
+    from app.core.config import settings
+    from app.services.jobs import job_store
+
+    monkeypatch.setattr(settings, "temp_root", str(tmp_path))
+    (tmp_path / "bueno").mkdir()
+    (tmp_path / "bueno" / "x.pdf").write_bytes(b"%PDF-1.4\n")
+
+    import app.services.jobs.store as store_module
+
+    real_rmtree = store_module.shutil.rmtree
+
+    def _falla(path, *args, **kwargs):
+        if Path(path).name == "bloqueado":
+            raise OSError(13, "Permission denied")
+        return real_rmtree(path, *args, **kwargs)
+
+    (tmp_path / "bloqueado").mkdir()
+    monkeypatch.setattr(store_module.shutil, "rmtree", _falla)
+
+    assert job_store.purge_previous_runs() == 1
+    assert not (tmp_path / "bueno").exists()
+
+
 def test_the_stop_flag_is_visible_while_it_winds_down(store, pipeline):
     """Mientras suelta la pagina, el estado sigue siendo running + stopping."""
     slow = _FakePipeline(pages=200, page_seconds=0.05)

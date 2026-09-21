@@ -145,6 +145,48 @@ class JobStore:
 
     # -- ciclo de vida --------------------------------------------------
 
+    def purge_previous_runs(self) -> int:
+        """Borra lo que dejaron ejecuciones anteriores bajo el directorio temporal.
+
+        La cola no sobrevive a un reinicio, así que al arrancar no hay ningún
+        trabajo vivo: lo que quede en disco son documentos huérfanos.  Nadie
+        puede volver a pedirlos —su identificador se perdió con el proceso—,
+        pero ahí siguen, con los datos personales dentro, al alcance de
+        cualquiera que entre en la máquina.  En el contenedor el directorio
+        vive en memoria y desaparece al reiniciar; fuera de él, nadie lo
+        limpia, y ese es el caso que esto cubre.
+
+        Se registra CUÁNTAS carpetas se borran, nunca sus nombres: el nombre de
+        un fichero puede llevar el del interesado.
+
+        Da por supuesto que el directorio temporal es de este servicio y de un
+        solo proceso, que es como se despliega: un nodo con una GPU.
+        """
+        root = Path(settings.temp_root)
+        if not root.exists():
+            return 0
+
+        removed = 0
+        for entry in list(root.iterdir()):
+            try:
+                if entry.is_dir():
+                    shutil.rmtree(entry, ignore_errors=False)
+                else:
+                    entry.unlink()
+            except OSError as exc:
+                # Un resto que no se puede borrar (permisos, fichero abierto por
+                # otro proceso) no puede impedir que arranque el servicio.
+                logger.warning("could not remove leftover entry: %s", exc.strerror)
+                continue
+            removed += 1
+
+        if removed:
+            logger.info(
+                "removed %d leftover work director%s from previous runs",
+                removed, "y" if removed == 1 else "ies",
+            )
+        return removed
+
     def start(self) -> None:
         with self._lock:
             if self._started:
