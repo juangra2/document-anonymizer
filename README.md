@@ -181,7 +181,7 @@ Documentación interactiva en `/docs` con la aplicación arrancada.
 | Método y ruta | Qué hace |
 |---|---|
 | `GET /entity-types` | Catálogo de tipos: `id`, `label`, `description`, `default_enabled`, `mandatory` |
-| `POST /jobs` | Encola un PDF. Responde **202** al terminar la subida, con `Location: /jobs/{id}` |
+| `POST /jobs` | Encola un PDF. Responde **202** al terminar la subida, con `Location: /jobs/{id}`. No admite `include_entities` |
 | `GET /jobs/{id}` | Estado, posición en cola, avance por páginas, resumen del resultado o error |
 | `GET /jobs/{id}/result?output=pdf\|zip` | Descarga el PDF anonimizado (o PDF + `report.json` en ZIP) |
 | `GET /jobs/{id}/report` | Informe completo en JSON |
@@ -242,6 +242,15 @@ admiten valores separados por comas.
   esos documentos son inalcanzables por la API —su identificador murió con el proceso— pero siguen
   en disco con datos personales dentro. En el registro consta cuántas carpetas se han borrado,
   nunca sus nombres. Presupone que `TEMP_ROOT` es de este servicio y de un solo proceso.
+- **El informe de un trabajo nunca lleva los valores detectados.** `POST /jobs` no admite
+  `include_entities`: el informe se conserva junto al resultado, y con los valores dentro sería
+  conservar lo que se acaba de tapar. Quien los necesita para evaluar usa `POST /anonymize`, que
+  no retiene nada. Los avisos de verificación dicen qué campo quedó sin limpiar y cuánto ocupa,
+  nunca su contenido.
+- **Los registros no llevan texto del documento.** Un filtro sustituye DNI, NIE, CIF, correo,
+  teléfono e IBAN en todo lo que se escribe, pero es una red de seguridad: un nombre o una
+  dirección no tienen forma reconocible, así que la regla es no registrar texto. `LOG_PII=true`
+  levanta esa regla solo para depurar.
 
 ### Autenticación y proxy inverso
 
@@ -268,7 +277,7 @@ Por variables de entorno o fichero `.env` (plantilla en `.env.example`). Las má
 | `STORE_ORIGINAL` | `false` | Conservar el original tras procesar |
 | `ROOT_PATH` | *(vacío)* | Prefijo de ruta tras un proxy inverso |
 | `TEMP_ROOT` | `/tmp/anonymizer` | Carpeta de trabajo |
-| `LOG_PII` | `false` | Nunca activar en producción |
+| `LOG_PII` | `false` | Registrar texto del documento al depurar. Nunca activar en producción |
 | `OCR_ENGINE` | `auto` | `auto` (MinerU y, si falta, EasyOCR), `mineru` o `easyocr` |
 | `OCR_USE_GPU` | `true` | OCR en GPU |
 | `OCR_MINERU_MODEL_PATH` | `model/MinerU2.5-Pro-2604-1.2B` | Pesos locales de MinerU |

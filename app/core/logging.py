@@ -1,3 +1,16 @@
+"""Registro del servicio, con una red de seguridad contra datos personales.
+
+El filtro va en los MANEJADORES, no en el logger raíz.  Es la diferencia entre
+que funcione y que no: Python aplica los filtros del logger donde nace el
+mensaje, y los de sus antepasados nunca llegan a ejecutarse.  Puesto en el
+raíz, solo filtraba lo que se registrara con `logging.warning(...)` a secas —o
+sea, nada de la aplicación, porque cada módulo tiene su propio logger.  En los
+manejadores sí pasa todo lo que se escribe.
+
+Es una red, no la protección: solo reconoce DNI, NIE, CIF, correo, teléfono y
+IBAN.  Un nombre o una dirección no tienen forma reconocible, así que la regla
+sigue siendo no registrar texto del documento (ver `log_pii`).
+"""
 import logging
 import re
 
@@ -25,11 +38,33 @@ class NoPIIFilter(logging.Filter):
         return True
 
 
+def install_pii_filter() -> int:
+    """Pone el filtro en todos los manejadores que ya existan.
+
+    Incluye los de uvicorn, que se configuran antes de importar la aplicación.
+    Devuelve a cuántos se les puso, que es lo que comprueban los tests.
+    """
+    installed = 0
+    loggers: list[logging.Logger] = [logging.getLogger()]
+    loggers += [
+        logging.getLogger(name)
+        for name in list(logging.root.manager.loggerDict)
+        if isinstance(logging.getLogger(name), logging.Logger)
+    ]
+
+    for logger in loggers:
+        for handler in logger.handlers:
+            if any(isinstance(f, NoPIIFilter) for f in handler.filters):
+                continue
+            handler.addFilter(NoPIIFilter())
+            installed += 1
+    return installed
+
+
 def configure_logging() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
 
-    root_logger = logging.getLogger()
-    root_logger.addFilter(NoPIIFilter())
+    install_pii_filter()

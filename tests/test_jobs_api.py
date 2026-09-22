@@ -272,8 +272,8 @@ def test_the_queue_refuses_more_than_the_configured_backlog():
     try:
         first = store.create(filename="a.pdf", content_type="application/pdf")
         second = store.create(filename="b.pdf", content_type="application/pdf")
-        store.enqueue(first, size_bytes=1, disabled_types=frozenset(), include_entities=False)
-        store.enqueue(second, size_bytes=1, disabled_types=frozenset(), include_entities=False)
+        store.enqueue(first, size_bytes=1, disabled_types=frozenset())
+        store.enqueue(second, size_bytes=1, disabled_types=frozenset())
         with pytest.raises(QueueFullError):
             store.create(filename="c.pdf", content_type="application/pdf")
     finally:

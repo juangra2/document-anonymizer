@@ -169,7 +169,13 @@ def check_metadata(
                 found = analyzer.analyze(value, mode="strict")
                 entities.extend(found)
             if value.strip():
-                warnings.append(f"Metadata field '{key}' is not empty: {value[:60]!r}")
+                # El valor NO se copia al aviso: el informe se conserva horas y
+                # un metadato sin limpiar puede ser el nombre del interesado.
+                # Basta con decir qué campo y cuánto ocupa para arreglarlo.
+                warnings.append(
+                    f"Metadata field '{key}' is not empty "
+                    f"({len(value)} characters)."
+                )
 
         # 2. XMP metadata blob
         xmp = doc.get_xml_metadata() or ""
@@ -186,7 +192,10 @@ def check_metadata(
                     found = analyzer.analyze(val, mode="strict")
                     entities.extend(found)
                     if val.strip():
-                        warnings.append(f"AcroForm field '{widget.field_name}' has value: {val[:60]!r}")
+                        warnings.append(
+                            f"AcroForm field '{widget.field_name}' has a value "
+                            f"({len(val)} characters)."
+                        )
 
         # 4. Annotation contents
         for page in doc:

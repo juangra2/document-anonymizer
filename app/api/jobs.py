@@ -111,11 +111,6 @@ async def create_job(
     request: Request,
     response: Response,
     file: UploadFile = File(...),
-    include_entities: bool = Query(
-        default=False,
-        description="Incluir la lista de entidades detectadas en el informe. "
-                    "Para evaluacion y auditoria; desactivado por defecto.",
-    ),
     disabled_types: list[EntityType] | None = Query(
         default=None,
         description=(
@@ -174,7 +169,6 @@ async def create_job(
         job,
         size_bytes=size_bytes,
         disabled_types=disabled,
-        include_entities=include_entities,
     )
 
     # Ruta relativa al prefijo servido: tras un proxy inverso, una URL absoluta

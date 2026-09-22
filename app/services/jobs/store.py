@@ -74,7 +74,6 @@ class Job:
     size_bytes: int = 0
 
     disabled_types: frozenset[str] = frozenset()
-    include_entities: bool = False
 
     status: JobStatus = "queued"
     # Se pidió parar este documento.  Lo lee el procesamiento entre páginas,
@@ -257,12 +256,10 @@ class JobStore:
         *,
         size_bytes: int,
         disabled_types: frozenset[str],
-        include_entities: bool,
     ) -> None:
         with self._lock:
             job.size_bytes = size_bytes
             job.disabled_types = disabled_types
-            job.include_entities = include_entities
         self._queue.put(job.id)
 
     def discard(self, job: Job) -> None:
@@ -364,7 +361,11 @@ class JobStore:
                     job.output_path,
                     job.id,
                     settings.default_redaction_mode,
-                    job.include_entities,
+                    # Nunca con los valores detectados: el informe de un trabajo
+                    # se conserva horas, y con ellos dentro sería conservar los
+                    # datos personales que acabamos de tapar.  Quien los
+                    # necesita para evaluar usa la ruta sincrona, que no retiene.
+                    False,
                     job.disabled_types,
                 )
         except cancellation.JobCancelled:

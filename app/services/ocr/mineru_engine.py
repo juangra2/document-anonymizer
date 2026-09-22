@@ -295,6 +295,8 @@ def _blocks_to_tokens(
     Without splitting, a single token covering the whole form produces
     full-height vertical redaction bars (character offset ÷ HTML length × form width).
     """
+    from app.core.config import settings
+
     tokens: list[OcrToken] = []
 
     for block in blocks:
@@ -303,10 +305,19 @@ def _blocks_to_tokens(
             continue
 
         if _is_degenerate_content(content):
-            logger.warning(
-                "Discarding degenerate MinerU block (likely VLM repetition loop): %r…",
-                content[:60],
-            )
+            # El contenido sale del documento: aunque sea basura del modelo,
+            # puede arrastrar un nombre.  Solo se registra su tamaño, salvo que
+            # alguien active LOG_PII a propósito para depurar.
+            if settings.log_pii:
+                logger.warning(
+                    "Discarding degenerate MinerU block (likely VLM repetition "
+                    "loop): %r…", content[:60],
+                )
+            else:
+                logger.warning(
+                    "Discarding degenerate MinerU block (likely VLM repetition "
+                    "loop): %d characters.", len(content),
+                )
             continue
 
         block_type: str = (getattr(block, "type", "text") or "text").lower()
