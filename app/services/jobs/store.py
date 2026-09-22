@@ -38,12 +38,17 @@ from uuid import uuid4
 from app.core.config import settings
 from app.core.errors import error_code_for
 from app.schemas.report import ProcessingReport
-from app.services import cancellation, progress
+from app.services import cancellation, notices, progress
 
 logger = logging.getLogger(__name__)
 
 
 JobStatus = Literal["queued", "running", "completed", "failed", "expired"]
+
+# Tope de avisos que se conservan en el estado.  Un escaneado ilegible de 300
+# páginas genera uno por página, y el estado se consulta cada dos segundos: la
+# lista completa va en el informe, aquí basta con las primeras y el total.
+MAX_NOTICES = 200
 
 # Resultado de pedir la parada de un trabajo.  "stopping" es el único caso en
 # que el trabajo sigue existiendo al responder: se está procesando y hay que
@@ -85,6 +90,9 @@ class Job:
 
     pages_done: int = 0
     pages_total: int = 0
+
+    page_notices: list[notices.PageNotice] = field(default_factory=list)
+    notices_total: int = 0
 
     error_code: str | None = None
     error_message: str | None = None
@@ -353,12 +361,13 @@ class JobStore:
         def on_progress(done: int, total: int) -> None:
             self.report_progress(job.id, done, total)
 
+        def on_notice(notice: notices.PageNotice) -> None:
+            self.report_notice(job.id, notice)
+
         cancelled = False
 
         try:
-            with progress.track(on_progress), cancellation.track(
-                lambda: job.cancel_requested
-            ):
+            with progress.track(on_progress), notices.track(on_notice),                     cancellation.track(lambda: job.cancel_requested):
                 report = self._pipeline().process(
                     job.input_path,
                     job.output_path,
@@ -412,6 +421,16 @@ class JobStore:
                 self._jobs.pop(job.id, None)
             self._remove_files(job)
             logger.info("job %s stopped and deleted on request", job.id)
+
+    def report_notice(self, job_id: str, notice: notices.PageNotice) -> None:
+        """Anota un aviso de página para que el cliente lo vea en su próxima consulta."""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                return
+            job.notices_total += 1
+            if len(job.page_notices) < MAX_NOTICES:
+                job.page_notices.append(notice)
 
     def report_progress(self, job_id: str, done: int, total: int) -> None:
         with self._lock:

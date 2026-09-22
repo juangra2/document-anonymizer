@@ -10,6 +10,21 @@ class DetectedEntityInfo(BaseModel):
     source: str
 
 
+class PageRedactedInFull(BaseModel):
+    """Página tachada entera porque el OCR no pudo leerla.
+
+    No incluye las que se tachan por decisión de contenido (copia de DNI,
+    autoliquidación): esas son intencionadas y van en sus propios avisos.
+    """
+
+    page: int = Field(description="Numeración de usuario: la primera es la 1.")
+    reason: str = Field(
+        description="`ocr_unreadable` (ilegible en todos los giros) o "
+                    "`ocr_timeout` (agotó el presupuesto de la página).",
+        examples=["ocr_timeout"],
+    )
+
+
 class OcrInfo(BaseModel):
     enabled: bool = False
     engine: str | None = None
@@ -107,6 +122,11 @@ class ProcessingReport(BaseModel):
 
     manual_review_required: bool = False
     warnings: list[str] = Field(default_factory=list)
+    pages_redacted_in_full: list[PageRedactedInFull] = Field(
+        default_factory=list,
+        description="Páginas tachadas enteras porque el OCR no pudo leerlas, "
+                    "con el motivo de cada una.",
+    )
 
     redaction_strategy: str = "physical_pdf_redaction"
     redaction_mode: Literal["strict"] = "strict"

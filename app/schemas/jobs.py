@@ -22,6 +22,19 @@ class JobProgress(BaseModel):
     percent: int = Field(default=0, ge=0, le=100, description="Avance en tanto por ciento.")
 
 
+class JobNotice(BaseModel):
+    """Algo que le ha pasado a una página y el usuario debe ver YA.
+
+    `kind` y `reason` son códigos estables, como `error.code`: la frase que se
+    enseña la elige el frontend, que es lo que permite traducir la interfaz sin
+    tocar el servidor.
+    """
+
+    page: int = Field(description="Numeración de usuario: la primera es la 1.")
+    kind: str = Field(examples=["page_redacted_in_full"])
+    reason: str = Field(examples=["ocr_timeout"])
+
+
 class JobError(BaseModel):
     """Motivo del fallo.
 
@@ -78,5 +91,17 @@ class JobResponse(BaseModel):
     )
 
     progress: JobProgress = Field(default_factory=JobProgress)
+
+    notices: list[JobNotice] = Field(
+        default_factory=list,
+        description="Avisos de página según van ocurriendo, para enseñarlos "
+                    "durante el proceso. Se corta en 200; el informe final "
+                    "lleva la lista completa.",
+    )
+    notices_total: int = Field(
+        default=0,
+        description="Cuántos avisos ha habido en total, aunque `notices` esté "
+                    "cortada.",
+    )
     result: JobResultSummary | None = None
     error: JobError | None = None

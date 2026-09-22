@@ -26,7 +26,13 @@ import fitz
 from PIL import Image, ImageDraw
 
 from app.core.config import settings
-from app.schemas.report import DetectedEntityInfo, OcrInfo, ProcessingLimits, ProcessingReport
+from app.schemas.report import (
+    DetectedEntityInfo,
+    OcrInfo,
+    PageRedactedInFull,
+    ProcessingLimits,
+    ProcessingReport,
+)
 from app.services.layout.models import PageZone, ZoneToken, ZoneType
 from app.services.layout.segmenters import OcrPageSegmenter
 from app.services.layout.zone_config import ALL_PII_TYPES, get_detector_config
@@ -38,7 +44,7 @@ from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pdf.full_redaction import DNI_SCAN, classify_page
 from app.services.pdf.plan_pages import is_image_dominant_page, is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
-from app.services import cancellation, progress
+from app.services import cancellation, notices, progress
 from app.services.storage.temp_storage import scratch_dir
 from app.services.pii.code_policy import QR_TYPE, code_may_stay_visible
 from app.services.pii.label_types import structural_rects_released
@@ -414,7 +420,10 @@ def redact_pdf_scanned(
                             "Page %d exceeded the %ds OCR budget; redacted in full.",
                             page_index, settings.ocr_page_timeout_s,
                         )
-                        unreadable_pages[page_index] = "ocr_timeout"
+                        unreadable_pages[page_index] = notices.OCR_TIMEOUT
+                        # En vivo: quien esté mirando la pantalla se entera
+                        # ahora, no al leer el informe media hora despues.
+                        notices.page_redacted_in_full(page_index, notices.OCR_TIMEOUT)
                         redacted_count += 1
                         _append_image_as_pdf_page(
                             output_doc, _blacked_out(image), page.rect,
@@ -436,7 +445,8 @@ def redact_pdf_scanned(
                         # tampoco se ha podido tachar.  Las entidades se conservan
                         # para el informe; los residuos del segundo pase ya no
                         # aplican sobre una página en negro.
-                        unreadable_pages[page_index] = "ocr_illegible"
+                        unreadable_pages[page_index] = notices.OCR_UNREADABLE
+                        notices.page_redacted_in_full(page_index, notices.OCR_UNREADABLE)
                         result["image"] = _blacked_out(result["image"])
                         result["rect_count"] = 1
                         result["residuals"] = []
@@ -562,6 +572,10 @@ def redact_pdf_scanned(
             or bool(full_redaction_pages) or bool(poor_ocr_pages)
         ),
         warnings=warnings,
+        pages_redacted_in_full=[
+            PageRedactedInFull(page=idx + 1, reason=why)
+            for idx, why in sorted(unreadable_pages.items())
+        ],
         redaction_mode=mode,
         limits=ProcessingLimits(
             max_upload_mb=settings.max_upload_mb,

@@ -195,6 +195,33 @@ def test_the_state_says_when_a_document_is_winding_down():
     assert client.get(f"/jobs/{job_id}").json()["stopping"] is True
 
 
+def test_the_state_publishes_page_notices():
+    """El frontend los pinta mientras procesa; aquí se fija la forma."""
+    from app.services import notices
+
+    job_id = _upload().json()["job_id"]
+    _wait(job_id)
+    job = job_store.get(job_id)
+    job.page_notices.append(
+        notices.PageNotice(page=12, kind=notices.PAGE_REDACTED_IN_FULL,
+                           reason=notices.OCR_TIMEOUT)
+    )
+    job.notices_total = 1
+
+    estado = client.get(f"/jobs/{job_id}").json()
+    assert estado["notices"] == [
+        {"page": 12, "kind": "page_redacted_in_full", "reason": "ocr_timeout"}
+    ]
+    assert estado["notices_total"] == 1
+
+
+def test_a_document_without_incidents_reports_no_notices():
+    job_id = _upload().json()["job_id"]
+    estado = _wait(job_id)
+    assert estado["notices"] == []
+    assert estado["notices_total"] == 0
+
+
 def test_the_original_document_is_removed_as_soon_as_it_is_processed():
     job_id = _upload().json()["job_id"]
     _wait(job_id)

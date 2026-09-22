@@ -211,6 +211,11 @@ curl -o anonimizado.pdf "http://localhost:8000/jobs/3f2a…/result?output=pdf"
 ```
 
 - **Estados**: `queued` → `running` → `completed` | `failed`; y `expired` cuando se ha borrado.
+- **Avisos en vivo**: `notices` lleva, según van ocurriendo, las páginas que se han tachado
+  enteras porque el OCR no pudo leerlas (`kind: page_redacted_in_full`, `reason: ocr_unreadable`
+  o `ocr_timeout`), con la numeración que ve el usuario. Se corta en 200 avisos y `notices_total`
+  dice cuántos ha habido; el informe final lleva la lista completa en `pages_redacted_in_full`.
+  `kind` y `reason` son códigos estables: la frase la elige el cliente.
 - **Errores al encolar**: 415 si no es PDF, 413 si supera `MAX_UPLOAD_MB`, 400 si el fichero no es
   un PDF válido, 422 si `disabled_types` es inválido, y 503 con `Retry-After` si la cola está llena.
 - **Al descargar**: 409 si el trabajo no ha terminado o ha fallado, 410 si ya ha caducado.

@@ -85,7 +85,12 @@ def test_illegible_page_is_redacted_in_full(monkeypatch, scanned_pdf, tmp_path, 
     _use_engine(monkeypatch, _NOISE)
     out, report = _run(scanned_pdf, tmp_path, analyzer)
     assert _ink(out) > 0.99
-    assert any("could not read" in w and "ocr_illegible: [1]" in w for w in report.warnings)
+    assert any("could not read" in w and "ocr_unreadable: [1]" in w for w in report.warnings)
+    # El informe lo dice tambien en un campo estructurado, que es lo que lee la
+    # interfaz para decir QUE paginas revisar.
+    assert [(p.page, p.reason) for p in report.pages_redacted_in_full] == [
+        (1, "ocr_unreadable")
+    ]
 
 
 def test_timeout_page_is_redacted_in_full(monkeypatch, scanned_pdf, tmp_path, analyzer):
@@ -98,6 +103,9 @@ def test_timeout_page_is_redacted_in_full(monkeypatch, scanned_pdf, tmp_path, an
     out, report = _run(scanned_pdf, tmp_path, analyzer)
     assert _ink(out) > 0.99
     assert any("ocr_timeout: [1]" in w for w in report.warnings)
+    assert [(p.page, p.reason) for p in report.pages_redacted_in_full] == [
+        (1, "ocr_timeout")
+    ]
     assert not any("not fully redacted" in w for w in report.warnings)
 
 

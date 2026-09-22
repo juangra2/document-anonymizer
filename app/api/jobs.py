@@ -20,7 +20,13 @@ from fastapi.responses import FileResponse
 from app.core.config import settings
 from app.core.errors import DocumentTooLargeError, FileValidationError
 from app.schemas.entity_types import EntityType
-from app.schemas.jobs import JobError, JobProgress, JobResponse, JobResultSummary
+from app.schemas.jobs import (
+    JobError,
+    JobNotice,
+    JobProgress,
+    JobResponse,
+    JobResultSummary,
+)
 from app.schemas.report import InputFileInfo, ProcessingReport
 from app.services.jobs import Job, QueueFullError, job_store
 from app.utils.files import (
@@ -73,6 +79,11 @@ def _to_response(job: Job) -> JobResponse:
             pages_total=job.pages_total,
             percent=_percent(job.pages_done, job.pages_total),
         ),
+        notices=[
+            JobNotice(page=n.page, kind=n.kind, reason=n.reason)
+            for n in job.page_notices
+        ],
+        notices_total=job.notices_total,
         result=result,
         error=error,
     )
