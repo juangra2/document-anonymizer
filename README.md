@@ -175,6 +175,28 @@ papel.
 
 ---
 
+## Interfaz web
+
+La página está en `app/web/` y la sirve la propia aplicación en `/`: HTML, CSS y módulos de
+JavaScript sin paso de compilación, sin Node y sin pedir nada a internet (la red del ayuntamiento
+puede no tener salida). Se monta después de las rutas de la API, así que `/jobs`, `/health`,
+`/entity-types` y `/docs` siguen contestando lo de siempre.
+
+| Fichero | Qué hace |
+|---|---|
+| `js/api.js` | **El único que habla con el servidor.** Direcciones relativas, para que un prefijo de ruta tras el proxy no rompa nada |
+| `js/texts/es.js` | **Todas las frases que ve el usuario**, incluidas las de error. Para el valenciano, un `va.js` con las mismas claves |
+| `js/errores.js` | De código estable de la API a frase que dice qué ha pasado y qué hacer |
+| `js/categorias.js` | Agrupación de los 30 tipos; lo que no tenga grupo cae en «Otros» y nunca queda invisible |
+| `js/seguimiento.js` | Subida en fila, consultas periódicas con reintentos y avisos de página |
+| `js/almacen.js` | Lo que recuerda el navegador: identificadores, nunca el nombre del fichero |
+
+`python scripts/probar_interfaz.py` recorre los flujos en un navegador real contra el servicio
+levantado y guarda capturas (necesita `playwright`). Las capturas de las pantallas clave están en
+`docs/interfaz/`.
+
+---
+
 ## API
 
 Documentación interactiva en `/docs` con la aplicación arrancada.

@@ -40,8 +40,28 @@ from app.services.image.pipeline import ImageAnonymizationPipeline
 
 router = APIRouter()
 
-pdf_pipeline = PdfAnonymizationPipeline()
-image_pipeline = ImageAnonymizationPipeline()
+# Los pipelines se construyen con el PRIMER documento, no al importar el módulo.
+# Construirlos aquí cargaba spaCy y el OCR en el arranque, y si faltaba un
+# modelo el servicio no llegaba a arrancar: en vez de levantarse y decir «no
+# estoy listo» —que es lo que mira el contenedor y lo que pinta en rojo el
+# indicador de la interfaz—, se moría, y desde fuera no se distinguía de un
+# servidor apagado.
+_pdf_pipeline: PdfAnonymizationPipeline | None = None
+_image_pipeline: ImageAnonymizationPipeline | None = None
+
+
+def get_pdf_pipeline() -> PdfAnonymizationPipeline:
+    global _pdf_pipeline
+    if _pdf_pipeline is None:
+        _pdf_pipeline = PdfAnonymizationPipeline()
+    return _pdf_pipeline
+
+
+def get_image_pipeline() -> ImageAnonymizationPipeline:
+    global _image_pipeline
+    if _image_pipeline is None:
+        _image_pipeline = ImageAnonymizationPipeline()
+    return _image_pipeline
 
 
 def report_to_json_bytes(report) -> bytes:
@@ -197,7 +217,7 @@ async def anonymize(
             if is_image:
                 def _run() -> object:
                     with job_store.slot():
-                        return image_pipeline.process(
+                        return get_image_pipeline().process(
                             input_path, output_path, temp_job.job_id, mode, disabled,
                         )
             else:
@@ -205,7 +225,7 @@ async def anonymize(
 
                 def _run() -> object:
                     with job_store.slot():
-                        return pdf_pipeline.process(
+                        return get_pdf_pipeline().process(
                             input_path, output_path, temp_job.job_id, mode,
                             include_entities, disabled,
                         )

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anonimizador de documentos</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1 id="titulo">Anonimizador de documentos</h1>
+      <div class="org" id="organizacion">Ajuntament de València</div>
+    </div>
+    <div class="health" id="salud" role="status">
+      <span class="dot"></span><span id="saludTexto">Comprobando el servicio…</span>
+    </div>
+  </header>
+
+  <div class="banner down hidden" id="avisoServicio">
+    <span class="mark">!</span><span id="avisoServicioTexto"></span>
+  </div>
+
+  <!-- 1 · Documentos -->
+  <section class="card">
+    <div class="card-head"><h2><span class="step">1</span>Documentos</h2></div>
+    <div class="drop" id="zona">
+      <strong id="zonaTitulo">Arrastra uno o varios PDF aquí, o selecciónalos</strong>
+      <small id="zonaLimites"></small>
+      <div><button class="btn" id="elegir" type="button">Seleccionar archivos</button></div>
+      <input type="file" id="ficheros" accept="application/pdf,.pdf" multiple hidden>
+    </div>
+    <div class="banner warn hidden" id="avisoTanda">
+      <span class="mark">i</span><span id="avisoTandaTexto"></span>
+    </div>
+  </section>
+
+  <!-- 2 · Qué se va a ocultar -->
+  <section class="card">
+    <div class="card-head">
+      <h2><span class="step">2</span>Qué se va a ocultar</h2>
+      <span class="count" id="activos"></span>
+    </div>
+    <p class="hint" id="ayudaTipos"></p>
+    <div id="grupos"></div>
+    <p class="visibles hidden" id="visibles"></p>
+    <details class="nunca">
+      <summary id="nuncaTitulo"></summary>
+      <ul id="nuncaLista"></ul>
+    </details>
+    <div class="applies hidden" id="seAplica"></div>
+  </section>
+
+  <!-- 3 · Seguimiento -->
+  <section class="card">
+    <div class="card-head"><h2><span class="step">3</span>Seguimiento</h2></div>
+
+    <p class="hint" id="vacio"></p>
+
+    <div id="seguimiento" class="hidden">
+      <div class="summary" id="resumen"></div>
+      <div class="current hidden" id="enCurso">
+        <div class="top"><span id="enCursoTexto"></span><span class="sub" id="enCursoPorcentaje"></span></div>
+        <div class="bar"><i id="barra"></i></div>
+      </div>
+      <div class="banner warn hidden" id="avisoCola">
+        <span class="mark">i</span><span id="avisoColaTexto"></span>
+      </div>
+      <div id="lista"></div>
+      <div class="retention"><span>&#9432;</span><span id="retencion"></span></div>
+    </div>
+
+    <div class="acciones-pie">
+      <button class="btn primary hidden" id="anonimizar" type="button">Anonimizar</button>
+    </div>
+  </section>
+
+</div>
+
+<div class="toast hidden" id="aviso" role="status">
+  <span class="mark warnmark">!</span>
+  <span class="spacer">
+    <span class="t" id="avisoTitulo"></span>
+    <span class="s" id="avisoTexto"></span>
+  </span>
+  <button class="x" id="avisoCerrar" type="button" aria-label="Cerrar aviso">&times;</button>
+</div>
+
+<div class="overlay hidden" id="confirmacion">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="confTitulo">
+    <h3 id="confTitulo"></h3>
+    <p id="confTexto"></p>
+    <div class="acts">
+      <button class="btn" id="confNo" type="button">Cancelar</button>
+      <button class="btn danger-solid" id="confSi" type="button">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api.health import router as health_router
 from app.api.query_normalization import DisabledTypesQueryMiddleware
@@ -33,6 +35,25 @@ app = FastAPI(title=settings.app_name, root_path=settings.root_path, lifespan=li
 app.include_router(health_router)
 app.include_router(jobs_router)
 app.include_router(anonymize_router)
+
+# La interfaz va DESPUÉS de las rutas de la API: Starlette prueba las rutas en
+# orden, así que /jobs, /health, /entity-types y /docs siguen contestando lo de
+# siempre y todo lo demás lo sirve la carpeta web.  La página se sirve sin
+# caché para que tras una actualización nadie mezcle una versión vieja con un
+# servicio nuevo; los ficheros sueltos sí se cachean.
+_WEB_DIR = Path(__file__).parent / "web"
+
+
+class _NoCacheIndex(StaticFiles):
+    def file_response(self, *args, **kwargs):  # type: ignore[override]
+        response = super().file_response(*args, **kwargs)
+        if response.headers.get("content-type", "").startswith("text/html"):
+            response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return response
+
+
+if _WEB_DIR.is_dir():
+    app.mount("/", _NoCacheIndex(directory=_WEB_DIR, html=True), name="web")
 
 # Normaliza disabled_types (mayúsculas, espacios, lista vacía) antes de que el
 # Enum lo valide: hecha dentro de la ruta, la normalización llegaba tarde.
