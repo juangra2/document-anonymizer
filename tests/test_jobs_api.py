@@ -417,33 +417,81 @@ def test_the_location_header_respects_the_path_prefix():
 
 # --- límites de entrada ------------------------------------------------------
 
-def test_a_document_over_the_page_limit_fails_with_a_stable_code(monkeypatch):
-    """El fallo llega como estado del trabajo, no como error de la subida.
-
-    El número de páginas no se conoce hasta abrir el PDF, y para entonces la
-    petición de subida ya ha respondido.  El frontend traduce `code` a una
-    frase; el mensaje de la API es técnico a propósito.
-    """
+def test_a_document_over_the_page_limit_is_rejected_at_upload(monkeypatch):
+    """Antes se descubría al procesarlo, con la cola por delante; ahora, al subir."""
     monkeypatch.setattr(settings, "max_pdf_pages", 2)
-    job_id = _upload(pages=3).json()["job_id"]
+    response = _upload(pages=3)
+
+    assert response.status_code == 422
+    detalle = response.json()["detail"]
+    assert detalle["code"] == "too_many_pages"
+    assert detalle["limit_pages"] == 2
+    assert "3 pages" in detalle["message"], "dice cuantas tiene y cuantas caben"
+
+
+def test_a_document_over_the_size_limit_says_which_limit(monkeypatch):
+    monkeypatch.setattr(settings, "max_upload_mb", 0)
+    response = _upload()
+
+    assert response.status_code == 413
+    detalle = response.json()["detail"]
+    assert detalle["code"] == "document_too_large"
+    assert detalle["limit_mb"] == 0
+
+
+def test_a_rejected_document_never_reaches_the_queue(monkeypatch):
+    from pathlib import Path
+
+    monkeypatch.setattr(settings, "max_pdf_pages", 1)
+    root = Path(settings.temp_root) / "jobs"
+    antes = set(root.iterdir()) if root.exists() else set()
+
+    assert _upload(pages=5).status_code == 422
+    despues = set(root.iterdir()) if root.exists() else set()
+    assert despues == antes, "no puede quedar ni el directorio del trabajo"
+
+
+def test_a_password_protected_pdf_is_rejected_at_upload(tmp_path):
+    """Antes se descubria al procesarlo; ahora al subirlo, en segundos."""
+    import fitz
+
+    doc = fitz.open()
+    doc.new_page().insert_text((72, 100), "Confidencial", fontsize=11)
+    protegido = tmp_path / "con_clave.pdf"
+    doc.save(protegido, encryption=fitz.PDF_ENCRYPT_AES_256, user_pw="secreto")
+    doc.close()
+
+    response = client.post(
+        "/jobs",
+        files={"file": ("con_clave.pdf", protegido.read_bytes(), "application/pdf")},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "encrypted_pdf"
+
+
+def test_a_damaged_pdf_is_told_apart_from_an_internal_error():
+    """Antes salía como «error interno», indistinguible de un fallo nuestro."""
+    roto = b"%PDF-1.4 esto no es un PDF de verdad" + bytes([10])
+    response = client.post(
+        "/jobs", files={"file": ("roto.pdf", BytesIO(roto), "application/pdf")},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "invalid_file"
+
+
+def test_a_failed_job_keeps_no_original_on_disk(monkeypatch):
+    """Un fallo durante el proceso tampoco puede dejar el original ahi."""
+    from app.services.pdf import pipeline as pipeline_module
+
+    def _revienta(*_a, **_k):
+        raise RuntimeError("fallo simulado del pipeline")
+
+    monkeypatch.setattr(
+        pipeline_module.PdfAnonymizationPipeline, "process", _revienta,
+    )
+    job_id = _upload().json()["job_id"]
     state = _wait(job_id)
 
     assert state["status"] == "failed"
-    assert state["error"]["code"] == "too_many_pages"
-    assert state["result"] is None
-    assert state["expires_at"], "un trabajo fallido tambien caduca y se borra"
-
-
-def test_a_failed_job_keeps_no_original_on_disk():
-    from app.core.config import settings as live
-
-    original = live.max_pdf_pages
-    live.max_pdf_pages = 2
-    try:
-        job_id = _upload(pages=3).json()["job_id"]
-        _wait(job_id)
-    finally:
-        live.max_pdf_pages = original
-
     job = job_store.get(job_id)
     assert not job.input_path.exists(), "un fallo no puede dejar el original ahi"

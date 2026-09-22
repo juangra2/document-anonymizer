@@ -16,7 +16,7 @@ services:
       # Un documento a la vez: es el limite de acceso a la GPU.
       MAX_CONCURRENT_DOCUMENTS: 1
       JOB_QUEUE_MAX: 20
-      RESULT_TTL_MINUTES: 60
+      RESULT_TTL_MINUTES: 360
     # Los trabajos viven aqui hasta caducar: con 200 MB por documento y 20 en
     # cola, los 512 MB de antes se llenaban con tres expedientes.  Es memoria,
     # no disco, asi que el tamano se revisa al montar el despliegue definitivo.

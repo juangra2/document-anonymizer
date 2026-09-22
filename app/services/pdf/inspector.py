@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.core.errors import (
     EmptyPdfError,
     EncryptedPdfError,
+    FileValidationError,
     TooManyPagesError,
 )
 
@@ -26,6 +27,37 @@ class PdfInspection:
     selectable_text_chars: int
     document_type: str  # "pdf_digital", "pdf_scanned", "pdf_hybrid", "pdf_empty"
     page_inspections: list[PdfPageInspection]
+
+
+def assert_pdf_within_limits(input_path: Path) -> int:
+    """Comprueba PÁGINAS y legibilidad antes de encolar.  Devuelve las páginas.
+
+    Abrir el PDF cuesta milisegundos.  Hacerlo al recibirlo evita que un
+    documento con contraseña, vacío, dañado o de más páginas de la cuenta se
+    descubra cuando le llega el turno, que con la cola por delante puede ser
+    horas después.  El tamaño en MB ya se comprueba al escribirlo en disco.
+    """
+    try:
+        doc = fitz.open(input_path)
+    except Exception as exc:  # fitz.FileDataError y parientes
+        raise FileValidationError(
+            "The PDF could not be opened; the file looks damaged."
+        ) from exc
+
+    try:
+        if doc.needs_pass:
+            raise EncryptedPdfError("Encrypted PDFs are not supported.")
+        pages = doc.page_count
+        if pages == 0:
+            raise EmptyPdfError("PDF has no pages.")
+        if pages > settings.max_pdf_pages:
+            raise TooManyPagesError(
+                f"PDF has {pages} pages. Maximum allowed is "
+                f"{settings.max_pdf_pages}."
+            )
+        return pages
+    finally:
+        doc.close()
 
 
 def inspect_pdf_for_phase1(input_path: Path) -> PdfInspection:

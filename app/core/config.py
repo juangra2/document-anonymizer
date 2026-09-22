@@ -49,10 +49,13 @@ class Settings(BaseSettings):
     # Trabajos admitidos en cola antes de rechazar con 503.  Evita que una
     # tanda de subidas acumule gigas de PDF en disco esperando turno.
     job_queue_max: int = 20
-    # Minutos que se conserva el resultado antes de borrarlo del disco.  El
-    # documento original se borra en cuanto termina el proceso (salvo
-    # store_original), porque ya no hace falta para nada.
-    result_ttl_minutes: int = 60
+    # Minutos que se conserva el resultado antes de borrarlo del disco.  Seis
+    # horas: el documento anonimizado ya no lleva datos personales, y con una
+    # sola hora una tanda larga caducaba por delante mientras aún se procesaba
+    # el final.  El informe que se conserva con él tampoco lleva valores (la
+    # cola no admite include_entities), y el original se borra en cuanto
+    # termina el proceso, salvo store_original.
+    result_ttl_minutes: int = 360
     # Cada cuánto barre el limpiador.  Un trabajo caduca aunque nadie lo
     # consulte: el borrado no puede depender de que el cliente vuelva.
     job_sweep_interval_s: int = 60

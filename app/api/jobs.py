@@ -18,7 +18,14 @@ from fastapi import APIRouter, File, HTTPException, Query, Request, Response, Up
 from fastapi.responses import FileResponse
 
 from app.core.config import settings
-from app.core.errors import DocumentTooLargeError, FileValidationError
+from app.core.errors import (
+    DocumentTooLargeError,
+    EmptyPdfError,
+    EncryptedPdfError,
+    FileValidationError,
+    TooManyPagesError,
+    error_code_for,
+)
 from app.schemas.entity_types import EntityType
 from app.schemas.jobs import (
     JobError,
@@ -29,6 +36,7 @@ from app.schemas.jobs import (
 )
 from app.schemas.report import InputFileInfo, ProcessingReport
 from app.services.jobs import Job, QueueFullError, job_store
+from app.services.pdf.inspector import assert_pdf_within_limits
 from app.utils.files import (
     assert_pdf_magic,
     download_filename,
@@ -164,12 +172,42 @@ async def create_job(
     try:
         size_bytes = await save_upload_to_path(file, job.input_path)
         assert_pdf_magic(job.input_path)
+        # Las páginas se comprueban AQUÍ, no al procesarlo: abrir el PDF cuesta
+        # milisegundos y así un documento de 400 páginas se rechaza ahora, no
+        # cuando le toque el turno, que puede ser horas después.
+        assert_pdf_within_limits(job.input_path)
     except DocumentTooLargeError as exc:
         job_store.discard(job)
-        raise HTTPException(status_code=413, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "code": error_code_for(exc),
+                "message": str(exc),
+                "limit_mb": settings.max_upload_mb,
+            },
+        ) from exc
+    except TooManyPagesError as exc:
+        job_store.discard(job)
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": error_code_for(exc),
+                "message": str(exc),
+                "limit_pages": settings.max_pdf_pages,
+            },
+        ) from exc
+    except (EncryptedPdfError, EmptyPdfError) as exc:
+        job_store.discard(job)
+        raise HTTPException(
+            status_code=422,
+            detail={"code": error_code_for(exc), "message": str(exc)},
+        ) from exc
     except FileValidationError as exc:
         job_store.discard(job)
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400,
+            detail={"code": error_code_for(exc), "message": str(exc)},
+        ) from exc
     except Exception:
         job_store.discard(job)
         raise

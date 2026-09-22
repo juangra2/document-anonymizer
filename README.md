@@ -248,8 +248,10 @@ separados por comas.
 ### Retención y borrado
 
 - **El original** se borra del disco en cuanto termina el proceso (salvo `STORE_ORIGINAL=true`).
-- **El resultado** se conserva `RESULT_TTL_MINUTES` (60 por defecto). Un barrido periódico lo borra
-  del disco al caducar, lo consulte alguien o no.
+- **El resultado** se conserva `RESULT_TTL_MINUTES` (**360**, seis horas). Un barrido periódico lo
+  borra del disco al caducar, lo consulte alguien o no. Seis horas y no una porque el documento
+  anonimizado ya no lleva datos personales y porque una tanda larga caducaba por delante mientras
+  aún se procesaba el final. Los parciales de `stop` se conservan lo mismo.
 - **Los trabajos viven en memoria** del proceso y **no sobreviven a un reinicio**: los que estaban
   en cola o en curso se pierden y hay que volver a subirlos. Es una decisión consciente, para no
   operar un broker externo en un único nodo con una única GPU.
@@ -291,7 +293,7 @@ Por variables de entorno o fichero `.env` (plantilla en `.env.example`). Las má
 | `MAX_PDF_PAGES` | `300` | Páginas máximas por documento |
 | `MAX_CONCURRENT_DOCUMENTS` | `1` | Documentos procesados a la vez (límite de GPU) |
 | `JOB_QUEUE_MAX` | `20` | Trabajos en cola antes de responder 503 |
-| `RESULT_TTL_MINUTES` | `60` | Minutos que se conserva el resultado |
+| `RESULT_TTL_MINUTES` | `360` | Minutos que se conserva el resultado (6 h) |
 | `JOB_SWEEP_INTERVAL_S` | `60` | Cada cuánto se borran los trabajos caducados |
 | `STORE_ORIGINAL` | `false` | Conservar el original tras procesar |
 | `ROOT_PATH` | *(vacío)* | Prefijo de ruta tras un proxy inverso |
