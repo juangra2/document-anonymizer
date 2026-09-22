@@ -32,6 +32,7 @@ from app.services.pdf.full_redaction import classify_pages
 from app.services.pdf.plan_pages import is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services import cancellation, progress
+from app.services.pdf.partial import append_partial_notice
 from app.services.pii.code_policy import code_may_stay_visible
 from app.services.pii.label_types import structural_rects_released
 from app.services.pdf.redaction_plan import RedactionPlan
@@ -76,71 +77,94 @@ def redact_pdf_digital(
         )
 
         on_page = progress.claim(doc.page_count)
+        pages_total_original = doc.page_count
+        pages_done = 0
+        partial = False
+        stop = cancellation.current()
 
-        for page_index, page in enumerate(doc):
-            on_page(page_index)
-            # Parada pedida: el camino digital procesa varias páginas por
-            # segundo, así que aquí se corta practicamente al instante.
-            cancellation.check()
-            reason = full_redaction_pages.get(page_index)
-            if reason:
-                # La página se pinta entera, pero SÍ se analiza para el informe:
-                # una página en negro que reporta cero entidades es engañosa
-                # para la auditoría, y además haría contar como no detectado lo
-                # que en realidad está redactado al 100 %.  El análisis no
-                # decide aquí qué se tacha — eso ya está decidido.
-                all_entities.extend(
-                    _entities_for_audit(analyzer, page.get_text(), mode)
+        try:
+            for page_index, page in enumerate(doc):
+                on_page(page_index)
+                # Parada pedida: el camino digital procesa varias páginas por
+                # segundo, así que aquí se corta practicamente al instante.
+                # Las páginas completas son las ANTERIORES a esta.
+                cancellation.check()
+                reason = full_redaction_pages.get(page_index)
+                if reason:
+                    # La página se pinta entera, pero SÍ se analiza para el informe:
+                    # una página en negro que reporta cero entidades es engañosa
+                    # para la auditoría, y además haría contar como no detectado lo
+                    # que en realidad está redactado al 100 %.  El análisis no
+                    # decide aquí qué se tacha — eso ya está decidido.
+                    all_entities.extend(
+                        _entities_for_audit(analyzer, page.get_text(), mode)
+                    )
+                    _redact_whole_page(page)
+                    redacted_count += 1
+                    continue
+
+                # Plan pages (A1/A0 drawings) never enter the normal pipeline: NER
+                # on fragment soup yields noise and the 300-DPI QR render alone
+                # exceeds 70 MP.  Only the title block (cajetín) carries PII, so it
+                # is located and redacted on its own; without one, the page is kept
+                # as-is and flagged for manual review.
+                if is_plan_page(page):
+                    found, plan_entities, plan_rects = redact_plan_page(
+                        page, analyzer, mode=mode,
+                    )
+                    if found:
+                        plan_pages_done.append(page_index)
+                        all_entities.extend(plan_entities)
+                        redacted_count += plan_rects
+                    else:
+                        plan_pages_skipped.append(page_index)
+                    continue
+
+                page_text = extract_page_text(page, page_index)
+                zoned_page = segmenter.segment(page_text, page.rect)
+
+                # Add QR_CODE zones from visual detection.
+                # DigitalPageSegmenter works on text only and cannot detect visual codes;
+                # we render the page at low DPI and scan for QR codes separately.
+                _add_visual_qr_zones(page, zoned_page)
+
+                # Add SIGNATURE zones for handwritten signatures (images / ink).
+                if settings.detect_visual_signatures:
+                    _add_signature_zones(page, zoned_page, page_text)
+
+                page_rects, page_entities, page_layout_count = _collect_redaction_rects(
+                    zoned_page=zoned_page,
+                    page_text=page_text,
+                    analyzer=analyzer,
+                    mode=mode,
+                    collect_entities=collect_entities,
                 )
-                _redact_whole_page(page)
-                redacted_count += 1
-                continue
 
-            # Plan pages (A1/A0 drawings) never enter the normal pipeline: NER
-            # on fragment soup yields noise and the 300-DPI QR render alone
-            # exceeds 70 MP.  Only the title block (cajetín) carries PII, so it
-            # is located and redacted on its own; without one, the page is kept
-            # as-is and flagged for manual review.
-            if is_plan_page(page):
-                found, plan_entities, plan_rects = redact_plan_page(
-                    page, analyzer, mode=mode,
-                )
-                if found:
-                    plan_pages_done.append(page_index)
-                    all_entities.extend(plan_entities)
-                    redacted_count += plan_rects
-                else:
-                    plan_pages_skipped.append(page_index)
-                continue
+                all_entities.extend(page_entities)
+                layout_rect_count += page_layout_count
+                redacted_count += len(page_rects)
 
-            page_text = extract_page_text(page, page_index)
-            zoned_page = segmenter.segment(page_text, page.rect)
+                for rect in page_rects:
+                    page.add_redact_annot(rect, fill=(0, 0, 0))
 
-            # Add QR_CODE zones from visual detection.
-            # DigitalPageSegmenter works on text only and cannot detect visual codes;
-            # we render the page at low DPI and scan for QR codes separately.
-            _add_visual_qr_zones(page, zoned_page)
+                _apply_redactions_safe(page)
 
-            # Add SIGNATURE zones for handwritten signatures (images / ink).
-            if settings.detect_visual_signatures:
-                _add_signature_zones(page, zoned_page, page_text)
-
-            page_rects, page_entities, page_layout_count = _collect_redaction_rects(
-                zoned_page=zoned_page,
-                page_text=page_text,
-                analyzer=analyzer,
-                mode=mode,
-                collect_entities=collect_entities,
+        except cancellation.JobStopped:
+            # PARAR: se entrega lo ya procesado.  Las páginas completas son las
+            # ANTERIORES a la que estaba en curso, así que se corta ahí.  Las no
+            # procesadas NO se incluyen: pintarlas de negro no borraría su texto
+            # —seguiría siendo seleccionable debajo— y una sola que se colara
+            # saldría con todos sus datos a la vista.
+            stop.honor()
+            partial = True
+            pages_done = page_index
+            if pages_done < doc.page_count:
+                doc.delete_pages(from_page=pages_done, to_page=doc.page_count - 1)
+            append_partial_notice(doc, pages_done, pages_total_original)
+            warnings.append(
+                f"Partial document: pages 1-{pages_done} of "
+                f"{pages_total_original} were processed before the stop request."
             )
-
-            all_entities.extend(page_entities)
-            layout_rect_count += page_layout_count
-            redacted_count += len(page_rects)
-
-            for rect in page_rects:
-                page.add_redact_annot(rect, fill=(0, 0, 0))
-
-            _apply_redactions_safe(page)
 
         if full_redaction_pages:
             by_reason: dict[str, list[int]] = {}
@@ -209,7 +233,9 @@ def redact_pdf_digital(
         job_id=job_id,
         status="completed" if not warnings else "completed_with_warnings",
         document_type="pdf_digital",
-        pages=inspection.pages,
+        pages=pages_done if partial else inspection.pages,
+        partial=partial,
+        pages_total_original=pages_total_original if partial else None,
         selectable_text_chars=inspection.selectable_text_chars,
         entities_detected=len(all_entities) + layout_rect_count,
         entities_redacted=redacted_count,

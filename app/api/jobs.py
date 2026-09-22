@@ -53,6 +53,8 @@ def _to_response(job: Job) -> JobResponse:
         result = JobResultSummary(
             status=job.report.status,
             pages=job.report.pages,
+            partial=job.report.partial,
+            pages_total_original=job.report.pages_total_original,
             entities_detected=job.report.entities_detected,
             entities_redacted=job.report.entities_redacted,
             manual_review_required=job.report.manual_review_required,
@@ -68,7 +70,7 @@ def _to_response(job: Job) -> JobResponse:
     return JobResponse(
         job_id=job.id,
         status=job.status,
-        stopping=job.cancel_requested and job.status == "running",
+        stopping=job.stop_mode is not None and job.status == "running",
         created_at=job.created_at,
         started_at=job.started_at,
         finished_at=job.finished_at,
@@ -203,7 +205,14 @@ async def get_job_result(
     job = _require_job(job_id)
     report = _require_finished_report(job)
 
-    pdf_filename = download_filename("pdf")
+    # Un parcial lo dice ya en el nombre, además de en su última página y en
+    # el informe: es lo primero que ve quien lo recibe.
+    parcial = (
+        (report.pages, report.pages_total_original)
+        if report.partial and report.pages_total_original
+        else None
+    )
+    pdf_filename = download_filename("pdf", partial_pages=parcial)
     headers = {
         "X-Job-Id": job.id,
         "X-Anonymization-Status": report.status,
@@ -215,7 +224,7 @@ async def get_job_result(
         with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
             zf.write(job.output_path, arcname=pdf_filename)
             zf.writestr("report.json", report.model_dump_json(indent=2) + "\n")
-        zip_filename = download_filename("zip")
+        zip_filename = download_filename("zip", partial_pages=parcial)
         return Response(
             content=buffer.getvalue(),
             media_type="application/zip",
@@ -248,6 +257,49 @@ async def get_job_report(job_id: str) -> ProcessingReport:
     return report
 
 
+@router.post(
+    "/{job_id}/stop",
+    status_code=202,
+    responses={
+        202: {"description": "Se está parando: entregará las páginas ya procesadas."},
+        404: {"description": "Trabajo desconocido o ya borrado."},
+        409: {"description": "Todavía en cola, o ya había terminado."},
+    },
+)
+async def stop_job(job_id: str) -> Response:
+    """Para el trabajo y entrega lo procesado hasta ahora.
+
+    Es la otra intención frente a `DELETE`: «no quiero esperar más, dame lo que
+    haya».  El PDF resultante contiene solo páginas COMPLETAS —la que estaba en
+    curso no se incluye— y lo dicen su última página, su nombre y el informe
+    (`partial: true`).
+
+    Sin ninguna página terminada no hay nada que entregar: entonces el trabajo
+    se elimina, y quien pidió la parada sabe explicarlo.
+    """
+    outcome = job_store.stop(job_id)
+    if outcome == "missing":
+        raise HTTPException(status_code=404, detail="Trabajo desconocido o ya borrado.")
+    if outcome == "nothing_yet":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "nothing_processed_yet",
+                "message": "El documento aun espera turno: no hay ninguna pagina "
+                           "procesada que entregar.",
+            },
+        )
+    if outcome == "too_late":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "already_finished",
+                "message": "El documento ya habia terminado.",
+            },
+        )
+    return Response(status_code=202)
+
+
 @router.delete(
     "/{job_id}",
     status_code=204,
@@ -259,7 +311,7 @@ async def get_job_report(job_id: str) -> ProcessingReport:
     },
 )
 async def delete_job(job_id: str) -> Response:
-    """Para el trabajo y borra sus ficheros sin esperar a que caduquen.
+    """Elimina el trabajo: lo para y borra sus ficheros, sin entregar nada.
 
     En cola o terminado el borrado es inmediato (204).  Si se está procesando
     no se puede cortar a mitad de página: se responde 202, el estado pasa a

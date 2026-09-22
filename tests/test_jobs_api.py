@@ -191,7 +191,7 @@ def test_the_state_says_when_a_document_is_winding_down():
 
     job = job_store.get(job_id)
     job.status = "running"
-    job.cancel_requested = True
+    job.stop_mode = "delete"
     assert client.get(f"/jobs/{job_id}").json()["stopping"] is True
 
 
@@ -228,6 +228,63 @@ def test_the_original_document_is_removed_as_soon_as_it_is_processed():
     job = job_store.get(job_id)
     assert not job.input_path.exists(), "el original no se conserva tras procesar"
     assert job.output_path.exists()
+
+
+# --- parar y entregar lo procesado -------------------------------------------
+
+def test_stop_answers_202_while_it_winds_down(monkeypatch):
+    job_id = _upload().json()["job_id"]
+    _wait(job_id)
+    monkeypatch.setattr(job_store, "stop", lambda _id: "stopping")
+    assert client.post(f"/jobs/{job_id}/stop").status_code == 202
+
+
+def test_stopping_something_queued_says_why(monkeypatch):
+    job_id = _upload().json()["job_id"]
+    _wait(job_id)
+    monkeypatch.setattr(job_store, "stop", lambda _id: "nothing_yet")
+
+    respuesta = client.post(f"/jobs/{job_id}/stop")
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"]["code"] == "nothing_processed_yet"
+
+
+def test_stopping_something_finished_says_why(monkeypatch):
+    job_id = _upload().json()["job_id"]
+    _wait(job_id)
+    monkeypatch.setattr(job_store, "stop", lambda _id: "too_late")
+
+    respuesta = client.post(f"/jobs/{job_id}/stop")
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"]["code"] == "already_finished"
+
+
+def test_stopping_an_unknown_job_is_not_found():
+    assert client.post("/jobs/nodeexiste/stop").status_code == 404
+
+
+def test_a_partial_result_is_marked_everywhere():
+    """En el estado, en el nombre de la descarga y en el informe."""
+    job_id = _upload(pages=3).json()["job_id"]
+    _wait(job_id)
+
+    job = job_store.get(job_id)
+    job.report.partial = True
+    job.report.pages = 2
+    job.report.pages_total_original = 3
+
+    estado = client.get(f"/jobs/{job_id}").json()
+    assert estado["result"]["partial"] is True
+    assert estado["result"]["pages"] == 2
+    assert estado["result"]["pages_total_original"] == 3
+
+    descarga = client.get(f"/jobs/{job_id}/result")
+    assert "documento_anonimizado_parcial_1-2_de_3.pdf" in (
+        descarga.headers["content-disposition"]
+    )
+
+    informe = client.get(f"/jobs/{job_id}/report").json()
+    assert informe["partial"] is True and informe["pages_total_original"] == 3
 
 
 # --- caducidad ---------------------------------------------------------------

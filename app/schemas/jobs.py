@@ -53,7 +53,16 @@ class JobResultSummary(BaseModel):
         description="Resultado del documento: completed, completed_with_warnings, "
                     "manual_review_required o failed.",
     )
-    pages: int = 0
+    pages: int = Field(default=0, description="Páginas del documento entregado.")
+    partial: bool = Field(
+        default=False,
+        description="El documento se paró a medias: contiene solo las páginas "
+                    "1 a `pages` de `pages_total_original`, todas completas.",
+    )
+    pages_total_original: int | None = Field(
+        default=None,
+        description="Páginas que tenía el documento subido. Solo en parciales.",
+    )
     entities_detected: int = 0
     entities_redacted: int = 0
     manual_review_required: bool = False

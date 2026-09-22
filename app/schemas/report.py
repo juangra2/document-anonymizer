@@ -105,6 +105,10 @@ class ProcessingReport(BaseModel):
     limits: ProcessingLimits | None = None
 
     pages: int = 0
+    # Documento parado a medias: `pages` son las páginas ENTREGADAS y
+    # `pages_total_original` las que tenía el documento subido.
+    partial: bool = False
+    pages_total_original: int | None = None
     selectable_text_chars: int = 0
 
     entities_detected: int = 0

@@ -41,6 +41,7 @@ from app.services.ocr.factory import get_ocr_engine, get_word_ocr_engine
 from app.services.ocr.models import OcrPage
 from app.services.ocr.orientation import resolve_orientation
 from app.services.pdf.inspector import inspect_pdf_for_phase1
+from app.services.pdf.partial import append_partial_notice
 from app.services.pdf.full_redaction import DNI_SCAN, classify_page
 from app.services.pdf.plan_pages import is_image_dominant_page, is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
@@ -126,6 +127,9 @@ def redact_pdf_scanned(
     # Páginas tachadas enteras porque el OCR no pudo leerlas: motivo por página.
     unreadable_pages: dict[int, str] = {}
     warnings: list[str] = []
+    pages_total_original = inspection.pages
+    pages_done = inspection.pages
+    partial = False
 
     try:
         with scratch_dir(prefix="pdf_ocr_") as tmp_dir_name:
@@ -340,137 +344,151 @@ def redact_pdf_scanned(
 
             on_page = progress.claim(source_doc.page_count)
 
-            for page_index, page in enumerate(source_doc):
-                on_page(page_index)
-                cancellation.check()
-                # Plan pages (A1/A0 drawings) are detected from metadata BEFORE
-                # rendering: rasterising them is the expensive step the page
-                # budget cannot cover.  Only the title block is analysed and
-                # redacted; without one, the page is kept as-is and flagged.
-                if is_plan_page(page):
-                    found, plan_entities, plan_rects = redact_plan_page(
-                        page, analyzer, mode=mode,
-                    )
-                    if found:
-                        logger.info(
-                            "Page %d: construction plan, title block redacted "
-                            "(%d rects).", page_index, plan_rects,
+            try:
+                for page_index, page in enumerate(source_doc):
+                    on_page(page_index)
+                    cancellation.check()
+                    # Plan pages (A1/A0 drawings) are detected from metadata BEFORE
+                    # rendering: rasterising them is the expensive step the page
+                    # budget cannot cover.  Only the title block is analysed and
+                    # redacted; without one, the page is kept as-is and flagged.
+                    if is_plan_page(page):
+                        found, plan_entities, plan_rects = redact_plan_page(
+                            page, analyzer, mode=mode,
                         )
-                        all_entities.extend(plan_entities)
-                        redacted_count += plan_rects
-                        plan_pages_done.append(page_index)
-                    else:
+                        if found:
+                            logger.info(
+                                "Page %d: construction plan, title block redacted "
+                                "(%d rects).", page_index, plan_rects,
+                            )
+                            all_entities.extend(plan_entities)
+                            redacted_count += plan_rects
+                            plan_pages_done.append(page_index)
+                        else:
+                            logger.warning(
+                                "Page %d: construction plan without detectable "
+                                "title block; kept as-is (manual review).",
+                                page_index,
+                            )
+                            skipped_pages.append(page_index)
+                        output_doc.insert_pdf(
+                            source_doc, from_page=page_index, to_page=page_index,
+                        )
+                        continue
+
+                    image = _render_page_to_image(page, dpi=settings.ocr_pdf_render_dpi)
+
+                    # Fast path: oversized plan/photo page → skip heavy text OCR and
+                    # redact only visual codes (and, later, signatures/stamps).
+                    if _is_image_dominant_page(page):
                         logger.warning(
-                            "Page %d: construction plan without detectable "
-                            "title block; kept as-is (manual review).",
+                            "Page %d is image-dominant (plan/photo); skipping full OCR.",
                             page_index,
                         )
-                        skipped_pages.append(page_index)
-                    output_doc.insert_pdf(
-                        source_doc, from_page=page_index, to_page=page_index,
-                    )
-                    continue
-
-                image = _render_page_to_image(page, dpi=settings.ocr_pdf_render_dpi)
-
-                # Fast path: oversized plan/photo page → skip heavy text OCR and
-                # redact only visual codes (and, later, signatures/stamps).
-                if _is_image_dominant_page(page):
-                    logger.warning(
-                        "Page %d is image-dominant (plan/photo); skipping full OCR.",
-                        page_index,
-                    )
-                    code_rects = detect_visual_code_rects(image)
-                    if QR_TYPE in analyzer.disabled_types:
-                        # Esta vía solo localiza códigos.  Quedan visibles los que
-                        # se pueden leer y no llevan ningún obligatorio; los que
-                        # no se leen se redactan, porque no se puede descartar PII.
-                        visible = [
-                            rect for rect, payload in detect_redactable_codes(image)
-                            if code_may_stay_visible(payload, analyzer)
-                        ]
-                        code_rects = [
-                            r for r in code_rects
-                            if not any(_mostly_same(r, v) for v in visible)
-                        ]
-                    if settings.detect_visual_stamps:
-                        code_rects = code_rects + detect_stamp_rects(image)
-                    draw = ImageDraw.Draw(image)
-                    for rect in code_rects:
-                        draw.rectangle(
-                            [int(rect.x0), int(rect.y0), int(rect.x1), int(rect.y1)],
-                            fill="black",
-                        )
-                    redacted_count += len(code_rects)
-                    skipped_pages.append(page_index)
-                    _append_image_as_pdf_page(output_doc, image, page.rect)
-                    continue
-
-                # Per-page timeout: a stalled page must not hang the whole job.
-                # Sin leerla no se puede descartar que lleve datos, así que se
-                # tacha entera en vez de entregarse intacta.
-                try:
-                    result = _run_with_timeout(
-                        lambda: _process_page_heavy(page_index, image),
-                        settings.ocr_page_timeout_s,
-                    )
-                except FuturesTimeout:
-                    if settings.redact_unreadable_pages:
-                        logger.warning(
-                            "Page %d exceeded the %ds OCR budget; redacted in full.",
-                            page_index, settings.ocr_page_timeout_s,
-                        )
-                        unreadable_pages[page_index] = notices.OCR_TIMEOUT
-                        # En vivo: quien esté mirando la pantalla se entera
-                        # ahora, no al leer el informe media hora despues.
-                        notices.page_redacted_in_full(page_index, notices.OCR_TIMEOUT)
-                        redacted_count += 1
-                        _append_image_as_pdf_page(
-                            output_doc, _blacked_out(image), page.rect,
-                        )
-                    else:
-                        logger.warning(
-                            "Page %d exceeded the %ds OCR budget; skipping (manual review).",
-                            page_index, settings.ocr_page_timeout_s,
-                        )
+                        code_rects = detect_visual_code_rects(image)
+                        if QR_TYPE in analyzer.disabled_types:
+                            # Esta vía solo localiza códigos.  Quedan visibles los que
+                            # se pueden leer y no llevan ningún obligatorio; los que
+                            # no se leen se redactan, porque no se puede descartar PII.
+                            visible = [
+                                rect for rect, payload in detect_redactable_codes(image)
+                                if code_may_stay_visible(payload, analyzer)
+                            ]
+                            code_rects = [
+                                r for r in code_rects
+                                if not any(_mostly_same(r, v) for v in visible)
+                            ]
+                        if settings.detect_visual_stamps:
+                            code_rects = code_rects + detect_stamp_rects(image)
+                        draw = ImageDraw.Draw(image)
+                        for rect in code_rects:
+                            draw.rectangle(
+                                [int(rect.x0), int(rect.y0), int(rect.x1), int(rect.y1)],
+                                fill="black",
+                            )
+                        redacted_count += len(code_rects)
                         skipped_pages.append(page_index)
                         _append_image_as_pdf_page(output_doc, image, page.rect)
-                    continue
+                        continue
 
-                if result.get("rotated"):
-                    rotated_pages[page_index] = result["rotated"]
-                if result.get("poor_ocr"):
-                    if settings.redact_unreadable_pages and not result.get("full_redaction"):
-                        # Ilegible en todos los giros: lo que el OCR no ha leído
-                        # tampoco se ha podido tachar.  Las entidades se conservan
-                        # para el informe; los residuos del segundo pase ya no
-                        # aplican sobre una página en negro.
-                        unreadable_pages[page_index] = notices.OCR_UNREADABLE
-                        notices.page_redacted_in_full(page_index, notices.OCR_UNREADABLE)
-                        result["image"] = _blacked_out(result["image"])
-                        result["rect_count"] = 1
-                        result["residuals"] = []
-                    else:
-                        poor_ocr_pages.append(page_index)
+                    # Per-page timeout: a stalled page must not hang the whole job.
+                    # Sin leerla no se puede descartar que lleve datos, así que se
+                    # tacha entera en vez de entregarse intacta.
+                    try:
+                        result = _run_with_timeout(
+                            lambda: _process_page_heavy(page_index, image),
+                            settings.ocr_page_timeout_s,
+                        )
+                    except FuturesTimeout:
+                        if settings.redact_unreadable_pages:
+                            logger.warning(
+                                "Page %d exceeded the %ds OCR budget; redacted in full.",
+                                page_index, settings.ocr_page_timeout_s,
+                            )
+                            unreadable_pages[page_index] = notices.OCR_TIMEOUT
+                            # En vivo: quien esté mirando la pantalla se entera
+                            # ahora, no al leer el informe media hora despues.
+                            notices.page_redacted_in_full(page_index, notices.OCR_TIMEOUT)
+                            redacted_count += 1
+                            _append_image_as_pdf_page(
+                                output_doc, _blacked_out(image), page.rect,
+                            )
+                        else:
+                            logger.warning(
+                                "Page %d exceeded the %ds OCR budget; skipping (manual review).",
+                                page_index, settings.ocr_page_timeout_s,
+                            )
+                            skipped_pages.append(page_index)
+                            _append_image_as_pdf_page(output_doc, image, page.rect)
+                        continue
 
-                if result.get("full_redaction"):
-                    full_redaction_pages[page_index] = result["full_redaction"]
-                    if result.get("cropped"):
-                        cropped_pages.append(page_index)
-                    elif result.get("crop_fallback_reason"):
-                        crop_fallbacks[page_index] = result["crop_fallback_reason"]
-                    logger.info("Page %d fully redacted (%s).", page_index,
-                                result["full_redaction"])
+                    if result.get("rotated"):
+                        rotated_pages[page_index] = result["rotated"]
+                    if result.get("poor_ocr"):
+                        if settings.redact_unreadable_pages and not result.get("full_redaction"):
+                            # Ilegible en todos los giros: lo que el OCR no ha leído
+                            # tampoco se ha podido tachar.  Las entidades se conservan
+                            # para el informe; los residuos del segundo pase ya no
+                            # aplican sobre una página en negro.
+                            unreadable_pages[page_index] = notices.OCR_UNREADABLE
+                            notices.page_redacted_in_full(page_index, notices.OCR_UNREADABLE)
+                            result["image"] = _blacked_out(result["image"])
+                            result["rect_count"] = 1
+                            result["residuals"] = []
+                        else:
+                            poor_ocr_pages.append(page_index)
 
-                all_entities.extend(result["entities"])
-                all_residual_entities.extend(result["residuals"])
-                redacted_count += result["rect_count"]
-                if result["confidence"] is not None:
-                    confidence_values.append(result["confidence"])
-                    if result["confidence"] < 0.75:
-                        low_confidence_pages.append(page_index)
+                    if result.get("full_redaction"):
+                        full_redaction_pages[page_index] = result["full_redaction"]
+                        if result.get("cropped"):
+                            cropped_pages.append(page_index)
+                        elif result.get("crop_fallback_reason"):
+                            crop_fallbacks[page_index] = result["crop_fallback_reason"]
+                        logger.info("Page %d fully redacted (%s).", page_index,
+                                    result["full_redaction"])
 
-                _append_image_as_pdf_page(output_doc, result["image"], page.rect)
+                    all_entities.extend(result["entities"])
+                    all_residual_entities.extend(result["residuals"])
+                    redacted_count += result["rect_count"]
+                    if result["confidence"] is not None:
+                        confidence_values.append(result["confidence"])
+                        if result["confidence"] < 0.75:
+                            low_confidence_pages.append(page_index)
+
+                    _append_image_as_pdf_page(output_doc, result["image"], page.rect)
+
+            except cancellation.JobStopped:
+                # PARAR: el PDF de salida ya contiene SOLO las páginas terminadas,
+                # porque cada una se añade al acabarla.  La que estaba en curso no
+                # llegó a añadirse, así que no hay nada que quitar.
+                stop.honor()
+                partial = True
+                pages_done = output_doc.page_count
+                append_partial_notice(output_doc, pages_done, pages_total_original)
+                warnings.append(
+                    f"Partial document: pages 1-{pages_done} of "
+                    f"{pages_total_original} were processed before the stop request."
+                )
 
         output_doc.set_metadata({})
         try:
@@ -560,7 +578,9 @@ def redact_pdf_scanned(
         job_id=job_id,
         status="completed_with_warnings" if warnings else "completed",
         document_type=document_type,
-        pages=inspection.pages,
+        pages=pages_done if partial else inspection.pages,
+        partial=partial,
+        pages_total_original=pages_total_original if partial else None,
         selectable_text_chars=inspection.selectable_text_chars,
         entities_detected=len(all_entities),
         entities_redacted=redacted_count,
@@ -585,7 +605,7 @@ def redact_pdf_scanned(
         ocr=OcrInfo(
             enabled=True,
             engine=ocr_engine.engine_name,
-            pages_ocr_processed=inspection.pages,
+            pages_ocr_processed=pages_done if partial else inspection.pages,
             images_processed=0,
             ocr_confidence_avg=confidence_avg,
             low_confidence_pages=low_confidence_pages,

@@ -55,6 +55,10 @@ MAX_NOTICES = 200
 # esperar a que suelte la página que tiene entre manos.
 DeleteOutcome = Literal["gone", "stopping", "missing"]
 
+# Resultado de pedir PARAR (entregar lo procesado).  "nothing_yet" = todavía en
+# cola, no hay ninguna página hecha; "too_late" = ya había terminado.
+StopOutcome = Literal["stopping", "deleting", "nothing_yet", "too_late", "missing"]
+
 
 class QueueFullError(RuntimeError):
     """La cola está llena; el cliente debe reintentar más tarde."""
@@ -80,9 +84,10 @@ class Job:
     disabled_types: frozenset[str] = frozenset()
 
     status: JobStatus = "queued"
-    # Se pidió parar este documento.  Lo lee el procesamiento entre páginas,
-    # así que se escribe una sola vez y nunca se vuelve a poner en falso.
-    cancel_requested: bool = False
+    # Cómo se pidió parar este documento: "delete" (eliminar sin entregar nada)
+    # o "partial" (entregar lo procesado).  Lo lee el procesamiento entre
+    # páginas, así que se escribe una vez y no se vuelve atrás.
+    stop_mode: cancellation.StopMode | None = None
     created_at: datetime = field(default_factory=_now)
     started_at: datetime | None = None
     finished_at: datetime | None = None
@@ -298,15 +303,43 @@ class JobStore:
             if job is None:
                 return "missing"
             if job.status == "running":
-                if not job.cancel_requested:
-                    logger.info("job %s: stop requested while running", job.id)
-                job.cancel_requested = True
+                if job.stop_mode is None:
+                    logger.info("job %s: delete requested while running", job.id)
+                job.stop_mode = "delete"
                 return "stopping"
             # Un trabajo en cola desaparece del registro y el trabajador que lo
             # saque de la cola no lo encontrará: no llega a empezar.
             self._jobs.pop(job_id, None)
         self._remove_files(job)
         return "gone"
+
+    def stop(self, job_id: str) -> StopOutcome:
+        """Para el trabajo y entrega lo que lleve procesado.
+
+        Es la otra intención: «no quiero esperar más, dame lo que haya».  Sin
+        ninguna página terminada no hay nada que entregar —un PDF de cero
+        páginas ni siquiera es válido—, así que ahí equivale a eliminar y el
+        cliente, que sabe lo que pidió, lo explica.
+        """
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                return "missing"
+            if job.status == "queued":
+                return "nothing_yet"
+            if job.status != "running":
+                return "too_late"
+            if job.stop_mode == "delete":
+                # Ya estaba eliminándose: eliminar manda sobre entregar.
+                return "deleting"
+            if job.pages_done < 1:
+                logger.info("job %s: stop requested before the first page", job.id)
+                job.stop_mode = "delete"
+                return "deleting"
+            if job.stop_mode is None:
+                logger.info("job %s: partial stop requested", job.id)
+            job.stop_mode = "partial"
+            return "stopping"
 
     def stats(self) -> dict[str, int]:
         """Carga actual, para el endpoint de salud."""
@@ -350,8 +383,13 @@ class JobStore:
             job = self.get(job_id)
             if job is None or job.status != "queued":
                 continue
-            with self.slot():
-                self._run(job)
+            try:
+                with self.slot():
+                    self._run(job)
+            except BaseException:  # noqa: BLE001 — el trabajador NO puede morir
+                # Con un solo trabajador, un hilo muerto deja el servicio sin
+                # procesar nada más, para siempre, y sin decir una palabra.
+                logger.exception("worker survived an unexpected failure")
 
     def _run(self, job: Job) -> None:
         with self._lock:
@@ -367,7 +405,7 @@ class JobStore:
         cancelled = False
 
         try:
-            with progress.track(on_progress), notices.track(on_notice),                     cancellation.track(lambda: job.cancel_requested):
+            with progress.track(on_progress), notices.track(on_notice),                     cancellation.track(lambda: job.stop_mode):
                 report = self._pipeline().process(
                     job.input_path,
                     job.output_path,
@@ -382,10 +420,19 @@ class JobStore:
                 )
         except cancellation.JobCancelled:
             cancelled = True
+        except cancellation.JobStopped:
+            # El camino de redacción debería haberla atrapado para entregar el
+            # parcial.  Si llega hasta aquí es que no lo hizo: no hay documento
+            # que entregar, así que se trata como una eliminación.
+            logger.error(
+                "job %s: partial stop reached the worker; nothing to deliver",
+                job.id,
+            )
+            cancelled = True
         except Exception as exc:  # noqa: BLE001 — el trabajo registra el fallo
             # Una parada puede provocar de paso un fallo cualquiera (un fichero
-            # a medias, por ejemplo); si se pidió parar, lo que vale es eso.
-            if job.cancel_requested:
+            # a medias, por ejemplo); si se pidió eliminar, lo que vale es eso.
+            if job.stop_mode == "delete":
                 cancelled = True
             else:
                 logger.exception("job %s failed", job.id)
@@ -397,9 +444,11 @@ class JobStore:
                     job.expires_at = job.finished_at + self._ttl
         else:
             with self._lock:
-                # La parada pudo llegar entre la última página y este momento:
-                # entonces el resultado no se publica, se tira.
-                if job.cancel_requested:
+                # La eliminación pudo llegar entre la última página y este
+                # momento: entonces el resultado no se publica, se tira.  Un
+                # PARAR que llegue igual de tarde entrega el documento entero,
+                # que es lo que el usuario quería: lo procesado.
+                if job.stop_mode == "delete":
                     cancelled = True
                 else:
                     job.report = report

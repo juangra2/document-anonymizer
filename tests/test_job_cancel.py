@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from app.services import cancellation
+from app.services import cancellation, progress
 from app.services.jobs.store import JobStore
 
 
@@ -32,8 +32,10 @@ class _FakePipeline:
     def process(self, input_path, output_path, job_id, mode,
                 collect_entities, disabled_types):
         self.started.set()
+        on_page = progress.claim(self.pages)
         try:
-            for _ in range(self.pages):
+            for i in range(self.pages):
+                on_page(i)
                 cancellation.check()
                 time.sleep(self.page_seconds)
                 self.pages_processed += 1
@@ -246,7 +248,84 @@ def test_the_stop_flag_is_visible_while_it_winds_down(store, pipeline):
         seen = slow_store.get(job.id)
         if seen is not None:  # si aun no ha salido, asi es como se ve
             assert seen.status == "running"
-            assert seen.cancel_requested is True
+            assert seen.stop_mode == "delete"
         assert _wait_until(lambda: slow_store.get(job.id) is None)
     finally:
         slow_store.shutdown(timeout=2.0)
+
+
+# --- PARAR: la otra intencion ------------------------------------------------
+
+def test_stopping_a_running_document_asks_for_a_partial(store, pipeline):
+    """Con páginas hechas, PARAR entrega lo procesado."""
+    job = _submit(store)
+    assert pipeline.started.wait(5.0)
+    assert _wait_until(lambda: job.pages_done >= 1)
+
+    assert store.stop(job.id) == "stopping"
+    assert job.stop_mode == "partial"
+
+
+def test_stopping_before_the_first_page_deletes_instead(store, pipeline):
+    """Un PDF de cero páginas no es un documento: no hay nada que entregar."""
+    job = _submit(store)
+    assert pipeline.started.wait(5.0)
+    if job.pages_done == 0:
+        assert store.stop(job.id) == "deleting"
+        assert job.stop_mode == "delete"
+        assert _wait_until(lambda: store.get(job.id) is None)
+
+
+def test_stopping_something_still_queued_is_a_conflict(store, pipeline):
+    ocupa = _submit(store, "ocupa.pdf")
+    espera = _submit(store, "espera.pdf")
+    assert pipeline.started.wait(5.0)
+
+    assert store.stop(espera.id) == "nothing_yet"
+    assert espera.status == "queued", "sigue en la cola: no se toca"
+    store.delete(ocupa.id)
+    store.delete(espera.id)
+
+
+def test_stopping_something_finished_or_unknown(store):
+    pipeline_rapido = _FakePipeline(pages=1, page_seconds=0.0)
+    otro = _store(pipeline_rapido)
+    try:
+        job = _submit(otro)
+        assert _wait_until(lambda: otro.get(job.id).status == "completed", timeout=5.0)
+        assert otro.stop(job.id) == "too_late"
+        assert otro.stop("nodeexiste") == "missing"
+    finally:
+        otro.shutdown(timeout=2.0)
+
+
+def test_deleting_wins_over_stopping(store, pipeline):
+    """Si ya se pidió eliminar, parar no puede resucitar el resultado."""
+    job = _submit(store)
+    assert pipeline.started.wait(5.0)
+
+    assert store.delete(job.id) == "stopping"
+    assert store.stop(job.id) == "deleting"
+    assert job.stop_mode == "delete"
+    assert _wait_until(lambda: store.get(job.id) is None)
+
+
+def test_a_worker_survives_a_stop_that_nobody_handled(store, pipeline):
+    """El trabajador no puede morir: con uno solo, el servicio se pararia entero.
+
+    El pipeline simulado no atrapa la parada (los redactores de verdad si), asi
+    que la excepcion llega al trabajador.  Debe sobrevivir y seguir con la cola.
+    """
+    primero = _submit(store, "primero.pdf")
+    segundo = _submit(store, "segundo.pdf")
+    assert pipeline.started.wait(5.0)
+    assert _wait_until(lambda: primero.pages_done >= 1)
+
+    store.stop(primero.id)
+
+    assert _wait_until(lambda: store.get(primero.id) is None), (
+        "sin parcial que entregar, el trabajo se elimina"
+    )
+    assert _wait_until(lambda: store.get(segundo.id).status in ("running", "completed")), (
+        "el trabajador siguio vivo y cogio el siguiente"
+    )
