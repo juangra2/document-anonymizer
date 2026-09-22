@@ -120,8 +120,7 @@ async def create_job(
             "pasa a mayúsculas (date_time equivale a DATE_TIME) y se ignoran los "
             "valores vacíos, de modo que una lista vacía (?disabled_types=) equivale "
             "a no enviar el parametro. Se rechaza con 422, sin procesar nada, un "
-            "tipo inexistente o un tipo obligatorio (marcado mandatory en "
-            "GET /entity-types). No se admite separar varios valores con comas."
+            "tipo inexistente. No se admite separar varios valores con comas."
         ),
     ),
 ) -> JobResponse:

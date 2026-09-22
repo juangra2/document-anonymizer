@@ -38,9 +38,3 @@ class EntityTypeResponse(BaseModel):
         default=True,
         description="Si el tipo se anonimiza cuando no se envía configuración.",
     )
-    mandatory: bool = Field(
-        default=False,
-        description="Si el tipo se anonimiza siempre. La interfaz debe "
-                    "mostrarlo marcado y no editable; enviarlo en "
-                    "`disabled_types` devuelve 422.",
-    )

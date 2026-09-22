@@ -1,8 +1,10 @@
-"""Bloque 4 — QR_CODE desactivable y LAYOUT_VALUE fuera del resumen por tipo (F8, F14).
+"""QR_CODE es un tipo normal, y LAYOUT_VALUE no figura en el resumen por tipo.
 
-QR_CODE pasa a ser un tipo normal, pero desactivarlo solo libera los códigos
-cuyo contenido no lleva ningún tipo obligatorio.  Se verifica decodificando un
-render del PDF de salida con el mismo detector que usa el sistema.
+Desmarcar QR_CODE solo libera los códigos cuyo contenido no lleva ningún tipo
+que siga ACTIVO.  Consecuencia práctica, que estos tests dejan por escrito: el
+QR de verificación de la sede lleva dentro una URL y un código seguro de
+verificación, así que para conservarlo hay que desmarcar también esos dos.  Se verifica decodificando un render
+del PDF de salida con el mismo detector que usa el sistema.
 """
 from io import BytesIO
 from pathlib import Path
@@ -68,7 +70,6 @@ def pipeline():
 def test_qr_code_is_listed_as_an_optional_type():
     items = {i["id"]: i for i in client.get("/entity-types").json()}
     assert "QR_CODE" in items
-    assert items["QR_CODE"]["mandatory"] is False
     assert "barras" in items["QR_CODE"]["description"]
 
 
@@ -87,13 +88,22 @@ def test_qr_code_can_be_disabled_through_the_api():
 
 # --- la regla -------------------------------------------------------------------
 
-def test_the_policy_only_frees_codes_without_mandatory_data():
+def test_the_policy_only_frees_codes_without_active_types_inside():
     base = PiiAnalyzer()
-    off = base.with_disabled_types({"QR_CODE"})
+    solo_qr = base.with_disabled_types({"QR_CODE"})
+    qr_y_contenido = base.with_disabled_types({"QR_CODE", "URL", "CSV"})
+
     assert not code_may_stay_visible(SEDE, base), "con el tipo activo se redacta siempre"
-    assert code_may_stay_visible(SEDE, off)
-    assert not code_may_stay_visible(PERSONAL, off), "lleva nombre y DNI"
-    assert not code_may_stay_visible("", off), "sin contenido legible no se puede descartar PII"
+    assert not code_may_stay_visible(SEDE, solo_qr), (
+        "el QR de sede lleva dentro una URL y un CSV, y ambos siguen activos"
+    )
+    assert code_may_stay_visible(SEDE, qr_y_contenido), (
+        "desmarcando tambien lo que lleva dentro, el codigo se conserva"
+    )
+    assert not code_may_stay_visible(PERSONAL, qr_y_contenido), "lleva nombre, DNI y NSS"
+    assert not code_may_stay_visible("", qr_y_contenido), (
+        "sin contenido legible no se puede descartar que lleve datos"
+    )
 
 
 # --- sobre el PDF de salida -------------------------------------------------------
@@ -111,14 +121,26 @@ def test_both_codes_are_redacted_by_default(tmp_path, pipeline):
     assert report.entities_by_type.get("QR_CODE") == 2
 
 
-def test_disabling_qr_code_keeps_only_the_code_without_personal_data(tmp_path, pipeline):
+def test_unmarking_qr_and_what_it_contains_keeps_only_that_code(tmp_path, pipeline):
     src = _pdf_with_two_qrs(tmp_path / "in.pdf")
     out = tmp_path / "out.pdf"
-    report = pipeline.process(src, out, "t", "strict", False, frozenset({"QR_CODE"}))
+    report = pipeline.process(
+        src, out, "t", "strict", False, frozenset({"QR_CODE", "URL", "CSV"}),
+    )
     codes = _codes_in(out)
-    assert SEDE in codes, "el QR de verificación de sede debe conservarse"
-    assert PERSONAL not in codes, "el QR con nombre y DNI se redacta aunque QR_CODE esté desactivado"
+    assert SEDE in codes, "el QR de verificacion de sede debe conservarse"
+    assert PERSONAL not in codes, (
+        "el QR con nombre y DNI se redacta aunque QR_CODE este desmarcado"
+    )
     assert "QR_CODE" in report.entity_types_disabled
+
+
+def test_unmarking_only_qr_still_redacts_the_sede_code(tmp_path, pipeline):
+    """La consecuencia de la regla, por escrito: no basta con desmarcar el QR."""
+    src = _pdf_with_two_qrs(tmp_path / "in.pdf")
+    out = tmp_path / "out.pdf"
+    pipeline.process(src, out, "t", "strict", False, frozenset({"QR_CODE"}))
+    assert _codes_in(out) == [], "su contenido lleva una URL y un CSV, que siguen activos"
 
 
 def test_qr_count_does_not_depend_on_include_entities(tmp_path, pipeline):

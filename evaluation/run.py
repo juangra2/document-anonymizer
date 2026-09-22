@@ -58,13 +58,13 @@ def save_results_json(doc_results, aggregated: dict, path: Path) -> None:
 
 
 def _disabled_types_arg(value: str | None) -> list[str] | None:
-    """'optional' = todos los tipos no obligatorios; si no, lista separada por comas."""
+    """'all' = todos los tipos del catálogo; si no, lista separada por comas."""
     if not value:
         return None
-    if value.strip().lower() == "optional":
-        from app.services.pii.entity_catalog import known_type_ids, mandatory_type_ids
+    if value.strip().lower() == "all":
+        from app.services.pii.entity_catalog import known_type_ids
 
-        return sorted(known_type_ids() - mandatory_type_ids())
+        return sorted(known_type_ids())
     return [t.strip().upper() for t in value.split(",") if t.strip()]
 
 
@@ -107,8 +107,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--disabled-types", default=None,
-        help="Tipos a desactivar en cada peticion, separados por comas, u 'optional' "
-             "para todos los no obligatorios (compuerta evaluation.mandatory_gate).",
+        help="Tipos a desmarcar en cada peticion, separados por comas, o 'all' "
+             "para todos (compuerta evaluation.compuerta_tipos).",
     )
     parser.add_argument(
         "--resume", action="store_true",

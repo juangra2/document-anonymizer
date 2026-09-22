@@ -1,8 +1,10 @@
-"""Bloque C — catálogo de tipos y desactivación por petición."""
+"""Bloque C — catálogo de tipos y desmarcado por petición."""
 import fitz
 import json
 import zipfile
 from io import BytesIO
+
+import pytest
 
 from fastapi.testclient import TestClient
 
@@ -145,51 +147,43 @@ def test_clone_shares_the_loaded_ner_engine():
     assert analyzer.disabled_types == frozenset()
 
 
-# --- D0: tipos obligatorios ---------------------------------------------------
+# --- todos los tipos son desmarcables -------------------------------------------
 
-MANDATORY = {"PERSON", "ES_DNI", "ES_NIE", "ES_NSS", "IBAN_CODE", "DATE_OF_BIRTH"}
+# Decision del ayuntamiento: no hay tipos que la API imponga.  El catalogo no
+# marca ninguno como obligatorio y ninguna combinacion se rechaza por serlo; lo
+# que quede sin anonimizar queda escrito en entity_types_disabled del informe.
+
+def test_the_catalog_does_not_impose_any_type():
+    items = client.get("/entity-types").json()
+    assert items
+    assert all("mandatory" not in item for item in items), (
+        "el catalogo ya no marca tipos obligatorios"
+    )
+    assert all(item["default_enabled"] for item in items), (
+        "todo sigue activado por defecto: se desmarca a mano"
+    )
 
 
-def test_catalog_marks_the_mandatory_types():
-    marked = {i["id"] for i in client.get("/entity-types").json() if i["mandatory"]}
-    assert marked == MANDATORY
-
-
-def test_mandatory_types_are_also_enabled_by_default():
-    # Un tipo obligatorio y apagado por defecto sería contradictorio.
-    for item in client.get("/entity-types").json():
-        if item["mandatory"]:
-            assert item["default_enabled"], item["id"]
-
-
-def test_disabling_a_mandatory_type_is_rejected():
+@pytest.mark.parametrize("tipo", ["ES_DNI", "PERSON", "IBAN_CODE", "DATE_OF_BIRTH"])
+def test_types_that_used_to_be_mandatory_can_now_be_unmarked(tipo):
     response = client.post(
-        "/anonymize?disabled_types=ES_DNI",
+        f"/anonymize?disabled_types={tipo}",
         files={"file": ("in.pdf", BytesIO(_sample_pdf()), "application/pdf")},
     )
-    assert response.status_code == 422
-    assert "ES_DNI" in response.json()["detail"]
+    assert response.status_code == 200
 
 
-def test_the_rejection_names_every_mandatory_type_requested():
+def test_unmarking_is_recorded_in_the_report():
+    """El rastro de quien decidio no ocultar que."""
     response = client.post(
-        "/anonymize?disabled_types=ES_DNI&disabled_types=PERSON&disabled_types=URL",
+        "/anonymize?output=zip&disabled_types=ES_DNI&disabled_types=PERSON",
         files={"file": ("in.pdf", BytesIO(_sample_pdf()), "application/pdf")},
     )
-    assert response.status_code == 422
-    detail = response.json()["detail"]
-    assert "ES_DNI" in detail and "PERSON" in detail
-    assert "URL" not in detail, "solo se listan los que impiden la peticion"
-
-
-def test_a_rejected_request_anonymizes_nothing():
-    # La peticion se corta antes de procesar: no hay salida a medias.
-    response = client.post(
-        "/anonymize?disabled_types=PERSON",
-        files={"file": ("in.pdf", BytesIO(_sample_pdf()), "application/pdf")},
-    )
-    assert response.status_code == 422
-    assert "X-Job-Id" not in response.headers
+    assert response.status_code == 200
+    with zipfile.ZipFile(BytesIO(response.content)) as zf:
+        report = json.loads(zf.read("report.json"))
+    assert report["entity_types_disabled"] == ["ES_DNI", "PERSON"]
+    assert "ES_DNI" not in report["entity_types_applied"]
 
 
 def test_optional_types_can_still_be_disabled():

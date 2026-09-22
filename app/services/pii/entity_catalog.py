@@ -22,30 +22,23 @@ class EntityTypeInfo:
     label: str
     description: str
     default_enabled: bool = True
-    # Tipo que el cliente NO puede desactivar: identifica directamente a una
-    # persona física, así que dejarlo fuera vaciaría de sentido la
-    # anonimización.  La interfaz lo pinta marcado y bloqueado; la API rechaza
-    # la petición que intente desactivarlo, para que la garantía no dependa de
-    # que el frontend se comporte.
-    mandatory: bool = False
 
 
 # Orden pensado para la interfaz: primero lo que el usuario reconoce al vuelo.
 _CATALOG: tuple[EntityTypeInfo, ...] = (
     EntityTypeInfo("PERSON", "Nombre de persona",
                    "Nombres y apellidos de personas físicas, incluidos los que "
-                   "acompañan a una firma («Fdo.: …»).", mandatory=True),
+                   "acompañan a una firma («Fdo.: …»)."),
     EntityTypeInfo("ES_DNI", "DNI / NIF",
                    "Documento nacional de identidad, con o sin puntos "
-                   "(12345678A, 47.215.601-M).", mandatory=True),
+                   "(12345678A, 47.215.601-M)."),
     EntityTypeInfo("ES_NIE", "NIE",
                    "Número de identidad de extranjero (X, Y o Z seguidos de "
-                   "siete cifras y letra).", mandatory=True),
+                   "siete cifras y letra)."),
     EntityTypeInfo("ES_CIF", "CIF de entidad",
                    "Código de identificación fiscal de empresas y entidades."),
     EntityTypeInfo("ES_NSS", "Número de la Seguridad Social",
-                   "Número de afiliación a la Seguridad Social.",
-                   mandatory=True),
+                   "Número de afiliación a la Seguridad Social."),
     EntityTypeInfo("PASSPORT", "Pasaporte", "Número de pasaporte."),
     EntityTypeInfo("ORGANIZATION", "Nombre de empresa",
                    "Razón social de empresa privada. Las instituciones "
@@ -63,8 +56,7 @@ _CATALOG: tuple[EntityTypeInfo, ...] = (
     # Cubre también la cuenta antigua (CCC) de veinte dígitos: no son dos tipos
     # distintos en el detector, así que marcar este obligatorio protege ambas.
     EntityTypeInfo("IBAN_CODE", "Cuenta bancaria",
-                   "Cuentas IBAN y cuentas antiguas de veinte dígitos (CCC).",
-                   mandatory=True),
+                   "Cuentas IBAN y cuentas antiguas de veinte dígitos (CCC)."),
     EntityTypeInfo("MONEY", "Importe económico",
                    "Importes ligados a una persona o a una cuenta: nóminas, "
                    "transferencias, liquidaciones. No se anonimizan los "
@@ -72,7 +64,7 @@ _CATALOG: tuple[EntityTypeInfo, ...] = (
     EntityTypeInfo("CREDIT_CARD", "Tarjeta bancaria",
                    "Números de tarjeta de crédito o débito."),
     EntityTypeInfo("DATE_OF_BIRTH", "Fecha de nacimiento",
-                   "Fecha de nacimiento de una persona.", mandatory=True),
+                   "Fecha de nacimiento de una persona."),
     EntityTypeInfo("DATE_TIME", "Fecha",
                    "Cualquier fecha del documento, incluidas las de registro y "
                    "firma."),
@@ -105,9 +97,10 @@ _CATALOG: tuple[EntityTypeInfo, ...] = (
                    "Filas de tabla que asocian un cargo con una persona."),
     EntityTypeInfo("QR_CODE", "Código QR o de barras",
                    "Códigos QR y códigos de barras. Si el contenido del código "
-                   "incluye un dato obligatorio (nombre, DNI, NIE, número de la "
-                   "Seguridad Social, cuenta bancaria o fecha de nacimiento), se "
-                   "oculta aunque este tipo esté desactivado."),
+                   "lleva dentro un dato de un tipo que sigue activo (por "
+                   "ejemplo un DNI, con DNI marcado), se oculta aunque este "
+                   "tipo esté desmarcado. Los códigos que no se pueden leer se "
+                   "ocultan siempre."),
 )
 
 _BY_ID = {info.id: info for info in _CATALOG}
@@ -134,6 +127,3 @@ def known_type_ids() -> set[str]:
     return {info.id for info in entity_catalog()}
 
 
-def mandatory_type_ids() -> set[str]:
-    """Tipos que siempre se anonimizan, aunque el cliente pida desactivarlos."""
-    return {info.id for info in entity_catalog() if info.mandatory}

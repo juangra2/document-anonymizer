@@ -1,25 +1,28 @@
 """Cuándo un código QR o de barras puede quedarse visible.
 
-QR_CODE es un tipo desactivable: quien lo desmarca quiere conservar, por
+QR_CODE es un tipo desmarcable: quien lo desmarca quiere conservar, por
 ejemplo, el QR de verificación de la sede electrónica.  Pero un mismo documento
 puede llevar otro código cuyo contenido es «nombre | DNI | NSS» (lo vimos en
-acuerdo_adscripcion_0002).  Desmarcar el tipo no puede publicar eso.
+acuerdo_adscripcion_0002).  Desmarcar el tipo del código no puede publicar lo
+que el usuario sí ha pedido ocultar.
 
-Regla: un código queda visible solo si QR_CODE está desactivado **y** su
-contenido decodificado se conoce **y** no contiene ningún tipo obligatorio.
-Todo lo demás se redacta:
+Regla: un código queda visible solo si QR_CODE está desmarcado **y** su
+contenido se ha podido leer **y** ese contenido no lleva ningún tipo que siga
+ACTIVO en esta petición.  Todo lo demás se redacta:
 
 * QR_CODE activo → se redacta, como siempre;
 * contenido no decodificado (la vía rápida de páginas-imagen solo localiza el
   código) → se redacta: sin leerlo no se puede descartar que lleve PII;
-* contenido con nombre, DNI, NIE, NSS, IBAN o fecha de nacimiento → se redacta.
+* contenido con un dato de un tipo activo → se redacta.
 
-Límite conocido: un contenido opaco (base64, token firmado) que esconda PII no
-se reconoce como tal y quedaría visible con el tipo desactivado.
+La consecuencia querida: desmarcar QR_CODE **y además** el tipo que el código
+lleva dentro sí lo deja visible.  Es coherente con que todos los tipos sean
+desmarcables, y queda por escrito en `entity_types_disabled` del informe.
+
+Límite conocido: un contenido opaco (base64, token firmado) que esconda datos
+no se reconoce como tal y quedaría visible con el tipo desmarcado.
 """
 from __future__ import annotations
-
-from app.services.pii.entity_catalog import mandatory_type_ids
 
 QR_TYPE = "QR_CODE"
 
@@ -30,9 +33,6 @@ def code_may_stay_visible(payload: str | None, analyzer) -> bool:
         return False
     if not payload or not payload.strip():
         return False
-    # El contenido se analiza SIN filtro de tipos: un obligatorio es obligatorio
-    # aunque la petición desactive otros tipos.
-    unfiltered = analyzer.with_disabled_types(frozenset())
-    mandatory = mandatory_type_ids()
-    found = unfiltered.analyze(payload, mode="strict")
-    return not any(entity.entity_type in mandatory for entity in found)
+    # Se analiza con la configuración de la petición: lo que el usuario ha
+    # desmarcado no cuenta, y lo que sigue activo manda redactar el código.
+    return not analyzer.analyze(payload, mode="strict")

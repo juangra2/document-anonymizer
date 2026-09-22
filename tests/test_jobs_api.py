@@ -241,9 +241,10 @@ def test_a_rejected_upload_leaves_no_directory_behind():
     assert after == before
 
 
-def test_mandatory_types_cannot_be_disabled_here_either():
-    response = _upload("?disabled_types=ES_DNI")
-    assert response.status_code == 422
+def test_any_type_can_be_unmarked_here_too():
+    """Sin tipos obligatorios, solo se rechaza lo que no existe."""
+    assert _upload("?disabled_types=ES_DNI").status_code == 202
+    assert _upload("?disabled_types=no_existe").status_code == 422
 
 
 def test_optional_types_are_honoured():

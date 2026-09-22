@@ -83,12 +83,10 @@ def test_an_empty_value_next_to_a_valid_one_is_ignored():
 
 @pytest.mark.parametrize("query", [
     "&disabled_types=no_existe",
-    "&disabled_types=es_dni",
-    "&disabled_types=%20Person%20",
     "&disabled_types=date_time&disabled_types=no_existe",
-    "&disabled_types=url&disabled_types=es_dni",
+    "&disabled_types=no_existe&disabled_types=url",
 ])
-def test_unknown_or_mandatory_types_are_still_rejected_atomically(query):
+def test_unknown_types_are_still_rejected_atomically(query):
     before = _job_dirs()
     response = _anonymize(query)
     assert response.status_code == 422

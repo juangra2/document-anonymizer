@@ -30,43 +30,43 @@ a mano.
 30 tipos de dato: 29 tipos de texto más los códigos QR y de barras. `GET /entity-types` devuelve
 este catálogo con nombre legible y descripción para la interfaz.
 
-- **Obligatorios** (6): identifican directamente a una persona física. Se anonimizan siempre; una
-  petición que intente desactivarlos se rechaza con 422.
-- **Desactivables** (24): activos por defecto; cada petición puede excluir los que no quiera
-  anonimizar con `disabled_types`.
+**Todos son desmarcables y todos están activos por defecto.** Cada petición puede excluir los que
+no quiera anonimizar con `disabled_types`; lo que se haya desmarcado queda escrito en
+`entity_types_disabled` del informe, que es el rastro de quién decidió no ocultar qué. La API solo
+rechaza un tipo que no exista.
 
-| Tipo | Qué captura | Obligatorio |
-|---|---|:---:|
-| `PERSON` | Nombres y apellidos de personas físicas, incluidos los de firma («Fdo.: …») | ✔ |
-| `ES_DNI` | DNI/NIF, con o sin puntos (12345678A, 47.215.601-M) | ✔ |
-| `ES_NIE` | NIE de extranjero (X/Y/Z + 7 cifras + letra) | ✔ |
-| `ES_NSS` | Número de afiliación a la Seguridad Social | ✔ |
-| `IBAN_CODE` | Cuentas IBAN y cuentas antiguas de 20 dígitos (CCC) | ✔ |
-| `DATE_OF_BIRTH` | Fecha de nacimiento | ✔ |
-| `ES_CIF` | CIF de empresas y entidades | |
-| `PASSPORT` | Número de pasaporte | |
-| `ORGANIZATION` | Razón social de empresa **privada** (las instituciones públicas no se anonimizan) | |
-| `ADDRESS` | Domicilios: tipo de vía, número, piso y municipio | |
-| `POSTAL_CODE` | Código postal | |
-| `PHONE_NUMBER` | Teléfonos fijos y móviles, formato español o internacional | |
-| `EMAIL_ADDRESS` | Correo electrónico | |
-| `MONEY` | Importes ligados a una persona o cuenta (nóminas, transferencias, liquidaciones); no los de un presupuesto de obra | |
-| `CREDIT_CARD` | Tarjeta de crédito o débito | |
-| `DATE_TIME` | Cualquier otra fecha, incluidas las de registro y firma | |
-| `LICENSE_PLATE` | Matrícula de vehículo | |
-| `CADASTRAL_REFERENCE` | Referencia catastral | |
-| `CASE_NUMBER` | Referencias de expediente administrativo | |
-| `REGISTRY_NUMBER` | Número de registro de entrada o salida | |
-| `CSV` | Código seguro de verificación | |
-| `CERT_SERIAL` | Número de serie del certificado de firma electrónica | |
-| `MEDICAL_ID` | Historia clínica o tarjeta sanitaria | |
-| `POLICY_NUMBER` | Número de póliza de seguro | |
-| `USER_ID` | Nombres de usuario e identificadores internos | |
-| `IP_ADDRESS` | Direcciones IPv4 | |
-| `URL` | Enlaces y direcciones web | |
-| `CASE_TABLE_ROW` | Filas de tabla que combinan expediente e interesado | |
-| `ROLE_TABLE_ROW` | Filas de tabla que asocian un cargo con una persona | |
-| `QR_CODE` | Códigos QR y de barras (ver abajo) | |
+| Tipo | Qué captura |
+|---|---|
+| `PERSON` | Nombres y apellidos de personas físicas, incluidos los de firma («Fdo.: …») |
+| `ES_DNI` | DNI/NIF, con o sin puntos (12345678A, 47.215.601-M) |
+| `ES_NIE` | NIE de extranjero (X/Y/Z + 7 cifras + letra) |
+| `ES_NSS` | Número de afiliación a la Seguridad Social |
+| `IBAN_CODE` | Cuentas IBAN y cuentas antiguas de 20 dígitos (CCC) |
+| `DATE_OF_BIRTH` | Fecha de nacimiento |
+| `ES_CIF` | CIF de empresas y entidades |
+| `PASSPORT` | Número de pasaporte |
+| `ORGANIZATION` | Razón social de empresa **privada** (las instituciones públicas no se anonimizan) |
+| `ADDRESS` | Domicilios: tipo de vía, número, piso y municipio |
+| `POSTAL_CODE` | Código postal |
+| `PHONE_NUMBER` | Teléfonos fijos y móviles, formato español o internacional |
+| `EMAIL_ADDRESS` | Correo electrónico |
+| `MONEY` | Importes ligados a una persona o cuenta (nóminas, transferencias, liquidaciones); no los de un presupuesto de obra |
+| `CREDIT_CARD` | Tarjeta de crédito o débito |
+| `DATE_TIME` | Cualquier otra fecha, incluidas las de registro y firma |
+| `LICENSE_PLATE` | Matrícula de vehículo |
+| `CADASTRAL_REFERENCE` | Referencia catastral |
+| `CASE_NUMBER` | Referencias de expediente administrativo |
+| `REGISTRY_NUMBER` | Número de registro de entrada o salida |
+| `CSV` | Código seguro de verificación |
+| `CERT_SERIAL` | Número de serie del certificado de firma electrónica |
+| `MEDICAL_ID` | Historia clínica o tarjeta sanitaria |
+| `POLICY_NUMBER` | Número de póliza de seguro |
+| `USER_ID` | Nombres de usuario e identificadores internos |
+| `IP_ADDRESS` | Direcciones IPv4 |
+| `URL` | Enlaces y direcciones web |
+| `CASE_TABLE_ROW` | Filas de tabla que combinan expediente e interesado |
+| `ROLE_TABLE_ROW` | Filas de tabla que asocian un cargo con una persona |
+| `QR_CODE` | Códigos QR y de barras (ver abajo) |
 
 Reglas que conviene conocer:
 
@@ -74,9 +74,10 @@ Reglas que conviene conocer:
   requisito del ayuntamiento. No aparece en el catálogo.
 - **Instituciones públicas**: su nombre no se anonimiza, y tampoco el teléfono o la dirección que
   aparecen junto a él en el membrete.
-- **`QR_CODE`**: si está activo, se tachan todos los códigos. Si está desactivado, un código queda
-  visible solo si se ha podido leer y su contenido no lleva ningún dato obligatorio; un código
-  ilegible o que contiene un nombre, DNI, etc. se tacha igualmente.
+- **`QR_CODE`**: si está activo, se tachan todos los códigos. Si se desmarca, un código queda
+  visible solo si se ha podido leer y su contenido **no lleva ningún tipo que siga activo**; un
+  código ilegible se tacha igualmente. En la práctica, el QR de verificación de la sede lleva
+  dentro una URL y un CSV, así que conservarlo exige desmarcar también `URL` y `CSV`.
 - Las etiquetas de campo se reconocen en castellano y valenciano, incluidas las formas bilingües de
   los impresos de la GVA («NOM / NOMBRE», «COGNOMS / APELLIDOS»).
 
@@ -134,7 +135,7 @@ Todo lo que produce un rectángulo a tachar —analizador, redacción estructura
 heurísticas del cajetín— lo da de alta en un `RedactionPlan` por página
 (`services/pdf/redaction_plan.py`). **Nadie pinta ni cuenta por su cuenta.** El plan aplica en un
 único sitio el filtro de tipos desactivados y la regla del colegiado, admite solo excepciones con
-nombre (página completa, QR con datos obligatorios) y deduplica. Los rectángulos que se pintan y
+nombre (página completa, QR con datos de tipos activos) y deduplica. Los rectángulos que se pintan y
 las entidades que cuenta el informe salen de la misma lista.
 
 ### Tratamientos especiales
@@ -180,7 +181,7 @@ Documentación interactiva en `/docs` con la aplicación arrancada.
 
 | Método y ruta | Qué hace |
 |---|---|
-| `GET /entity-types` | Catálogo de tipos: `id`, `label`, `description`, `default_enabled`, `mandatory` |
+| `GET /entity-types` | Catálogo de tipos: `id`, `label`, `description`, `default_enabled` |
 | `POST /jobs` | Encola un PDF. Responde **202** al terminar la subida, con `Location: /jobs/{id}`. No admite `include_entities` |
 | `GET /jobs/{id}` | Estado, posición en cola, avance por páginas, resumen del resultado o error |
 | `GET /jobs/{id}/result?output=pdf\|zip` | Descarga el PDF anonimizado (o PDF + `report.json` en ZIP) |
@@ -227,8 +228,8 @@ curl -o anonimizado.pdf "http://localhost:8000/jobs/3f2a…/result?output=pdf"
 
 Un valor por parámetro: `?disabled_types=DATE_TIME&disabled_types=URL`. Antes de validar se quitan
 espacios, se pasa a mayúsculas y se ignoran los valores vacíos; una lista vacía equivale a no
-enviarlo. Un tipo inexistente o un tipo obligatorio se rechaza con **422 sin procesar nada**. No se
-admiten valores separados por comas.
+enviarlo. Un tipo inexistente se rechaza con **422 sin procesar nada**. No se admiten valores
+separados por comas.
 
 ### Retención y borrado
 
@@ -370,7 +371,7 @@ Herramientas para comparar (no llaman a la API):
 | `python -m evaluation.comparar_documentos REF NUEVA` | Qué FN/FP aparecen o desaparecen, por documento y por grupo (tipo de documento × calidad) |
 | `python -m evaluation.guardar_ref --pdfs DIR --out evaluation/work_ref` | Guarda la salida actual (texto y recuentos) antes de un refactor |
 | `python -m evaluation.identidad_contra --pdfs DIR --ref evaluation/work_ref` | Comprueba que la salida no ha cambiado; sale con código 1 si hay diferencias |
-| `python -m evaluation.mandatory_gate REF OPCIONALES` | Compuerta: ningún tipo obligatorio puede depender de uno desactivable (ver su docstring) |
+| `python -m evaluation.compuerta_tipos REF PRUEBA --desmarcados T1,T2` | Compuerta: desmarcar un tipo no puede hacer desaparecer otro (ver su docstring) |
 | `python -m evaluation.rebuild_report RESULTADOS.json INFORME.html` | Regenera el HTML de un informe desde su JSON |
 
 Los resultados de referencia están en `evaluation/reference/` (bajo seguimiento). Todo lo demás que
