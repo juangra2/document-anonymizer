@@ -120,9 +120,25 @@ def _snapshot() -> dict[str, Any]:
             "el OCR usara solo el motor de respaldo."
         )
 
+    # Que la aplicacion conteste no significa que este procesando: con el hilo
+    # trabajador muerto, el servicio acepta documentos y no avanza ninguno.
+    workers = job_store.worker_health()
+    if not workers["healthy"]:
+        issues.append(
+            f"La cola no se esta atendiendo: {workers['workers_alive']} de "
+            f"{workers['workers_expected']} trabajadores vivos"
+            + ("" if workers["sweeper_alive"] else ", y el limpiador tampoco")
+            + ". Hay que reiniciar el servicio."
+        )
+
     # Que no haya GPU degrada el rendimiento, no el resultado; que falte spaCy o
-    # el OCR de respaldo si cambia lo que sale del sistema.
-    broken = not models["spacy"]["present"] or not models["easyocr"]["present"]
+    # el OCR de respaldo si cambia lo que sale del sistema.  Y un trabajador
+    # muerto es peor que todo eso: el servicio parece vivo y no procesa nada.
+    broken = (
+        not models["spacy"]["present"]
+        or not models["easyocr"]["present"]
+        or not workers["healthy"]
+    )
 
     return {
         "status": "degraded" if broken or issues else "ok",
@@ -131,7 +147,11 @@ def _snapshot() -> dict[str, Any]:
         "environment": settings.environment,
         "gpu": gpu,
         "models": models,
-        "queue": {**job_store.stats(), "queue_max": settings.job_queue_max},
+        "queue": {
+            **job_store.stats(),
+            "queue_max": settings.job_queue_max,
+            **workers,
+        },
         "limits": {
             "max_upload_mb": settings.max_upload_mb,
             "max_pdf_pages": settings.max_pdf_pages,

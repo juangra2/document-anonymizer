@@ -146,6 +146,8 @@ class JobStore:
         # también la ruta síncrona, que no pasa por la cola.
         self._slots = threading.BoundedSemaphore(self._workers)
         self._threads: list[threading.Thread] = []
+        self._worker_threads: list[threading.Thread] = []
+        self._sweeper_thread: threading.Thread | None = None
         self._stopping = threading.Event()
         # Con los trabajadores desactivados el almacén encola pero no procesa:
         # así los tests de cola y caducidad no dependen de una GPU ni de que un
@@ -209,11 +211,13 @@ class JobStore:
                 )
                 thread.start()
                 self._threads.append(thread)
+                self._worker_threads.append(thread)
             sweeper = threading.Thread(
                 target=self._sweep_forever, name="anonymizer-sweeper", daemon=True,
             )
             sweeper.start()
             self._threads.append(sweeper)
+            self._sweeper_thread = sweeper
 
     def shutdown(self, timeout: float = 5.0) -> None:
         self._stopping.set()
@@ -348,6 +352,34 @@ class JobStore:
                 "running": sum(1 for j in self._jobs.values() if j.status == "running"),
                 "queued": sum(1 for j in self._jobs.values() if j.status == "queued"),
                 "max_concurrent_documents": self._workers,
+            }
+
+    def worker_health(self) -> dict[str, object]:
+        """¿Hay alguien atendiendo la cola?
+
+        Que la aplicación conteste no significa que esté procesando: si el hilo
+        trabajador muere, el servicio sigue aceptando documentos y no avanza
+        ninguno, en silencio y hasta el siguiente reinicio.  Esto es lo que
+        mira `/health/ready` para ponerse en rojo en ese caso.
+
+        Los trabajadores arrancan con el PRIMER documento, no al importar la
+        aplicación: mientras nadie haya subido nada, no haberlos arrancado es
+        lo normal y no es un fallo.
+        """
+        with self._lock:
+            arrancado = self._started and bool(self._worker_threads)
+            vivos = sum(1 for t in self._worker_threads if t.is_alive())
+            barredor = self._sweeper_thread
+            return {
+                "started": arrancado,
+                "workers_expected": self._workers,
+                "workers_alive": vivos,
+                "sweeper_alive": bool(barredor and barredor.is_alive()),
+                # Sin arrancar todavía no hay nada roto: se arranca solo.
+                "healthy": (not arrancado) or (
+                    vivos >= self._workers
+                    and bool(barredor and barredor.is_alive())
+                ),
             }
 
     def queue_position(self, job: Job) -> int | None:

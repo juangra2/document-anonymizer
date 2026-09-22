@@ -190,7 +190,7 @@ Documentación interactiva en `/docs` con la aplicación arrancada.
 | `DELETE /jobs/{id}` | **Eliminar** sin entregar nada: **204** si es inmediato, **202** si se está procesando |
 | `POST /anonymize` | Camino síncrono: procesa en la propia petición. Admite PDF, PNG, JPG y TIFF |
 | `GET /health` | Señal de vida (siempre 200) con GPU, modelos, cola, límites y problemas detectados |
-| `GET /health/ready` | Igual, pero responde **503** si falta algo esencial (spaCy o EasyOCR) |
+| `GET /health/ready` | Igual, pero responde **503** si falta algo esencial (spaCy, EasyOCR) o si **el hilo que atiende la cola no está vivo** |
 
 ### Trabajos asíncronos
 
