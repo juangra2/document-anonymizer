@@ -17,7 +17,12 @@ from io import BytesIO
 import fitz
 from fastapi.testclient import TestClient
 
-from app.core.logging import NoPIIFilter, configure_logging, install_pii_filter
+from app.core.logging import (
+    NoPIIFilter,
+    configure_logging,
+    install_pii_filter,
+    warn_if_logging_pii,
+)
 from app.main import app
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services.verification.layers import check_metadata
@@ -131,3 +136,24 @@ def test_the_retained_report_never_contains_detected_values():
     assert _NOMBRE not in crudo and _DNI not in crudo, (
         "el informe retenido lleva datos personales en claro"
     )
+
+
+# --- 4. el interruptor de depuracion no se queda encendido en silencio -------
+
+def test_logging_pii_announces_itself_at_startup(monkeypatch, caplog):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "log_pii", True)
+    with caplog.at_level("WARNING"):
+        assert warn_if_logging_pii() is True
+    aviso = chr(10).join(r.getMessage() for r in caplog.records)
+    assert "LOG_PII" in aviso and "datos personales" in aviso
+
+
+def test_nothing_is_announced_when_it_is_off(monkeypatch, caplog):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "log_pii", False)
+    with caplog.at_level("WARNING"):
+        assert warn_if_logging_pii() is False
+    assert "LOG_PII" not in chr(10).join(r.getMessage() for r in caplog.records)

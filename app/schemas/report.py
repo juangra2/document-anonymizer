@@ -21,7 +21,8 @@ class OcrInfo(BaseModel):
 
 
 class InputFileInfo(BaseModel):
-    filename_sanitized: str | None = None
+    # El nombre del fichero original no figura aquí a propósito: el informe se
+    # conserva horas y ese nombre suele llevar el del interesado.
     content_type: str | None = None
     size_bytes: int | None = None
 

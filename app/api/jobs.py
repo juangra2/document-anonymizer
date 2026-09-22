@@ -25,8 +25,7 @@ from app.schemas.report import InputFileInfo, ProcessingReport
 from app.services.jobs import Job, QueueFullError, job_store
 from app.utils.files import (
     assert_pdf_magic,
-    build_download_filename,
-    sanitize_original_filename,
+    download_filename,
     save_upload_to_path,
 )
 
@@ -140,10 +139,8 @@ async def create_job(
     disabled = _parse_disabled_types(disabled_types)
 
     try:
-        job = job_store.create(
-            filename=sanitize_original_filename(file.filename) or "document.pdf",
-            content_type=file.content_type,
-        )
+        # El nombre del fichero NO se guarda: suele llevar el del interesado.
+        job = job_store.create(content_type=file.content_type)
     except QueueFullError as exc:
         raise HTTPException(
             status_code=503,
@@ -195,9 +192,7 @@ async def get_job_result(
     job = _require_job(job_id)
     report = _require_finished_report(job)
 
-    pdf_filename = build_download_filename(
-        job.filename, suffix="_anonymized", extension="pdf",
-    )
+    pdf_filename = download_filename("pdf")
     headers = {
         "X-Job-Id": job.id,
         "X-Anonymization-Status": report.status,
@@ -209,9 +204,7 @@ async def get_job_result(
         with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
             zf.write(job.output_path, arcname=pdf_filename)
             zf.writestr("report.json", report.model_dump_json(indent=2) + "\n")
-        zip_filename = build_download_filename(
-            job.filename, suffix="_anonymization_result", extension="zip",
-        )
+        zip_filename = download_filename("zip")
         return Response(
             content=buffer.getvalue(),
             media_type="application/zip",
@@ -238,7 +231,6 @@ async def get_job_report(job_id: str) -> ProcessingReport:
     job = _require_job(job_id)
     report = _require_finished_report(job)
     report.input = InputFileInfo(
-        filename_sanitized=job.filename,
         content_type=job.content_type,
         size_bytes=job.size_bytes,
     )

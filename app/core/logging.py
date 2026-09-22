@@ -68,3 +68,27 @@ def configure_logging() -> None:
     )
 
     install_pii_filter()
+    warn_if_logging_pii()
+
+
+def warn_if_logging_pii() -> bool:
+    """Avisa, bien visible, si se está registrando texto de los documentos.
+
+    `LOG_PII` es para depurar un caso concreto y desactivarlo después.  Dejarlo
+    encendido sin darse cuenta llena el registro de datos personales que luego
+    nadie sabe que están ahí, así que el arranque lo dice en tres líneas que no
+    se confunden con el resto.
+    """
+    from app.core.config import settings
+
+    if not settings.log_pii:
+        return False
+
+    logger = logging.getLogger("app")
+    logger.warning("=" * 72)
+    logger.warning(
+        "LOG_PII ESTA ACTIVADO: el registro incluira texto de los documentos, "
+        "con datos personales. Solo para depurar; desactivelo despues."
+    )
+    logger.warning("=" * 72)
+    return True

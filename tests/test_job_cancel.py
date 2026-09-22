@@ -51,8 +51,9 @@ def _store(pipeline) -> JobStore:
     return store
 
 
-def _submit(store: JobStore, name: str = "expediente.pdf"):
-    job = store.create(filename=name, content_type="application/pdf")
+def _submit(store: JobStore, name: str = "") -> object:
+    # el nombre ya no viaja al servidor; el parametro se conserva por legibilidad
+    job = store.create(content_type="application/pdf")
     job.input_path.write_bytes(b"%PDF-1.4 entrada\n")
     store.enqueue(job, size_bytes=16, disabled_types=frozenset())
     return job

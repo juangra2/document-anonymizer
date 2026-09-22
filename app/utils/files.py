@@ -52,41 +52,19 @@ def assert_pdf_magic(path: Path) -> None:
         raise FileValidationError("Uploaded file is not a valid PDF.")
 
 
-def sanitize_filename_stem(original_filename: str | None) -> str:
-    if not original_filename:
-        return "document"
-
-    stem = Path(Path(original_filename).name).stem
-
-    for pattern in PII_FILENAME_PATTERNS:
-        stem = pattern.sub("redacted", stem)
-
-    safe_stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", stem).strip("._-")
-
-    if not safe_stem:
-        safe_stem = "document"
-
-    return safe_stem[:80]
+DOWNLOAD_STEM = "documento_anonimizado"
 
 
-def build_download_filename(
-    original_filename: str | None,
-    suffix: str,
-    extension: str,
-) -> str:
-    stem = sanitize_filename_stem(original_filename)
-    return f"{stem}{suffix}.{extension}"
+def download_filename(extension: str, *, partial_pages: tuple[int, int] | None = None) -> str:
+    """Nombre GENÉRICO con el que se sirve la descarga.
 
-
-def sanitize_original_filename(original_filename: str | None) -> str | None:
-    if not original_filename:
-        return None
-
-    name = Path(original_filename).name
-
-    for pattern in PII_FILENAME_PATTERNS:
-        name = pattern.sub("redacted", name)
-
-    name = re.sub(r"[^A-Za-z0-9_.\- ]+", "_", name).strip()
-
-    return name[:120] or None
+    El servidor no conoce el nombre del fichero que subió el usuario y no debe
+    conocerlo: en el ayuntamiento los nombres de expediente suelen llevar el
+    del interesado, y ese nombre acabaría en el informe y en el disco durante
+    horas.  Quien descarga desde la interfaz le pone el nombre que tiene en
+    memoria; quien llama a la API directamente recibe este.
+    """
+    if partial_pages:
+        hasta, total = partial_pages
+        return f"{DOWNLOAD_STEM}_parcial_1-{hasta}_de_{total}.{extension}"
+    return f"{DOWNLOAD_STEM}.{extension}"

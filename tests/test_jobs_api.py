@@ -100,6 +100,21 @@ def test_the_result_is_the_anonymized_document():
     assert "12345678Z" not in text
 
 
+def test_the_download_never_carries_the_uploaded_name():
+    """El nombre lo pone quien descarga, no el servidor."""
+    response = client.post(
+        "/jobs",
+        files={"file": ("Expediente Luis Vela.pdf", BytesIO(_pdf()), "application/pdf")},
+    )
+    job_id = response.json()["job_id"]
+    _wait(job_id)
+
+    descarga = client.get(f"/jobs/{job_id}/result")
+    disposicion = descarga.headers["content-disposition"]
+    assert "documento_anonimizado.pdf" in disposicion
+    assert "Juan" not in disposicion and "Expediente" not in disposicion
+
+
 def test_the_result_can_be_downloaded_as_zip_with_the_report():
     import json
     import zipfile
@@ -122,7 +137,9 @@ def test_the_report_is_available_on_its_own():
     report = client.get(f"/jobs/{job_id}/report").json()
     assert report["job_id"] == job_id
     assert report["entity_types_applied"]
-    assert report["input"]["filename_sanitized"] == "expediente.pdf"
+    # El servidor no guarda el nombre del fichero: suele llevar el del interesado.
+    assert "filename_sanitized" not in report["input"]
+    assert report["input"]["content_type"] == "application/pdf"
 
 
 def test_downloading_before_it_finishes_is_a_conflict():
@@ -271,12 +288,12 @@ def test_the_queue_refuses_more_than_the_configured_backlog():
     store = JobStore(workers=1, queue_max=2, ttl_minutes=60,
                      sweep_interval_s=3600, start_workers=False)
     try:
-        first = store.create(filename="a.pdf", content_type="application/pdf")
-        second = store.create(filename="b.pdf", content_type="application/pdf")
+        first = store.create(content_type="application/pdf")
+        second = store.create(content_type="application/pdf")
         store.enqueue(first, size_bytes=1, disabled_types=frozenset())
         store.enqueue(second, size_bytes=1, disabled_types=frozenset())
         with pytest.raises(QueueFullError):
-            store.create(filename="c.pdf", content_type="application/pdf")
+            store.create(content_type="application/pdf")
     finally:
         store.shutdown(timeout=1.0)
 
@@ -287,8 +304,8 @@ def test_queue_position_counts_the_documents_ahead():
     store = JobStore(workers=1, queue_max=10, ttl_minutes=60,
                      sweep_interval_s=3600, start_workers=False)
     try:
-        first = store.create(filename="a.pdf", content_type="application/pdf")
-        second = store.create(filename="b.pdf", content_type="application/pdf")
+        first = store.create(content_type="application/pdf")
+        second = store.create(content_type="application/pdf")
         assert store.queue_position(first) == 0
         assert store.queue_position(second) == 1
     finally:

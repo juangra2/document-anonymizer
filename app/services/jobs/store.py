@@ -65,7 +65,6 @@ class Job:
 
     id: str
     directory: Path
-    filename: str
     # Orden de llegada.  La marca de tiempo no sirve para ordenar la cola:
     # dos altas seguidas caen en el mismo instante con la resolucion del
     # reloj del sistema.
@@ -226,8 +225,13 @@ class JobStore:
 
     # -- alta y consulta ------------------------------------------------
 
-    def create(self, *, filename: str, content_type: str | None) -> Job:
-        """Reserva identificador y directorio; el fichero aún no está escrito."""
+    def create(self, *, content_type: str | None = None) -> Job:
+        """Reserva identificador y directorio; el fichero aún no está escrito.
+
+        No recibe el nombre del fichero: el servicio no lo guarda en ninguna
+        parte.  Un nombre de expediente suele llevar el del interesado, y aquí
+        sobreviviría al documento durante toda la retención.
+        """
         self.start()
         with self._lock:
             self._purge_expired_locked()
@@ -244,7 +248,6 @@ class JobStore:
                 id=job_id,
                 seq=self._seq,
                 directory=directory,
-                filename=filename,
                 content_type=content_type,
             )
             self._jobs[job_id] = job

@@ -31,8 +31,7 @@ from app.services.pdf.pipeline import PdfAnonymizationPipeline
 from app.services.storage.temp_storage import TempJobDirectory
 from app.utils.files import (
     assert_pdf_magic,
-    build_download_filename,
-    sanitize_original_filename,
+    download_filename,
     save_upload_to_path,
 )
 
@@ -221,16 +220,11 @@ async def anonymize(
         report.output_format = output
         report.redaction_mode = mode
         report.input = InputFileInfo(
-            filename_sanitized=sanitize_original_filename(file.filename),
             content_type=file.content_type,
             size_bytes=size_bytes,
         )
 
-        pdf_filename = build_download_filename(
-            file.filename,
-            suffix="_anonymized",
-            extension="pdf",
-        )
+        pdf_filename = download_filename("pdf")
 
         report_json_bytes = report_to_json_bytes(report)
 
@@ -246,11 +240,7 @@ async def anonymize(
         }
 
         if output == "zip":
-            zip_filename = build_download_filename(
-                file.filename,
-                suffix="_anonymization_result",
-                extension="zip",
-            )
+            zip_filename = download_filename("zip")
 
             zip_bytes = build_zip_response_bytes(
                 pdf_bytes=output_bytes,

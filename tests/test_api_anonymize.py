@@ -37,7 +37,7 @@ def test_anonymize_pdf_removes_text():
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/pdf"
-    assert 'filename="input_anonymized.pdf"' in response.headers["content-disposition"]
+    assert 'filename="documento_anonimizado.pdf"' in response.headers["content-disposition"]
 
     redacted_doc = fitz.open(stream=response.content, filetype="pdf")
     text = "\n".join(page.get_text() for page in redacted_doc)
@@ -58,18 +58,18 @@ def test_anonymize_can_return_zip_with_pdf_and_report():
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/zip"
-    assert 'filename="input_anonymization_result.zip"' in response.headers["content-disposition"]
+    assert 'filename="documento_anonimizado.zip"' in response.headers["content-disposition"]
 
     zip_buffer = BytesIO(response.content)
 
     with zipfile.ZipFile(zip_buffer, mode="r") as zip_file:
         names = set(zip_file.namelist())
 
-        assert "input_anonymized.pdf" in names
+        assert "documento_anonimizado.pdf" in names
         assert "report.json" in names
 
         report = json.loads(zip_file.read("report.json").decode("utf-8"))
-        redacted_pdf_bytes = zip_file.read("input_anonymized.pdf")
+        redacted_pdf_bytes = zip_file.read("documento_anonimizado.pdf")
 
     assert report["job_id"]
     assert report["status"] in {"completed", "completed_with_warnings"}

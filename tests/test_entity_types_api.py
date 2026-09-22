@@ -89,7 +89,7 @@ def test_disabling_a_type_leaves_it_in_the_document():
     )
     assert response.status_code == 200
     with zipfile.ZipFile(BytesIO(response.content)) as zf:
-        redacted = zf.read("in_anonymized.pdf")
+        redacted = zf.read("documento_anonimizado.pdf")
         report = json.loads(zf.read("report.json"))
 
     with fitz.open(stream=redacted, filetype="pdf") as doc:

@@ -248,6 +248,10 @@ separados por comas.
   conservar lo que se acaba de tapar. Quien los necesita para evaluar usa `POST /anonymize`, que
   no retiene nada. Los avisos de verificación dicen qué campo quedó sin limpiar y cuánto ocupa,
   nunca su contenido.
+- **El servidor no conoce el nombre del fichero subido.** No se guarda, no aparece en el informe y
+  la descarga se sirve como `documento_anonimizado.pdf`. Un nombre de expediente suele llevar el
+  del interesado, y aquí sobreviviría al documento durante toda la retención; quien descarga desde
+  la interfaz le pone el nombre que tiene en memoria.
 - **Los registros no llevan texto del documento.** Un filtro sustituye DNI, NIE, CIF, correo,
   teléfono e IBAN en todo lo que se escribe, pero es una red de seguridad: un nombre o una
   dirección no tienen forma reconocible, así que la regla es no registrar texto. `LOG_PII=true`
