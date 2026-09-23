@@ -30,10 +30,16 @@ def test_the_page_is_served_at_the_root():
     assert "Anonimizador de documentos" in respuesta.text
 
 
-def test_the_page_is_not_cached():
-    """Tras una actualizacion nadie puede mezclar pagina vieja con API nueva."""
-    respuesta = client.get("/")
-    assert "no-cache" in respuesta.headers.get("cache-control", "")
+def test_nothing_of_the_interface_is_cached_without_asking():
+    """El fallo real: HTML nuevo con CSS viejo, y la pantalla descuadrada.
+
+    La pagina se servia sin cache pero los estilos y los modulos no, asi que
+    tras una actualizacion el navegador seguia con los de antes.  `no-cache` no
+    prohibe guardar: obliga a preguntar, y mientras no cambie llega un 304.
+    """
+    for ruta in ("/", "/styles.css", "/js/main.js", "/js/texts/es.js"):
+        cabecera = client.get(ruta).headers.get("cache-control", "")
+        assert "no-cache" in cabecera, f"{ruta} se cachea sin revalidar"
 
 
 def test_the_modules_and_styles_are_served():

@@ -38,22 +38,29 @@ app.include_router(anonymize_router)
 
 # La interfaz va DESPUÉS de las rutas de la API: Starlette prueba las rutas en
 # orden, así que /jobs, /health, /entity-types y /docs siguen contestando lo de
-# siempre y todo lo demás lo sirve la carpeta web.  La página se sirve sin
-# caché para que tras una actualización nadie mezcle una versión vieja con un
-# servicio nuevo; los ficheros sueltos sí se cachean.
+# siempre y todo lo demás lo sirve la carpeta web.
 _WEB_DIR = Path(__file__).parent / "web"
 
 
-class _NoCacheIndex(StaticFiles):
+class _SinCache(StaticFiles):
+    """Sirve la interfaz obligando a revalidar SIEMPRE, fichero a fichero.
+
+    Con la página sin caché pero los estilos y los módulos cacheados, una
+    actualización dejaba a la gente con el HTML nuevo y el CSS viejo: la
+    pantalla salía descuadrada y nadie entendía por qué.  `no-cache` no
+    significa «no guardes», significa «pregunta antes de usarlo»: el navegador
+    conserva el fichero y recibe un 304 vacío mientras no cambie, que en una
+    intranet con ficheros de kilobytes no cuesta nada.
+    """
+
     def file_response(self, *args, **kwargs):  # type: ignore[override]
         response = super().file_response(*args, **kwargs)
-        if response.headers.get("content-type", "").startswith("text/html"):
-            response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
         return response
 
 
 if _WEB_DIR.is_dir():
-    app.mount("/", _NoCacheIndex(directory=_WEB_DIR, html=True), name="web")
+    app.mount("/", _SinCache(directory=_WEB_DIR, html=True), name="web")
 
 # Normaliza disabled_types (mayúsculas, espacios, lista vacía) antes de que el
 # Enum lo valide: hecha dentro de la ruta, la normalización llegaba tarde.
