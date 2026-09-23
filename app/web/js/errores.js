@@ -7,7 +7,7 @@
  * las ocho primeras cifras del identificador (el identificador completo sirve
  * para descargar el documento durante su retención).
  */
-import { TEXTOS } from "./texts/es.js";
+import { TEXTOS } from "./texts/index.js";
 
 export function referenciaDeSoporte(idTrabajo) {
   if (!idTrabajo) return "—";

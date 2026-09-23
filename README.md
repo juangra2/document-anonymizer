@@ -185,11 +185,16 @@ puede no tener salida). Se monta después de las rutas de la API, así que `/job
 | Fichero | Qué hace |
 |---|---|
 | `js/api.js` | **El único que habla con el servidor.** Direcciones relativas, para que un prefijo de ruta tras el proxy no rompa nada |
-| `js/texts/es.js` | **Todas las frases que ve el usuario**, incluidas las de error. Para el valenciano, un `va.js` con las mismas claves |
+| `js/texts/es.js` | **Todas las frases que ve el usuario**, incluidas las de error |
+| `js/texts/index.js` | Elige el idioma (`?idioma=va`, o el último elegido) y rellena con castellano lo que falte traducido |
 | `js/errores.js` | De código estable de la API a frase que dice qué ha pasado y qué hacer |
 | `js/categorias.js` | Agrupación de los 30 tipos; lo que no tenga grupo cae en «Otros» y nunca queda invisible |
 | `js/seguimiento.js` | Subida en fila, consultas periódicas con reintentos y avisos de página |
 | `js/almacen.js` | Lo que recuerda el navegador: identificadores, nunca el nombre del fichero |
+
+**Para añadir el valenciano** basta con crear `js/texts/va.js` con las mismas claves que `es.js` y
+registrarlo en `js/texts/index.js`: no hay que tocar ninguna pantalla, y lo que falte traducido sale
+en castellano en vez de quedar en blanco.
 
 `python scripts/probar_interfaz.py` recorre los flujos en un navegador real contra el servicio
 levantado y guarda capturas (necesita `playwright`). Las capturas de las pantallas clave están en

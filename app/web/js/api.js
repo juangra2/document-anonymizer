@@ -139,6 +139,28 @@ export async function informeDelTrabajo(id) {
   return respuesta.json();
 }
 
+/**
+ * Guarda el informe como fichero.
+ *
+ * Es para auditoría y para soporte, no para quien anonimiza: lo que le
+ * interesa a él —páginas, cuántos datos, si hay que revisar— ya se lee en la
+ * pantalla de resultado.  El informe NO lleva los valores detectados: la cola
+ * no admite pedirlos.
+ */
+export async function descargarInforme(id, nombre) {
+  const informe = await informeDelTrabajo(id);
+  const contenido = new Blob([JSON.stringify(informe, null, 2)], {
+    type: "application/json",
+  });
+  const enlace = document.createElement("a");
+  enlace.href = URL.createObjectURL(contenido);
+  enlace.download = nombre;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  setTimeout(() => URL.revokeObjectURL(enlace.href), 30000);
+}
+
 /** Parar y entregar lo procesado. */
 export async function pararTrabajo(id) {
   await pedir(`jobs/${encodeURIComponent(id)}/stop`, { method: "POST" });

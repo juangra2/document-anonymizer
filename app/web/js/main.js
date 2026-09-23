@@ -10,7 +10,7 @@ import * as almacen from "./almacen.js";
 import { agrupar, TIPO_CODIGOS } from "./categorias.js";
 import { frase, referenciaDeSoporte } from "./errores.js";
 import { Seguimiento } from "./seguimiento.js";
-import { TEXTOS as T } from "./texts/es.js";
+import { TEXTOS as T } from "./texts/index.js";
 
 const MAX_TANDA = 10;
 const AVISO_TANDA_MB = 500;
@@ -243,7 +243,7 @@ function pintarGrupos() {
   if (estado.desmarcados.size) {
     const nombres = estado.catalogo
       .filter((t) => estado.desmarcados.has(t.id))
-      .map((t) => t.label.toLowerCase())
+      .map((t) => t.label)
       .join(", ");
     visibles.textContent = T.paso2.quedanVisibles(nombres);
     visibles.classList.remove("hidden");
@@ -531,6 +531,13 @@ function acciones(documento, parcial) {
       api.descargarConNombre(documento.id, nombreDescarga(documento, parcial));
     };
     caja.appendChild(descarga);
+    boton(T.acciones.informe, "", async () => {
+      try {
+        await api.descargarInforme(documento.id, nombreInforme(documento));
+      } catch (error) {
+        mostrarAviso(frase(error.codigo, { idTrabajo: documento.id }));
+      }
+    });
     boton(T.acciones.eliminar, "danger", () => confirmarEliminar(documento));
     return caja;
   }
@@ -565,6 +572,13 @@ function acciones(documento, parcial) {
     });
   }
   return caja;
+}
+
+function nombreInforme(documento) {
+  const base = documento.nombre
+    ? documento.nombre.replace(/\.pdf$/i, "")
+    : "documento";
+  return `${base}_informe.json`;
 }
 
 function nombreDescarga(documento, parcial) {
