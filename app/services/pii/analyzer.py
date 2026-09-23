@@ -2424,8 +2424,10 @@ class PiiAnalyzer:
     def _detect_money(text: str, context_text: str | None = None) -> list[PiiEntity]:
         """Importes economicos que son dato personal (ver gate arriba).
 
-        Devuelve solo los importes ligados a una persona o cuenta: los de un
-        presupuesto de obra o una tabla de mediciones quedan fuera.
+        Devuelve dos tipos: MONEY para los importes ligados a una persona o a
+        una cuenta, y BUDGET_AMOUNT para los de un presupuesto de obra o una
+        tabla de mediciones.  Antes estos ultimos se descartaban; ahora salen
+        con tipo propio para que se puedan desmarcar por separado.
         """
         entities: list[PiiEntity] = []
 
@@ -2454,8 +2456,24 @@ class PiiAnalyzer:
             line_start, line_end = _line_bounds(start)
             line = text[line_start:line_end]
 
-            # (c) Veto por linea: fila de partida o linea con marcador de obra.
+            # (c) Obra: NO es un importe personal, pero tampoco se tira.  Sale
+            # como BUDGET_AMOUNT, su propio tipo, para que quien quiera
+            # conservar los presupuestos lo desmarque en la interfaz.
             if zone_vetoed or _BUDGET_VETO_RE.search(line) or _BUDGET_LINE_RE.match(line):
+                if _IPV4_LIKE_RE.fullmatch(value):
+                    continue
+                if text[end:end + 2].lstrip().startswith("%"):
+                    continue
+                if _COLEGIADO_NEAR_RE.search(text[max(0, start - 40):end]):
+                    continue
+                entities.append(PiiEntity(
+                    entity_type="BUDGET_AMOUNT",
+                    start=start,
+                    end=end,
+                    score=0.85,
+                    source="money_budget",
+                    text=value,
+                ))
                 continue
 
             # Una IPv4 tiene forma de miles con puntos ("90.241.195.223").  En

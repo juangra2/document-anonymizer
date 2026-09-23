@@ -60,7 +60,6 @@ export const TEXTOS = {
     nuncaSeOcultaDetalle: [
       "Nombres, teléfonos y direcciones de organismos públicos.",
       "Números de colegiado profesional.",
-      "Importes de un presupuesto de obra.",
       "Firmas manuscritas y sellos.",
     ],
   },

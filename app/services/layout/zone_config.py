@@ -52,9 +52,14 @@ ALL_PII_TYPES: list[str] = [
     "CASE_TABLE_ROW",
     "ROLE_TABLE_ROW",
     # Importe economico ligado a persona o cuenta (nomina, transferencia,
-    # liquidacion).  Los importes de presupuesto de obra quedan fuera por el
-    # gate de contexto del detector, no por la configuracion de zona.
+    # liquidacion).  Los de un presupuesto de obra son otro tipo, para que se
+    # puedan desmarcar por separado.
     "MONEY",
+    # Importes de las partidas, mediciones y totales de un presupuesto de obra.
+    # El ayuntamiento decidio que no eran dato personal; se detectan igual y se
+    # ofrecen como tipo propio, marcado por defecto como todos los demas, para
+    # que quien no los quiera ocultar lo desmarque.
+    "BUDGET_AMOUNT",
     # Razon social de empresa PRIVADA (requisito del ayuntamiento).  La
     # institucion publica queda excluida por el veto PUBLIC_INSTITUTION_RE.
     "ORGANIZATION",

@@ -27,7 +27,7 @@ a mano.
 
 ## Qué datos anonimiza
 
-30 tipos de dato: 29 tipos de texto más los códigos QR y de barras. `GET /entity-types` devuelve
+31 tipos de dato: 30 tipos de texto más los códigos QR y de barras. `GET /entity-types` devuelve
 este catálogo con nombre legible y descripción para la interfaz.
 
 **Todos son desmarcables y todos están activos por defecto.** Cada petición puede excluir los que
@@ -50,7 +50,8 @@ rechaza un tipo que no exista.
 | `POSTAL_CODE` | Código postal |
 | `PHONE_NUMBER` | Teléfonos fijos y móviles, formato español o internacional |
 | `EMAIL_ADDRESS` | Correo electrónico |
-| `MONEY` | Importes ligados a una persona o cuenta (nóminas, transferencias, liquidaciones); no los de un presupuesto de obra |
+| `MONEY` | Importes ligados a una persona o cuenta (nóminas, transferencias, liquidaciones) |
+| `BUDGET_AMOUNT` | Precios, mediciones y totales de un presupuesto de obra. Marcado por defecto como los demás: se desmarca cuando el presupuesto debe quedar a la vista |
 | `CREDIT_CARD` | Tarjeta de crédito o débito |
 | `DATE_TIME` | Cualquier otra fecha, incluidas las de registro y firma |
 | `LICENSE_PLATE` | Matrícula de vehículo |

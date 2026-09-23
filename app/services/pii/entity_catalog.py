@@ -59,8 +59,11 @@ _CATALOG: tuple[EntityTypeInfo, ...] = (
                    "Cuentas IBAN y cuentas antiguas de veinte dígitos (CCC)."),
     EntityTypeInfo("MONEY", "Importe económico",
                    "Importes ligados a una persona o a una cuenta: nóminas, "
-                   "transferencias, liquidaciones. No se anonimizan los "
-                   "importes de un presupuesto de obra."),
+                   "transferencias, liquidaciones."),
+    EntityTypeInfo("BUDGET_AMOUNT", "Importes de presupuesto de obra",
+                   "Precios, mediciones y totales de un presupuesto de obra "
+                   "(partidas, capítulos, ejecución material). Desmárcalo si "
+                   "el presupuesto tiene que quedar a la vista."),
     EntityTypeInfo("CREDIT_CARD", "Tarjeta bancaria",
                    "Números de tarjeta de crédito o débito."),
     EntityTypeInfo("DATE_OF_BIRTH", "Fecha de nacimiento",

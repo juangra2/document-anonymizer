@@ -20,8 +20,8 @@ export const GRUPOS = [
   {
     id: "bancarios",
     nombre: "Datos bancarios y económicos",
-    resumen: "Cuenta, tarjeta, importes, póliza",
-    tipos: ["IBAN_CODE", "CREDIT_CARD", "MONEY", "POLICY_NUMBER"],
+    resumen: "Cuenta, tarjeta, importes, presupuestos de obra, póliza",
+    tipos: ["IBAN_CODE", "CREDIT_CARD", "MONEY", "BUDGET_AMOUNT", "POLICY_NUMBER"],
   },
   {
     id: "contacto",

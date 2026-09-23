@@ -119,6 +119,11 @@ OUT_OF_SCOPE_GT_TYPES: frozenset[str] = frozenset({
     # contar en la metrica global.
     "PROFESSIONAL_LICENSE",
     "ROLE_TABLE_ROW",
+    # Importes de presupuesto de obra: el corpus NO los anota, porque cuando se
+    # generó la decision era no ocultarlos.  Ahora se ofrecen como tipo propio,
+    # marcado por defecto; contarlos como falsos positivos mediria la anotacion,
+    # no el sistema.  Queda visible en el desglose por tipo.
+    "BUDGET_AMOUNT",
 })
 
 

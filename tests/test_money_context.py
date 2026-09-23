@@ -1,4 +1,9 @@
-"""A1.2 — importes económicos: solo los ligados a persona o cuenta."""
+"""A1.2 — importes económicos: MONEY los personales, BUDGET_AMOUNT los de obra.
+
+Los de un presupuesto de obra se detectaban y se tiraban; ahora salen con tipo
+propio, marcado por defecto como todos, para que quien necesite conservar el
+presupuesto a la vista lo desmarque en vez de no tener opción.
+"""
 import pytest
 
 from app.services.pii.analyzer import PiiAnalyzer
@@ -6,12 +11,20 @@ from app.services.pii.analyzer import PiiAnalyzer
 analyzer = PiiAnalyzer()
 
 
-def _money(text):
+def _de_tipo(text, tipo):
     return [
         text[e.start:e.end]
         for e in analyzer.analyze(text, mode="strict", zone_type="body")
-        if e.entity_type == "MONEY"
+        if e.entity_type == tipo
     ]
+
+
+def _money(text):
+    return _de_tipo(text, "MONEY")
+
+
+def _obra(text):
+    return _de_tipo(text, "BUDGET_AMOUNT")
 
 
 # --- (a) etiqueta próxima -------------------------------------------------
@@ -62,8 +75,32 @@ def test_transfer_block_redacts_amount_by_iban_context():
     "Beneficio industrial (6%) 889,87 €",
     "Gastos generales (13%) 1.928,05 €",
 ])
-def test_construction_budget_amounts_not_redacted(text):
+def test_construction_budget_amounts_are_not_personal_money(text):
     assert _money(text) == [], text
+
+
+@pytest.mark.parametrize("text", [
+    "03.01 Ud Par de manguitos de cuero para soldador 50,00 4,29 214,50",
+    "Presupuesto de Ejecución Material (P.E.M.) 14.831,15 €",
+    "Total capítulo 03 6.112,70",
+])
+def test_construction_budget_amounts_have_their_own_type(text):
+    """Antes se descartaban; ahora se ofrecen para poder desmarcarlos."""
+    assert _obra(text), text
+
+
+def test_unmarking_the_new_type_leaves_the_budget_visible():
+    """Es el caso de quien necesita el presupuesto a la vista."""
+    sin_obra = analyzer.with_disabled_types({"BUDGET_AMOUNT"})
+    texto = "Presupuesto de Ejecución Material (P.E.M.) 14.831,15 €"
+    encontrados = sin_obra.analyze(texto, mode="strict", zone_type="body")
+    assert not [e for e in encontrados if e.entity_type == "BUDGET_AMOUNT"]
+
+
+def test_the_professional_licence_is_still_never_an_amount():
+    """Un numero de colegiado tiene forma de importe y no se anonimiza nunca."""
+    texto = "CAPÍTULO 03 — Arquitecto Colegiado nº 14.226"
+    assert _obra(texto) == [] and _money(texto) == []
 
 
 def test_budget_zone_veto_beats_importe_column_header():
