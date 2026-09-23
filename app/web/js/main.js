@@ -26,7 +26,7 @@ const estado = {
 };
 
 const $ = (id) => document.getElementById(id);
-const seguimiento = new Seguimiento(pintarSeguimiento, avisarPagina);
+const seguimiento = new Seguimiento(pintarTodo, avisarPagina);
 
 /* ------------------------------------------------------------------ arranque */
 
@@ -266,7 +266,7 @@ function añadirFicheros(ficheros) {
     seguimiento.añadir(documento);
   });
   avisarSiTandaGrande();
-  pintarSeguimiento();
+  pintarTodo();
 }
 
 /** Lo que se puede rechazar sin molestar al servidor: tipo y tamaño. */
@@ -303,7 +303,7 @@ async function lanzarTanda() {
   $("anonimizar").disabled = true;
   await seguimiento.subirPendientes([...estado.desmarcados]);
   $("anonimizar").disabled = false;
-  pintarSeguimiento();
+  pintarTodo();
 }
 
 async function recuperarRecordados() {
@@ -318,6 +318,136 @@ async function recuperarRecordados() {
     seguimiento.añadir(documento);
     seguimiento.vigilar(documento);
   }
+}
+
+/* -------------------------------------------------- fichas de lo elegido (1) */
+
+/**
+ * Hoja de PDF dibujada, no una imagen: la red del ayuntamiento puede no tener
+ * salida a internet y así no se pide nada a terceros desde sus equipos.
+ */
+function hoja(extension, rojo) {
+  const banda = rojo ? "#C0392B" : "#E05A4B";
+  const etiqueta = (extension || "DOC").slice(0, 4).toUpperCase();
+  return (
+    `<svg class="hoja" viewBox="0 0 56 70" aria-hidden="true">` +
+    `<path d="M4 3h31l17 17v47a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z" ` +
+    `fill="#EDEFF2" stroke="#D3D8DE"/>` +
+    `<path d="M35 3l17 17H38a3 3 0 0 1-3-3V3z" fill="#D3D8DE"/>` +
+    `<rect x="6" y="34" width="44" height="20" rx="3" fill="${banda}"/>` +
+    `<text x="28" y="48.5" text-anchor="middle" font-size="${etiqueta.length > 3 ? 10 : 12}" ` +
+    `font-weight="700" fill="#fff" ` +
+    `font-family="system-ui,-apple-system,Segoe UI,sans-serif">${etiqueta}</text>` +
+    `</svg>`
+  );
+}
+
+function enMegas(bytes) {
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+/** Los documentos que aún no ha aceptado el servidor: lo que el usuario eligió. */
+function elegidos() {
+  return seguimiento.documentos.filter(
+    (d) => !d.id && ["pendiente", "subiendo", "error"].includes(d.estado),
+  );
+}
+
+function pintarFichas() {
+  const lista = elegidos();
+  const caja = $("fichas");
+  caja.textContent = "";
+  caja.classList.toggle("hidden", lista.length === 0);
+
+  const bytes = lista.reduce((suma, d) => suma + (d.fichero?.size || 0), 0);
+  $("elegidos").textContent = lista.length
+    ? T.paso1.elegidos(lista.length, enMegas(bytes))
+    : "";
+
+  lista.forEach((documento) => {
+    const ficha = document.createElement("div");
+    const fallido = documento.estado === "error";
+    ficha.className = `ficha${fallido ? " err" : ""}`;
+    const extension = (documento.nombre.split(".").pop() || "").toUpperCase();
+    ficha.innerHTML = hoja(extension, fallido);
+
+    const nombre = document.createElement("span");
+    nombre.className = "nombre";
+    nombre.textContent = documento.nombre;
+    nombre.title = documento.nombre;
+    ficha.appendChild(nombre);
+
+    if (fallido) {
+      const motivo = document.createElement("span");
+      motivo.className = "motivo";
+      motivo.textContent = frase(documento.error?.codigo, documento.error?.datos).titulo;
+      ficha.appendChild(motivo);
+    } else if (documento.estado === "subiendo") {
+      const barra = document.createElement("span");
+      barra.className = "progreso";
+      barra.innerHTML = "<i></i>";
+      barra.querySelector("i").style.width = `${documento.porcentajeSubida ?? 0}%`;
+      ficha.appendChild(barra);
+      const peso = document.createElement("span");
+      peso.className = "peso";
+      peso.textContent = T.documento.subiendo(documento.porcentajeSubida ?? 0);
+      ficha.appendChild(peso);
+    } else {
+      const peso = document.createElement("span");
+      peso.className = "peso";
+      peso.textContent = documento.fichero ? enMegas(documento.fichero.size) : "";
+      ficha.appendChild(peso);
+    }
+
+    // Quitar uno de la tanda antes de anonimizar; mientras sube, no.
+    if (documento.estado !== "subiendo") {
+      const quitar = document.createElement("button");
+      quitar.type = "button";
+      quitar.className = "quitar";
+      quitar.textContent = "×";
+      quitar.title = T.paso1.quitar;
+      quitar.setAttribute("aria-label", `${T.paso1.quitar}: ${documento.nombre}`);
+      quitar.onclick = () => {
+        seguimiento.quitar(documento);
+        pintarTodo();
+      };
+      ficha.appendChild(quitar);
+    }
+    caja.appendChild(ficha);
+  });
+}
+
+/**
+ * El detalle de los rechazados, debajo de las fichas.
+ *
+ * En la ficha solo cabe el titular; aquí va lo que de verdad necesita quien
+ * está delante: qué ha pasado y qué puede hacer con ese fichero.
+ */
+function pintarRechazos() {
+  const fallidos = elegidos().filter((d) => d.estado === "error");
+  const caja = $("rechazos");
+  caja.textContent = "";
+  caja.classList.toggle("hidden", fallidos.length === 0);
+
+  fallidos.forEach((documento) => {
+    const f = frase(documento.error?.codigo, documento.error?.datos);
+    const aviso = document.createElement("div");
+    aviso.className = "rechazo";
+    const titulo = document.createElement("b");
+    titulo.textContent = f.titulo;
+    const fichero = document.createElement("span");
+    fichero.className = "fich";
+    fichero.textContent = documento.nombre;
+    aviso.append(titulo, document.createTextNode(f.texto), document.createElement("br"), fichero);
+    caja.appendChild(aviso);
+  });
+}
+
+function pintarTodo() {
+  pintarFichas();
+  pintarRechazos();
+  pintarSeguimiento();
 }
 
 /* ------------------------------------------------------------------- pintado */
@@ -335,19 +465,27 @@ function nombreVisible(documento) {
 }
 
 function pintarSeguimiento() {
-  const documentos = seguimiento.documentos;
+  // El paso 3 es el seguimiento de lo que el servidor está procesando; lo que
+  // aún no ha salido de este ordenador —o lo que se rechazó antes de subir—
+  // se ve en sus fichas del paso 1, que es donde se eligió.
+  const documentos = seguimiento.documentos.filter((d) => d.id);
   $("seguimiento").classList.toggle("hidden", documentos.length === 0);
   $("vacio").classList.toggle("hidden", documentos.length > 0);
-  $("anonimizar").classList.toggle(
-    "hidden",
-    !documentos.some((d) => d.estado === "pendiente"),
-  );
-  $("seAplica").classList.toggle("hidden", documentos.length === 0);
-  $("seAplica").textContent = T.paso2.seAplica(documentos.length);
+  $("vacio").textContent = seguimiento.documentos.some((d) => d.estado === "pendiente")
+    ? T.paso3.sinEmpezar
+    : T.paso3.vacio;
+  // El botón y el «se aplicará a» hablan de la TANDA entera —lo elegido más lo
+  // que ya está en el servidor—, no solo de lo que se está siguiendo.
+  const tanda = seguimiento.documentos.filter((d) => d.estado !== "error" || d.id);
+  const porSubir = seguimiento.documentos.filter((d) => d.estado === "pendiente");
+  $("anonimizar").classList.toggle("hidden", porSubir.length === 0);
+  $("seAplica").classList.toggle("hidden", tanda.length === 0);
+  $("seAplica").textContent = T.paso2.seAplica(tanda.length);
 
   const lista = $("lista");
   lista.textContent = "";
   if (!documentos.length) return;
+
 
   pintarResumen(documentos);
   pintarEnCurso(documentos);
@@ -568,7 +706,7 @@ function acciones(documento, parcial) {
     boton(T.acciones.quitar, "", () => {
       if (documento.id) almacen.olvidar(documento.id);
       seguimiento.quitar(documento);
-      pintarSeguimiento();
+      pintarTodo();
     });
   }
   return caja;
@@ -612,7 +750,7 @@ function confirmarEliminar(documento) {
       /* si ya no está en el servidor, quitarlo de la lista es lo correcto */
     }
     seguimiento.quitar(objetivo);
-    pintarSeguimiento();
+    pintarTodo();
   };
 }
 

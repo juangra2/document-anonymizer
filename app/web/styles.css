@@ -79,6 +79,28 @@ h2{font-size:15px;font-weight:600;margin:0;letter-spacing:-0.01em}
 .nunca summary{cursor:pointer;color:var(--accent)}
 .nunca ul{margin:8px 0 0;padding-left:20px}
 
+/* Fichas de los documentos elegidos (paso 1) */
+.fichas{display:flex;flex-wrap:wrap;gap:14px;margin-top:16px}
+.ficha{position:relative;width:104px;display:flex;flex-direction:column;align-items:center;gap:6px}
+.ficha .hoja{width:56px;height:70px;flex:none}
+.ficha .nombre{font-size:12px;line-height:1.35;text-align:center;width:100%;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.ficha .peso{font-size:11px;color:var(--faint)}
+.ficha .motivo{font-size:11px;color:var(--danger);line-height:1.35;text-align:center}
+.ficha .quitar{position:absolute;top:-6px;right:2px;width:20px;height:20px;border-radius:50%;
+  border:1px solid var(--line);background:#fff;color:var(--muted);font-size:13px;line-height:1;
+  cursor:pointer;display:none;padding:0}
+.ficha:hover .quitar,.ficha .quitar:focus-visible{display:block}
+.ficha .quitar:hover{color:var(--danger);border-color:#F0C9C9}
+.ficha .progreso{width:100%;height:4px;background:var(--line);border-radius:2px;overflow:hidden}
+.ficha .progreso>i{display:block;height:100%;background:var(--accent);width:0}
+.ficha.err .nombre{color:var(--danger)}
+
+.rechazos{margin-top:14px;display:flex;flex-direction:column;gap:10px}
+.rechazo{background:var(--danger-soft);border-radius:var(--radius);padding:12px 15px;font-size:13px;line-height:1.5}
+.rechazo b{display:block;font-weight:600;color:var(--danger)}
+.rechazo .fich{color:var(--muted);font-size:12px}
+
 /* Seguimiento */
 .summary{font-size:13px;color:var(--muted);margin-bottom:14px}
 .current{background:var(--page);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px}

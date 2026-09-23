@@ -37,6 +37,9 @@ export const TEXTOS = {
     limites: (docs, paginas, mb) =>
       `Hasta ${docs} documentos por tanda · máximo ${paginas} páginas y ${mb} MB cada uno`,
     elegir: "Seleccionar archivos",
+    elegidos: (n, peso) =>
+      `${n} ${n === 1 ? "documento elegido" : "documentos elegidos"} · ${peso}`,
+    quitar: "Quitar de la tanda",
     tandaGrande: (mb) =>
       `La tanda suma ${mb} MB. Puede tardar en subirse; si no es urgente, ` +
       `divídela en varias.`,
@@ -67,6 +70,7 @@ export const TEXTOS = {
   paso3: {
     titulo: "Seguimiento",
     vacio: "Añade uno o varios documentos para empezar.",
+    sinEmpezar: "Pulsa «Anonimizar» y aquí verás el avance de cada documento.",
     anonimizar: "Anonimizar",
     resumen: (partes) => partes.join(" · "),
     resumenTerminados: (n) => `${n} ${n === 1 ? "terminado" : "terminados"}`,

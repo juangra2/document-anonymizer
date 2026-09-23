@@ -138,7 +138,14 @@ def flujo_documento_completo(p, pagina, tmp: Path) -> None:
     print("\n1) Un documento de principio a fin")
     abrir(pagina)
     pagina.set_input_files("#ficheros", str(pdf_simple(tmp / "expediente.pdf", 2)))
-    p.comprobar(pagina.locator(".doc").count() == 1, "el documento aparece en la lista")
+    p.comprobar(
+        pagina.locator(".ficha").count() == 1,
+        "el documento elegido aparece como ficha en el paso 1",
+    )
+    p.comprobar(
+        "expediente.pdf" in pagina.locator(".ficha .nombre").first.inner_text(),
+        "con su nombre debajo",
+    )
     p.captura(pagina, "01-subida")
 
     pagina.click("#anonimizar")
@@ -170,21 +177,21 @@ def flujo_tanda(p, pagina, tmp: Path) -> None:
             str(pdf_simple(tmp / "dos.pdf")),
         ],
     )
-    p.comprobar(pagina.locator(".doc").count() == 3, "los tres entran en la lista")
+    p.comprobar(pagina.locator(".ficha").count() == 3, "los tres entran como fichas")
     p.comprobar(
-        "no es un PDF" in pagina.locator(".doc .st.err").first.inner_text(),
-        "el que no es PDF se rechaza con su motivo, sin tumbar la tanda",
+        "no es un PDF" in pagina.locator(".ficha.err .motivo").first.inner_text(),
+        "el que no es PDF se marca en su ficha con el motivo, donde se eligio",
     )
     pagina.click("#anonimizar")
     ok = esperar_texto(pagina, "#resumen", "terminado")
     p.comprobar(ok, "el resumen cuenta los terminados")
     p.comprobar(
-        "problema" in pagina.locator("#resumen").inner_text(),
-        "y cuenta aparte el que tiene problemas",
+        pagina.locator(".doc").count() == 2,
+        "al paso 3 solo pasan los dos validos: el rechazado no se sube",
     )
     p.comprobar(
-        pagina.locator(".doc .st.err").count() == 1,
-        "solo falla el rechazado: los otros dos siguen su curso",
+        pagina.locator(".ficha.err").count() == 1,
+        "y el rechazado sigue visible en el paso 1 con su motivo",
     )
     p.captura(pagina, "03-tanda")
 
@@ -264,8 +271,17 @@ def flujo_errores(p, pagina, tmp: Path) -> None:
     abrir(pagina)
     pagina.set_input_files("#ficheros", str(pdf_con_contrasena(tmp / "con_clave.pdf")))
     pagina.click("#anonimizar")
-    ok = esperar_texto(pagina, ".doc .st.err", "contraseña", ms=60000)
-    p.comprobar(ok, "un PDF con contraseña explica que hacer")
+    ok = esperar_texto(pagina, "#rechazos", "contraseña", ms=60000)
+    p.comprobar(ok, "un PDF con contraseña se rechaza al subirlo")
+    detalle = pagina.locator(".rechazo").first.inner_text()
+    p.comprobar(
+        "guárdalo sin ella" in detalle or "copia sin protección" in detalle,
+        "y el aviso dice QUE HACER, no solo que ha fallado",
+    )
+    p.comprobar(
+        pagina.locator(".ficha.err").count() == 1,
+        "la ficha del fichero queda marcada en rojo",
+    )
     p.captura(pagina, "07-error-contrasena")
 
 

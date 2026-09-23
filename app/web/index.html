@@ -26,13 +26,18 @@
 
   <!-- 1 · Documentos -->
   <section class="card">
-    <div class="card-head"><h2><span class="step">1</span>Documentos</h2></div>
+    <div class="card-head">
+      <h2><span class="step">1</span>Documentos</h2>
+      <span class="count" id="elegidos"></span>
+    </div>
     <div class="drop" id="zona">
       <strong id="zonaTitulo">Arrastra uno o varios PDF aquí, o selecciónalos</strong>
       <small id="zonaLimites"></small>
       <div><button class="btn" id="elegir" type="button">Seleccionar archivos</button></div>
       <input type="file" id="ficheros" accept="application/pdf,.pdf" multiple hidden>
     </div>
+    <div class="fichas hidden" id="fichas"></div>
+    <div class="rechazos hidden" id="rechazos"></div>
     <div class="banner warn hidden" id="avisoTanda">
       <span class="mark">i</span><span id="avisoTandaTexto"></span>
     </div>
