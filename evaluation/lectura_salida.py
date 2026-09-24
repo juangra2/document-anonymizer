@@ -24,6 +24,29 @@ Las dos condiciones que hacen fiable la medida
    Ese caso se marca NO CONCLUYENTE y queda fuera del porcentaje, con su numero
    publicado al lado.  Un numero de no concluyentes que crece significa que la
    que falla es la medida, no el pipeline.
+
+3. **Comparar tolerando las erratas del OCR.**  Exigir identidad exacta
+   convertia cualquier errata en un falso exito: el OCR leyo "7931398G" donde
+   pone "79313986G" y ese DNI, perfectamente visible, se conto como tapado.
+   Se busca la ventana mas parecida, con un umbral que no llega a casar dos
+   datos distintos (18001 contra 18002 se queda corto).
+
+4. **Juzgar pagina a pagina.**  Unir el texto de todo el documento impedia
+   saber si la lectura de la pagina donde vivia el dato era de fiar.  Ahora un
+   "no esta" solo cuenta si esa pagina se leyo comparablemente bien que en la
+   entrada, o si esta practicamente en negro, que es una redaccion total.
+
+QUE VALE COMO PRUEBA Y QUE NO
+-----------------------------
+Una FUGA es una prueba: el dato se lee en la salida.
+
+Un TAPADO es de fiar salvo por una reserva, la unica que queda: que el dato
+siga en la pagina y no lo haya leido la lectura de la salida pese a que esa
+pagina se lee bien y la comparacion admite erratas.  Es poco probable, pero no
+imposible, y por eso queda escrito.
+
+Los dos fallos que este modulo tuvo —los dos diciendo "tapado" de datos que
+estaban a la vista— estan cerrados y fijados en tests/test_lectura_salida.py.
 """
 from __future__ import annotations
 
