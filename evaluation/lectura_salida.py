@@ -45,6 +45,15 @@ _ANGULOS = (0, 90, 180, 270)
 # pagina bien orientada da 14-35 y una girada 2-3.
 _CALIDAD_ACEPTABLE = 8.0
 _UMBRAL_OSCURO = 60
+# Por encima de esto la pagina esta tachada entera: que no se lea nada es lo
+# correcto, no un fallo de lectura.
+_NEGRURA_REDACCION_TOTAL = 0.5
+# La lectura de la salida tiene que recuperar al menos esta parte de los
+# caracteres que recupero la de la entrada para poder fiarse de un "no esta".
+_FRACCION_MINIMA = 0.5
+# Parecido minimo para dar un dato por encontrado pese a las erratas del OCR.
+# Por debajo de esto ya casarian datos distintos (18001 contra 18002 sale 0.8).
+_PARECIDO_MINIMO = 0.85
 
 
 # --------------------------------------------------------------------------
@@ -56,6 +65,30 @@ def _aplanar(texto: str) -> str:
     plegado = unicodedata.normalize("NFKD", texto.upper())
     limpio = "".join(c for c in plegado if not unicodedata.combining(c))
     return "".join(c for c in limpio if c.isalnum())
+
+
+def aparece(aguja: str, pajar: str, umbral: float = _PARECIDO_MINIMO) -> bool:
+    """¿Esta el dato en el texto, aunque el OCR lo haya leido con erratas?
+
+    La comparacion exacta era el verdadero fallo de la primera version: el OCR
+    de la salida leyo "7931398G" donde pone "79313986G" —una cifra menos— y el
+    dato, perfectamente visible en la pagina, se contaba como tapado.  Exigir
+    identidad convierte cualquier errata del OCR en un falso exito, que es la
+    peor direccion posible en la que equivocarse.
+
+    Se busca la ventana mas parecida del mismo largo.  Barato: el texto de una
+    pagina son un par de miles de caracteres y el dato, una decena.
+    """
+    if aguja in pajar:
+        return True
+    if len(aguja) < 4 or len(pajar) < len(aguja):
+        return False
+    from difflib import SequenceMatcher
+    for inicio in range(len(pajar) - len(aguja) + 1):
+        ventana = pajar[inicio:inicio + len(aguja)]
+        if SequenceMatcher(None, aguja, ventana).ratio() >= umbral:
+            return True
+    return False
 
 
 def _calidad(tokens) -> float:
@@ -109,16 +142,36 @@ def leer_pagina(pdf: Path, indice: int) -> tuple[str, int]:
     return " ".join(t.text for t in mejor_tokens), mejor_angulo
 
 
-def leer_documento(pdf: Path) -> tuple[str, list[int]]:
-    """Todo el texto legible de un PDF y los angulos que hubo que aplicar."""
+@dataclass
+class LecturaPagina:
+    """Lo que se pudo leer de una pagina, y con cuanto esfuerzo."""
+    indice: int
+    texto: str
+    angulo: int
+
+    @property
+    def plano(self) -> str:
+        return _aplanar(self.texto)
+
+    @property
+    def caracteres(self) -> int:
+        return len(self.plano)
+
+
+def leer_documento(pdf: Path) -> list[LecturaPagina]:
+    """El texto legible PAGINA A PAGINA, no unido.
+
+    Unirlo fue el error de la primera version: sin saber de que pagina salio
+    cada cosa no se puede juzgar si la lectura de esa pagina es fiable, y un
+    dato perdido por un OCR que leyo mal se contaba como tapado.
+    """
     with fitz.open(pdf) as doc:
         paginas = doc.page_count
-    textos, angulos = [], []
+    lecturas = []
     for indice in range(paginas):
         texto, angulo = leer_pagina(pdf, indice)
-        textos.append(texto)
-        angulos.append(angulo)
-    return " ".join(textos), angulos
+        lecturas.append(LecturaPagina(indice=indice, texto=texto, angulo=angulo))
+    return lecturas
 
 
 def negrura(pdf: Path) -> list[float]:
@@ -166,16 +219,57 @@ class ResultadoDocumento:
         return round(100.0 * self.tapados / self.concluyentes, 2)
 
 
+def pagina_fiable(
+    entrada: LecturaPagina,
+    salida: LecturaPagina | None,
+    negrura_salida: float,
+    fraccion_minima: float = _FRACCION_MINIMA,
+) -> bool:
+    """¿Se puede creer un "no lo encuentro" en esta pagina de la salida?
+
+    Dos formas de que si:
+
+    - La pagina esta practicamente en negro: es una redaccion TOTAL y que no
+      se lea nada es exactamente lo que tiene que pasar.
+    - La lectura de la salida recupero una fraccion razonable de los
+      caracteres que recupero la de la entrada: el OCR sigue funcionando sobre
+      esa pagina, asi que lo que falta, falta porque esta tapado.
+
+    Si no se da ninguna, el OCR leyo la salida peor que la entrada y un dato
+    que no aparece puede seguir estando a la vista.
+    """
+    if negrura_salida >= _NEGRURA_REDACCION_TOTAL:
+        return True
+    if salida is None:
+        return False
+    if entrada.caracteres == 0:
+        return False
+    return salida.caracteres >= fraccion_minima * entrada.caracteres
+
+
+def decidir(en_entrada: bool, en_salida: bool, fiable: bool) -> str:
+    """La tabla de decision, aparte para poder fijarla con pruebas."""
+    if not en_entrada:
+        return NO_CONCLUYENTE      # no se leia ya de origen: no demuestra nada
+    if en_salida:
+        return FUGA                # se lee en las dos: prueba
+    if not fiable:
+        return NO_CONCLUYENTE      # no aparece, pero la lectura no es de fiar
+    return TAPADO
+
+
 def comprobar_documento(entrada: Path, salida: Path, etiqueta: dict) -> ResultadoDocumento:
     """Busca cada dato de la etiqueta en la entrada y en la salida."""
     resultado = ResultadoDocumento(documento=entrada.stem)
 
-    texto_entrada, resultado.angulos_entrada = leer_documento(entrada)
-    texto_salida, resultado.angulos_salida = leer_documento(salida)
+    lecturas_entrada = leer_documento(entrada)
+    lecturas_salida = leer_documento(salida)
     resultado.negrura_por_pagina = negrura(salida)
+    resultado.angulos_entrada = [l.angulo for l in lecturas_entrada]
+    resultado.angulos_salida = [l.angulo for l in lecturas_salida]
 
-    plano_entrada = _aplanar(texto_entrada)
-    plano_salida = _aplanar(texto_salida)
+    por_indice = {l.indice: l for l in lecturas_salida}
+    plano_salida = " ".join(l.plano for l in lecturas_salida)
 
     vistos: set[tuple[str, str]] = set()
     for entidad in etiqueta.get("entities", []):
@@ -190,20 +284,35 @@ def comprobar_documento(entrada: Path, salida: Path, etiqueta: dict) -> Resultad
             # Cadenas muy cortas casan con cualquier cosa: no se miden.
             continue
 
-        en_entrada = aguja in plano_entrada
-        en_salida = aguja in plano_salida
+        paginas_origen = [l for l in lecturas_entrada if aparece(aguja, l.plano)]
+        en_entrada = bool(paginas_origen)
+        en_salida = aparece(aguja, plano_salida)
 
-        if not en_entrada:
-            estado = NO_CONCLUYENTE
-            resultado.no_concluyentes += 1
-        elif en_salida:
-            estado = FUGA
+        # Fiable si lo es la lectura de ALGUNA de las paginas donde vivia el
+        # dato: basta con poder creerse una para creerse que no esta.
+        fiable = any(
+            pagina_fiable(
+                pagina,
+                por_indice.get(pagina.indice),
+                (resultado.negrura_por_pagina[pagina.indice]
+                 if pagina.indice < len(resultado.negrura_por_pagina) else 0.0),
+            )
+            for pagina in paginas_origen
+        )
+
+        estado = decidir(en_entrada, en_salida, fiable)
+        if estado == TAPADO:
+            resultado.tapados += 1
+        elif estado == FUGA:
             resultado.fugas += 1
         else:
-            estado = TAPADO
-            resultado.tapados += 1
+            resultado.no_concluyentes += 1
 
-        resultado.detalle.append({"texto": valor, "tipo": tipo, "estado": estado})
+        resultado.detalle.append({
+            "texto": valor, "tipo": tipo, "estado": estado,
+            "paginas_en_entrada": [p.indice + 1 for p in paginas_origen],
+            "lectura_fiable": fiable,
+        })
 
     return resultado
 
