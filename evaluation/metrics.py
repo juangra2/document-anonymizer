@@ -60,6 +60,11 @@ class DocResult:
     quality: str
     api_status: str
     processing_ms: int
+    #: Camino por el que el servicio proceso el documento (pdf_digital,
+    #: pdf_scanned, pdf_hybrid).  Sin esto no se puede comprobar que un
+    #: documento del corpus escaneado no se haya ido por el digital, que es
+    #: exactamente el fallo que estuvo escondido meses.
+    camino: str = ""
     tp_exact: int = 0
     tp_partial: int = 0
     fn: list[EntityRecord] = field(default_factory=list)

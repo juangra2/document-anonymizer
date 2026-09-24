@@ -137,6 +137,7 @@ def evaluate_single(
         language=gt_doc["language"],
         quality=gt_doc.get("quality", "unknown"),
         api_status=report.get("status", "unknown"),
+        camino=report.get("document_type", ""),
         processing_ms=report.get("processing_ms") or 0,
         gt_entities=gt_doc.get("entities", []),
         detected_entities=report.get("detected_entities", []),
