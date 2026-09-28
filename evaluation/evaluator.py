@@ -87,6 +87,45 @@ def call_api(
 # Single-document evaluation
 # ---------------------------------------------------------------------------
 
+def _doc_result_desde_json(obj: dict) -> DocResult:
+    """Reconstruye un DocResult guardado en el checkpoint.
+
+    `dataclasses.asdict` aplana las entidades a diccionarios, y volver a meterlos
+    tal cual dejaba un DocResult con dicts donde el agregador espera objetos:
+    la tanda se evaluaba entera —hora y media— y reventaba al agregar, con todo
+    el trabajo hecho y ningun resultado escrito.
+    """
+    from evaluation.metrics import EntityRecord, TypeResult
+
+    def entidades(bruto) -> list[EntityRecord]:
+        return [
+            e if isinstance(e, EntityRecord) else EntityRecord(
+                **{k: v for k, v in e.items()
+                   if k in EntityRecord.__dataclass_fields__}
+            )
+            for e in (bruto or [])
+        ]
+
+    campos = {k: v for k, v in obj.items() if k in DocResult.__dataclass_fields__}
+    campos["fn"] = entidades(campos.get("fn"))
+    campos["fp"] = entidades(campos.get("fp"))
+
+    por_tipo = {}
+    for tipo, valor in (campos.get("by_type") or {}).items():
+        if isinstance(valor, TypeResult):
+            por_tipo[tipo] = valor
+        else:
+            datos = {k: v for k, v in valor.items()
+                     if k in TypeResult.__dataclass_fields__}
+            for clave in ("fn", "fp"):
+                if clave in datos:
+                    datos[clave] = entidades(datos[clave])
+            por_tipo[tipo] = TypeResult(**datos)
+    campos["by_type"] = por_tipo
+
+    return DocResult(**campos)
+
+
 def _all_gt_as_fn(gt_doc: dict) -> DocResult:
     """Return a DocResult where every GT entity is a FN (API failed)."""
     fn_list = [
@@ -188,11 +227,14 @@ def run_evaluation(
                     continue
                 try:
                     obj = json.loads(line)
-                    r = DocResult(**{k: v for k, v in obj.items() if k in DocResult.__dataclass_fields__})
+                    r = _doc_result_desde_json(obj)
                     results.append(r)
                     done_ids.add(r.doc_id)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    # Callar aqui convertia un checkpoint ilegible en "no hay
+                    # nada que reanudar", y la tanda se repetia entera en
+                    # silencio.  Mejor decirlo y seguir con el resto.
+                    print(f"  aviso: linea de checkpoint descartada ({exc})")
         if verbose and done_ids:
             print(f"Resuming: loaded {len(done_ids)} results from checkpoint.")
 
