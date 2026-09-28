@@ -134,8 +134,8 @@ def _all_gt_as_fn(gt_doc: dict) -> DocResult:
     ]
     return DocResult(
         doc_id=gt_doc["document_id"],
-        doc_type=gt_doc["document_type"],
-        language=gt_doc["language"],
+        doc_type=gt_doc.get("document_type", "unknown"),
+        language=gt_doc.get("language", "unknown"),
         quality=gt_doc.get("quality", "unknown"),
         api_status="api_error",
         processing_ms=0,
@@ -172,8 +172,8 @@ def evaluate_single(
 
     return evaluate_document(
         doc_id=doc_id,
-        doc_type=gt_doc["document_type"],
-        language=gt_doc["language"],
+        doc_type=gt_doc.get("document_type", "unknown"),
+        language=gt_doc.get("language", "unknown"),
         quality=gt_doc.get("quality", "unknown"),
         api_status=report.get("status", "unknown"),
         camino=report.get("document_type", ""),
