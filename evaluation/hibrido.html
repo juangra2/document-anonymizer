@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Evaluation Report — Document Anonymizer</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+       font-size: 14px; color: #222; background: #f7f8fa; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: 700; color: #1a1a2e; }
+h2 { font-size: 17px; font-weight: 600; color: #1a1a2e; margin-bottom: 12px; }
+h3 { font-size: 14px; font-weight: 600; color: #444; margin-bottom: 8px; }
+.page { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; }
+.header { background: linear-gradient(135deg,#1a1a2e,#16213e);
+          color: white; padding: 32px; border-radius: 12px; margin-bottom: 24px; }
+.header p { opacity: .75; font-size: 13px; margin-top: 6px; }
+.cards { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+.card { background: white; border-radius: 10px; padding: 20px 24px;
+        box-shadow: 0 1px 4px rgba(0,0,0,.08); flex: 1; min-width: 160px; }
+.card .value { font-size: 28px; font-weight: 700; margin-top: 6px; }
+.card .label { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: .5px; }
+.section { background: white; border-radius: 10px; padding: 24px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 20px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { background: #f0f2f5; text-align: left; padding: 8px 10px; font-weight: 600;
+     border-bottom: 2px solid #ddd; }
+td { padding: 7px 10px; border-bottom: 1px solid #eee; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #fafbff; }
+.good { color: #16a34a; font-weight: 600; }
+.warn { color: #d97706; font-weight: 600; }
+.bad  { color: #dc2626; font-weight: 600; }
+.tag  { display: inline-block; padding: 2px 7px; border-radius: 4px;
+        font-size: 11px; font-weight: 600; }
+.tag-q-clean    { background:#d1fae5; color:#065f46; }
+.tag-q-scanned  { background:#fef3c7; color:#92400e; }
+.tag-q-watermark{ background:#ede9fe; color:#5b21b6; }
+.tag-lang { background:#e0f2fe; color:#075985; }
+.tag-oos  { background:#f3f4f6; color:#6b7280; border:1px solid #d1d5db; cursor:help; }
+.oos-row  { opacity:.7; background:#fafafa; }
+.chip { display:inline-block; padding:1px 6px; border-radius:12px;
+        background:#e5e7eb; font-size:11px; color:#374151; margin:1px; }
+.example-block { background:#f9fafb; border:1px solid #e5e7eb; border-radius:6px;
+                 padding:10px 14px; margin:4px 0; }
+.example-block .entity-text { font-family: monospace; font-size:13px;
+                               background:#fff3cd; padding:1px 5px; border-radius:3px; }
+.example-block .meta { font-size:11px; color:#6b7280; margin-top:3px; }
+.cols2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+@media(max-width:700px){ .cols2{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="page">
+<div class="header">
+<h1>Evaluation Report — Document Anonymizer</h1>
+<p>Generado el 2026-09-28 10:57 &nbsp;·&nbsp; 26 documentos evaluados</p>
+</div>
+<div class="cards">
+<div class="card"><div class="label">F1 global</div><div class="value" style="color:#f59e0b">74.3%</div></div>
+<div class="card"><div class="label">Precision</div><div class="value" style="color:#3b82f6">95.4%</div></div>
+<div class="card"><div class="label">Recall</div><div class="value" style="color:#10b981">60.8%</div></div>
+<div class="card"><div class="label">TP total</div><div class="value">607</div></div>
+<div class="card"><div class="label">FN total</div><div class="value" style="color:#dc2626">392</div></div>
+<div class="card"><div class="label">FP total</div><div class="value" style="color:#d97706">29</div></div>
+<div class="card"><div class="label">Errores API</div><div class="value">0</div></div>
+<div class="card"><div class="label">Tiempo medio</div><div class="value">3123 ms</div></div>
+</div>
+<div class="section">
+<h2>Métricas por tipo de entidad</h2>
+<p style='font-size:12px;color:#6b7280;margin-bottom:12px'>Los tipos marcados <span class='tag tag-oos'>fuera GT</span> son detectados por política de redacción del sistema pero no están anotados en el GT — se excluyen del P/R/F1 global para no distorsionar las métricas.</p>
+<table><thead><tr><th>Tipo</th><th>TP-exact</th><th>TP-partial</th><th>FN</th><th>FP</th><th>Precision</th><th>Recall</th><th>F1</th></tr></thead><tbody><tr><td>ADDRESS</td><td>32</td><td>6</td><td>25</td><td>3</td><td><span class="good">92.7%</span></td><td><span class="warn">60.3%</span></td><td><span class="warn">73.1%</span></td></tr><tr><td>CASE_NUMBER</td><td>71</td><td>0</td><td>35</td><td>0</td><td><span class="good">100.0%</span></td><td><span class="warn">67.0%</span></td><td><span class="good">80.2%</span></td></tr><tr><td>CSV</td><td>2</td><td>0</td><td>19</td><td>0</td><td><span class="good">100.0%</span></td><td><span class="bad">9.5%</span></td><td><span class="bad">17.4%</span></td></tr><tr><td>DATE_OF_BIRTH</td><td>23</td><td>0</td><td>27</td><td>0</td><td><span class="good">100.0%</span></td><td><span class="bad">46.0%</span></td><td><span class="warn">63.0%</span></td></tr><tr><td>DATE_TIME</td><td>105</td><td>0</td><td>37</td><td>4</td><td><span class="good">96.3%</span></td><td><span class="warn">73.9%</span></td><td><span class="good">83.7%</span></td></tr><tr><td>EMAIL_ADDRESS</td><td>26</td><td>0</td><td>4</td><td>0</td><td><span class="good">100.0%</span></td><td><span class="good">86.7%</span></td><td><span class="good">92.9%</span></td></tr><tr><td>ES_CIF</td><td>6</td><td>0</td><td>3</td><td>0</td><td><span class="good">100.0%</span></td><td><span class="warn">66.7%</span></td><td><span class="good">80.0%</span></td></tr><tr><td>ES_DNI</td><td>48</td><td>0</td><td>39</td><td>0</td><td><span class="good">100.0%</span></td><td><span class="warn">55.2%</span></td><td><span class="warn">71.1%</span></td></tr><tr><td>ES_NIE</td><td>12</td><td>0</td><td>4</td><td>0</td><td><span class="good">100.0%</span></td><td><span class="warn">75.0%</span></td><td><span class="good">85.7%</span></td></tr><tr><td>ES_NSS</td><td>18</td><td>0</td><td>3</td><td>1</td><td><span class="good">94.7%</span></td><td><span class="good">85.7%</span></td><td><span class="good">90.0%</span></td></tr><tr><td>IBAN_CODE</td><td>12</td><td>0</td><td>9</td><td>0</td><td><span class="good">100.0%</span></td><td><span class="warn">57.1%</span></td><td><span class="warn">72.7%</span></td></tr><tr><td>IP_ADDRESS</td><td>12</td><td>0</td><td>3</td><td>0</td><td><span class="good">100.0%</span></td><td><span class="good">80.0%</span></td><td><span class="good">88.9%</span></td></tr><tr><td>LICENSE_PLATE</td><td>3</td><td>0</td><td>4</td><td>1</td><td><span class="warn">75.0%</span></td><td><span class="bad">42.9%</span></td><td><span class="warn">54.5%</span></td></tr><tr class="oos-row"><td>LOCATION <span class="tag tag-oos" title="No anotado en GT; excluido de métricas globales">fuera GT</span></td><td>0</td><td>0</td><td>18</td><td>0</td><td><span style='color:#bbb'>—</span></td><td><span style='color:#bbb'>—</span></td><td><span style='color:#bbb'>—</span></td></tr><tr><td>MONEY</td><td>22</td><td>0</td><td>39</td><td>3</td><td><span class="good">88.0%</span></td><td><span class="bad">36.1%</span></td><td><span class="warn">51.2%</span></td></tr><tr><td>PASSPORT</td><td>10</td><td>1</td><td>0</td><td>0</td><td><span class="good">100.0%</span></td><td><span class="good">100.0%</span></td><td><span class="good">100.0%</span></td></tr><tr><td>PERSON</td><td>85</td><td>17</td><td>82</td><td>14</td><td><span class="good">87.9%</span></td><td><span class="warn">55.4%</span></td><td><span class="warn">68.0%</span></td></tr><tr><td>PHONE_NUMBER</td><td>21</td><td>0</td><td>12</td><td>0</td><td><span class="good">100.0%</span></td><td><span class="warn">63.6%</span></td><td><span class="warn">77.8%</span></td></tr><tr><td>POSTAL_CODE</td><td>39</td><td>0</td><td>27</td><td>3</td><td><span class="good">92.9%</span></td><td><span class="warn">59.1%</span></td><td><span class="warn">72.2%</span></td></tr><tr><td>QR_CODE</td><td>14</td><td>0</td><td>11</td><td>0</td><td><span class="good">100.0%</span></td><td><span class="warn">56.0%</span></td><td><span class="warn">71.8%</span></td></tr><tr><td>URL</td><td>22</td><td>0</td><td>9</td><td>0</td><td><span class="good">100.0%</span></td><td><span class="warn">71.0%</span></td><td><span class="good">83.0%</span></td></tr></tbody></table>
+</div>
+<div class="section">
+<h2>Gráfico Precision / Recall / F1 por tipo (scope GT)</h2>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1580" style="font-family:inherit;font-size:11px;display:block;margin:0 auto">
+<text x="450" y="14" text-anchor="middle" font-weight="bold" font-size="13">Precision / Recall / F1 por tipo de entidad (scope GT)</text>
+<line x1="200" y1="20" x2="200" y2="1560" stroke="#ddd" stroke-width="1"/>
+<text x="200" y="1574" text-anchor="middle" fill="#888">0%</text>
+<line x1="375" y1="20" x2="375" y2="1560" stroke="#ddd" stroke-width="1"/>
+<text x="375" y="1574" text-anchor="middle" fill="#888">25%</text>
+<line x1="550" y1="20" x2="550" y2="1560" stroke="#ddd" stroke-width="1"/>
+<text x="550" y="1574" text-anchor="middle" fill="#888">50%</text>
+<line x1="725" y1="20" x2="725" y2="1560" stroke="#ddd" stroke-width="1"/>
+<text x="725" y="1574" text-anchor="middle" fill="#888">75%</text>
+<line x1="900" y1="20" x2="900" y2="1560" stroke="#ddd" stroke-width="1"/>
+<text x="900" y="1574" text-anchor="middle" fill="#888">100%</text>
+<text x="194" y="62" text-anchor="end" fill="#333">ADDRESS</text>
+<rect x="200" y="20" width="648" height="18" fill="#3b82f6" rx="2"/>
+<text x="844" y="33" text-anchor="end" fill="white" font-size="10">92.7%</text>
+<rect x="200" y="42" width="422" height="18" fill="#10b981" rx="2"/>
+<text x="618" y="55" text-anchor="end" fill="white" font-size="10">60.3%</text>
+<rect x="200" y="64" width="511" height="18" fill="#f59e0b" rx="2"/>
+<text x="707" y="77" text-anchor="end" fill="white" font-size="10">73.1%</text>
+<text x="194" y="138" text-anchor="end" fill="#333">CASE_NUMBER</text>
+<rect x="200" y="96" width="700" height="18" fill="#3b82f6" rx="2"/>
+<text x="896" y="109" text-anchor="end" fill="white" font-size="10">100.0%</text>
+<rect x="200" y="118" width="468" height="18" fill="#10b981" rx="2"/>
+<text x="664" y="131" text-anchor="end" fill="white" font-size="10">67.0%</text>
+<rect x="200" y="140" width="561" height="18" fill="#f59e0b" rx="2"/>
+<text x="757" y="153" text-anchor="end" fill="white" font-size="10">80.2%</text>
+<text x="194" y="214" text-anchor="end" fill="#333">CSV</text>
+<rect x="200" y="172" width="700" height="18" fill="#3b82f6" rx="2"/>
+<text x="896" y="185" text-anchor="end" fill="white" font-size="10">100.0%</text>
+<rect x="200" y="194" width="66" height="18" fill="#10b981" rx="2"/>
+<text x="262" y="207" text-anchor="end" fill="white" font-size="10">9.5%</text>
+<rect x="200" y="216" width="121" height="18" fill="#f59e0b" rx="2"/>
+<text x="317" y="229" text-anchor="end" fill="white" font-size="10">17.4%</text>
+<text x="194" y="290" text-anchor="end" fill="#333">DATE_OF_BIRTH</text>
+<rect x="200" y="248" width="700" height="18" fill="#3b82f6" rx="2"/>
+<text x="896" y="261" text-anchor="end" fill="white" font-size="10">100.0%</text>
+<rect x="200" y="270" width="322" height="18" fill="#10b981" rx="2"/>
+<text x="518" y="283" text-anchor="end" fill="white" font-size="10">46.0%</text>
+<rect x="200" y="292" width="441" height="18" fill="#f59e0b" rx="2"/>
+<text x="637" y="305" text-anchor="end" fill="white" font-size="10">63.0%</text>
+<text x="194" y="366" text-anchor="end" fill="#333">DATE_TIME</text>
+<rect x="200" y="324" width="674" height="18" fill="#3b82f6" rx="2"/>
+<text x="870" y="337" text-anchor="end" fill="white" font-size="10">96.3%</text>
+<rect x="200" y="346" width="517" height="18" fill="#10b981" rx="2"/>
+<text x="713" y="359" text-anchor="end" fill="white" font-size="10">73.9%</text>
+<rect x="200" y="368" width="585" height="18" fill="#f59e0b" rx="2"/>
+<text x="781" y="381" text-anchor="end" fill="white" font-size="10">83.7%</text>
+<text x="194" y="442" text-anchor="end" fill="#333">EMAIL_ADDRESS</text>
+<rect x="200" y="400" width="700" height="18" fill="#3b82f6" rx="2"/>
+<text x="896" y="413" text-anchor="end" fill="white" font-size="10">100.0%</text>
+<rect x="200" y="422" width="606" height="18" fill="#10b981" rx="2"/>
+<text x="802" y="435" text-anchor="end" fill="white" font-size="10">86.7%</text>
+<rect x="200" y="444" width="650" height="18" fill="#f59e0b" rx="2"/>
+<text x="846" y="457" text-anchor="end" fill="white" font-size="10">92.9%</text>
+<text x="194" y="518" text-anchor="end" fill="#333">ES_CIF</text>
+<rect x="200" y="476" width="700" height="18" fill="#3b82f6" rx="2"/>
+<text x="896" y="489" text-anchor="end" fill="white" font-size="10">100.0%</text>
+<rect x="200" y="498" width="466" height="18" fill="#10b981" rx="2"/>
+<text x="662" y="511" text-anchor="end" fill="white" font-size="10">66.7%</text>
+<rect x="200" y="520" width="560" height="18" fill="#f59e0b" rx="2"/>
+<text x="756" y="533" text-anchor="end" fill="white" font-size="10">80.0%</text>
+<text x="194" y="594" text-anchor="end" fill="#333">ES_DNI</text>
+<rect x="200" y="552" width="700" height="18" fill="#3b82f6" rx="2"/>
+<text x="896" y="565" text-anchor="end" fill="white" font-size="10">100.0%</text>
+<rect x="200" y="574" width="386" height="18" fill="#10b981" rx="2"/>
+<text x="582" y="587" text-anchor="end" fill="white" font-size="10">55.2%</text>
+<rect x="200" y="596" width="497" height="18" fill="#f59e0b" rx="2"/>
+<text x="693" y="609" text-anchor="end" fill="white" font-size="10">71.1%</text>
+<text x="194" y="670" text-anchor="end" fill="#333">ES_NIE</text>
+<rect x="200" y="628" width="700" height="18" fill="#3b82f6" rx="2"/>
+<text x="896" y="641" text-anchor="end" fill="white" font-size="10">100.0%</text>
+<rect x="200" y="650" width="525" height="18" fill="#10b981" rx="2"/>
+<text x="721" y="663" text-anchor="end" fill="white" font-size="10">75.0%</text>
+<rect x="200" y="672" width="600" height="18" fill="#f59e0b" rx="2"/>
+<text x="796" y="685" text-anchor="end" fill="white" font-size="10">85.7%</text>
+<text x="194" y="746" text-anchor="end" fill="#333">ES_NSS</text>
+<rect x="200" y="704" width="663" height="18" fill="#3b82f6" rx="2"/>
+<text x="859" y="717" text-anchor="end" fill="white" font-size="10">94.7%</text>
+<rect x="200" y="726" width="600" height="18" fill="#10b981" rx="2"/>
+<text x="796" y="739" text-anchor="end" fill="white" font-size="10">85.7%</text>
+<rect x="200" y="748" width="630" height="18" fill="#f59e0b" rx="2"/>
+<text x="826" y="761" text-anchor="end" fill="white" font-size="10">90.0%</text>
+<text x="194" y="822" text-anchor="end" fill="#333">IBAN_CODE</text>
+<rect x="200" y="780" width="700" height="18" fill="#3b82f6" rx="2"/>
+<text x="896" y="793" text-anchor="end" fill="white" font-size="10">100.0%</text>
+<rect x="200" y="802" width="400" height="18" fill="#10b981" rx="2"/>
+<text x="596" y="815" text-anchor="end" fill="white" font-size="10">57.1%</text>
+<rect x="200" y="824" width="509" height="18" fill="#f59e0b" rx="2"/>
+<text x="705" y="837" text-anchor="end" fill="white" font-size="10">72.7%</text>
+<text x="194" y="898" text-anchor="end" fill="#333">IP_ADDRESS</text>
+<rect x="200" y="856" width="700" height="18" fill="#3b82f6" rx="2"/>
+<text x="896" y="869" text-anchor="end" fill="white" font-size="10">100.0%</text>
+<rect x="200" y="878" width="560" height="18" fill="#10b981" rx="2"/>
+<text x="756" y="891" text-anchor="end" fill="white" font-size="10">80.0%</text>
+<rect x="200" y="900" width="622" height="18" fill="#f59e0b" rx="2"/>
+<text x="818" y="913" text-anchor="end" fill="white" font-size="10">88.9%</text>
+<text x="194" y="974" text-anchor="end" fill="#333">LICENSE_PLATE</text>
+<rect x="200" y="932" width="525" height="18" fill="#3b82f6" rx="2"/>
+<text x="721" y="945" text-anchor="end" fill="white" font-size="10">75.0%</text>
+<rect x="200" y="954" width="300" height="18" fill="#10b981" rx="2"/>
+<text x="496" y="967" text-anchor="end" fill="white" font-size="10">42.9%</text>
+<rect x="200" y="976" width="381" height="18" fill="#f59e0b" rx="2"/>
+<text x="577" y="989" text-anchor="end" fill="white" font-size="10">54.5%</text>
+<text x="194" y="1050" text-anchor="end" fill="#333">MONEY</text>
+<rect x="200" y="1008" width="616" height="18" fill="#3b82f6" rx="2"/>
+<text x="812" y="1021" text-anchor="end" fill="white" font-size="10">88.0%</text>
+<rect x="200" y="1030" width="252" height="18" fill="#10b981" rx="2"/>
+<text x="448" y="1043" text-anchor="end" fill="white" font-size="10">36.1%</text>
+<rect x="200" y="1052" width="358" height="18" fill="#f59e0b" rx="2"/>
+<text x="554" y="1065" text-anchor="end" fill="white" font-size="10">51.2%</text>
+<text x="194" y="1126" text-anchor="end" fill="#333">PASSPORT</text>
+<rect x="200" y="1084" width="700" height="18" fill="#3b82f6" rx="2"/>
+<text x="896" y="1097" text-anchor="end" fill="white" font-size="10">100.0%</text>
+<rect x="200" y="1106" width="700" height="18" fill="#10b981" rx="2"/>
+<text x="896" y="1119" text-anchor="end" fill="white" font-size="10">100.0%</text>
+<rect x="200" y="1128" width="700" height="18" fill="#f59e0b" rx="2"/>
+<text x="896" y="1141" text-anchor="end" fill="white" font-size="10">100.0%</text>
+<text x="194" y="1202" text-anchor="end" fill="#333">PERSON</text>
+<rect x="200" y="1160" width="615" height="18" fill="#3b82f6" rx="2"/>
+<text x="811" y="1173" text-anchor="end" fill="white" font-size="10">87.9%</text>
+<rect x="200" y="1182" width="388" height="18" fill="#10b981" rx="2"/>
+<text x="584" y="1195" text-anchor="end" fill="white" font-size="10">55.4%</text>
+<rect x="200" y="1204" width="475" height="18" fill="#f59e0b" rx="2"/>
+<text x="671" y="1217" text-anchor="end" fill="white" font-size="10">68.0%</text>
+<text x="194" y="1278" text-anchor="end" fill="#333">PHONE_NUMBER</text>
+<rect x="200" y="1236" width="700" height="18" fill="#3b82f6" rx="2"/>
+<text x="896" y="1249" text-anchor="end" fill="white" font-size="10">100.0%</text>
+<rect x="200" y="1258" width="445" height="18" fill="#10b981" rx="2"/>
+<text x="641" y="1271" text-anchor="end" fill="white" font-size="10">63.6%</text>
+<rect x="200" y="1280" width="544" height="18" fill="#f59e0b" rx="2"/>
+<text x="740" y="1293" text-anchor="end" fill="white" font-size="10">77.8%</text>
+<text x="194" y="1354" text-anchor="end" fill="#333">POSTAL_CODE</text>
+<rect x="200" y="1312" width="650" height="18" fill="#3b82f6" rx="2"/>
+<text x="846" y="1325" text-anchor="end" fill="white" font-size="10">92.9%</text>
+<rect x="200" y="1334" width="413" height="18" fill="#10b981" rx="2"/>
+<text x="609" y="1347" text-anchor="end" fill="white" font-size="10">59.1%</text>
+<rect x="200" y="1356" width="505" height="18" fill="#f59e0b" rx="2"/>
+<text x="701" y="1369" text-anchor="end" fill="white" font-size="10">72.2%</text>
+<text x="194" y="1430" text-anchor="end" fill="#333">QR_CODE</text>
+<rect x="200" y="1388" width="700" height="18" fill="#3b82f6" rx="2"/>
+<text x="896" y="1401" text-anchor="end" fill="white" font-size="10">100.0%</text>
+<rect x="200" y="1410" width="392" height="18" fill="#10b981" rx="2"/>
+<text x="588" y="1423" text-anchor="end" fill="white" font-size="10">56.0%</text>
+<rect x="200" y="1432" width="502" height="18" fill="#f59e0b" rx="2"/>
+<text x="698" y="1445" text-anchor="end" fill="white" font-size="10">71.8%</text>
+<text x="194" y="1506" text-anchor="end" fill="#333">URL</text>
+<rect x="200" y="1464" width="700" height="18" fill="#3b82f6" rx="2"/>
+<text x="896" y="1477" text-anchor="end" fill="white" font-size="10">100.0%</text>
+<rect x="200" y="1486" width="496" height="18" fill="#10b981" rx="2"/>
+<text x="692" y="1499" text-anchor="end" fill="white" font-size="10">71.0%</text>
+<rect x="200" y="1508" width="581" height="18" fill="#f59e0b" rx="2"/>
+<text x="777" y="1521" text-anchor="end" fill="white" font-size="10">83.0%</text>
+<rect x="200" y="1564" width="12" height="12" fill="#3b82f6" rx="2"/>
+<text x="216" y="1574" fill="#555">Precision</text>
+<rect x="280" y="1564" width="12" height="12" fill="#10b981" rx="2"/>
+<text x="296" y="1574" fill="#555">Recall</text>
+<rect x="360" y="1564" width="12" height="12" fill="#f59e0b" rx="2"/>
+<text x="376" y="1574" fill="#555">F1</text>
+</svg>
+</div>
+<div class="section">
+<h2>Desglose por tipo de documento</h2>
+<table><thead><tr><th></th><th>TP-exact</th><th>TP-partial</th><th>FN</th><th>FP</th><th>Precision</th><th>Recall</th><th>F1</th></tr></thead><tbody><tr><td>mixto</td><td>583</td><td>24</td><td>392</td><td>29</td><td><span class="good">95.4%</span></td><td><span class="warn">60.8%</span></td><td><span class="warn">74.3%</span></td></tr></tbody></table>
+</div>
+<div class="section cols2">
+<div>
+<h2>Por idioma</h2>
+<table><thead><tr><th></th><th>TP-exact</th><th>TP-partial</th><th>FN</th><th>FP</th><th>Precision</th><th>Recall</th><th>F1</th></tr></thead><tbody><tr><td>es</td><td>143</td><td>7</td><td>85</td><td>4</td><td><span class="good">97.4%</span></td><td><span class="warn">63.8%</span></td><td><span class="warn">77.1%</span></td></tr><tr><td>mixed</td><td>417</td><td>16</td><td>298</td><td>25</td><td><span class="good">94.5%</span></td><td><span class="warn">59.2%</span></td><td><span class="warn">72.8%</span></td></tr><tr><td>va</td><td>23</td><td>1</td><td>9</td><td>0</td><td><span class="good">100.0%</span></td><td><span class="warn">72.7%</span></td><td><span class="good">84.2%</span></td></tr></tbody></table>
+</div>
+<div>
+<h2>Por calidad</h2>
+<table><thead><tr><th></th><th>TP-exact</th><th>TP-partial</th><th>FN</th><th>FP</th><th>Precision</th><th>Recall</th><th>F1</th></tr></thead><tbody><tr><td>hibrido</td><td>583</td><td>24</td><td>392</td><td>29</td><td><span class="good">95.4%</span></td><td><span class="warn">60.8%</span></td><td><span class="warn">74.3%</span></td></tr></tbody></table>
+</div>
+</div>
+<div class="section">
+<h2>Ejemplos de Falsos Negativos por tipo (entidades que escaparon)</h2>
+<h3>ADDRESS (25 total)</h3>
+<div class="example-block"><span class="entity-text">Carretera de Lorca, 91, Entresuelo D, 03202 Alicante</span><div class="meta">hibrido_escaneado_con_digital_0005 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">Ronda de la Vila, 5, 03202 Alicante</span><div class="meta">hibrido_escaneado_con_digital_0014 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">Carretera de Lorca, 91, Entresuelo D, 03202 Alicante</span><div class="meta">hibrido_escaneado_con_digital_0026 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">Carretera de Lorca, 91, Entresuelo D, 03202 Alicante</span><div class="meta">hibrido_expediente_con_escaneo_0017 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">Camino de las Flores, 102, 5º Dcha., 29001 Málaga</span><div class="meta">hibrido_expediente_con_escaneo_0032 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>CASE_NUMBER (35 total)</h3>
+<div class="example-block"><span class="entity-text">EXP-2018-6248</span><div class="meta">hibrido_escaneado_con_digital_0004 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">CTR/2024/2027</span><div class="meta">hibrido_escaneado_con_digital_0014 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">CTR/2024/2027</span><div class="meta">hibrido_escaneado_con_digital_0014 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">SOL-2024-0384</span><div class="meta">hibrido_giro_dentro_0015 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">SOL-2024-0384</span><div class="meta">hibrido_giro_dentro_0015 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>CSV (19 total)</h3>
+<div class="example-block"><span class="entity-text">4SDNBN2L2RIP1L0D8NHE</span><div class="meta">hibrido_escaneado_con_digital_0004 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">9M5YMZ3VJJPFWSCRGDTH</span><div class="meta">hibrido_escaneado_con_digital_0005 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">O33HXRLY7JLL5D5X0GCB</span><div class="meta">hibrido_escaneado_con_digital_0026 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">GYNM7NAIT1J9J3511IYQ</span><div class="meta">hibrido_expediente_con_escaneo_0017 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">TV2AMV34EXBFQDBVHTLR</span><div class="meta">hibrido_expediente_con_escaneo_0032 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>DATE_OF_BIRTH (27 total)</h3>
+<div class="example-block"><span class="entity-text">10/04/1995 04:33</span><div class="meta">hibrido_escaneado_con_digital_0004 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">23/06/1966 07:53</span><div class="meta">hibrido_escaneado_con_digital_0005 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">10/04/1995 04:33</span><div class="meta">hibrido_escaneado_con_digital_0014 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">18/11/1972</span><div class="meta">hibrido_escaneado_con_digital_0014 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">23/06/1966 07:53</span><div class="meta">hibrido_escaneado_con_digital_0026 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>DATE_TIME (37 total)</h3>
+<div class="example-block"><span class="entity-text">24 de novembre de 2028</span><div class="meta">hibrido_escaneado_con_digital_0004 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">18 de maig de 2027</span><div class="meta">hibrido_escaneado_con_digital_0005 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">24 de novembre de 2028</span><div class="meta">hibrido_escaneado_con_digital_0014 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">18 de maig de 2027</span><div class="meta">hibrido_escaneado_con_digital_0026 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">18 de maig de 2027</span><div class="meta">hibrido_expediente_con_escaneo_0017 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<h3>EMAIL_ADDRESS (4 total)</h3>
+<div class="example-block"><span class="entity-text">pabloperez@yahoo.es</span><div class="meta">hibrido_giro_dentro_0015 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">alejandroramirez@yahoo.es</span><div class="meta">hibrido_giro_dentro_0020 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">laura_santos89@orange.es</span><div class="meta">hibrido_prosa_densa_escaneada_0018 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">diego_garrido20@outlook.es</span><div class="meta">hibrido_prosa_densa_escaneada_0027 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>ES_CIF (3 total)</h3>
+<div class="example-block"><span class="entity-text">C207530992</span><div class="meta">hibrido_giro_dentro_0034 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">C207530992</span><div class="meta">hibrido_giro_dentro_0034 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">Q11443176G</span><div class="meta">hibrido_pagina_mixta_0037 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>ES_DNI (39 total)</h3>
+<div class="example-block"><span class="entity-text">54143994Q</span><div class="meta">hibrido_escaneado_con_digital_0004 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">85545813G</span><div class="meta">hibrido_escaneado_con_digital_0005 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">85545813G</span><div class="meta">hibrido_escaneado_con_digital_0005 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">54143994Q</span><div class="meta">hibrido_escaneado_con_digital_0014 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">85545813G</span><div class="meta">hibrido_escaneado_con_digital_0026 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>ES_NIE (4 total)</h3>
+<div class="example-block"><span class="entity-text">X4011419N</span><div class="meta">hibrido_giro_dentro_0020 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">X6524483G</span><div class="meta">hibrido_giro_dentro_0034 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">X2143305G</span><div class="meta">hibrido_giro_dentro_0034 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">Z3832994A</span><div class="meta">hibrido_impreso_y_normales_0010 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>ES_NSS (3 total)</h3>
+<div class="example-block"><span class="entity-text">41/1148968962</span><div class="meta">hibrido_giro_dentro_0034 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">41/1148968962</span><div class="meta">hibrido_giro_dentro_0034 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">18/8713585175</span><div class="meta">hibrido_pagina_mixta_0037 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>IBAN_CODE (9 total)</h3>
+<div class="example-block"><span class="entity-text">ES8401283073358975185068</span><div class="meta">hibrido_giro_dentro_0020 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">ES3800753670772929016033</span><div class="meta">hibrido_giro_dentro_0034 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">ES09 1465 4381 7291 8878 2019</span><div class="meta">hibrido_impreso_y_normales_0010 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">ES5920388607600351005337</span><div class="meta">hibrido_impreso_y_normales_0013 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">ES45 00497830 45423679 2358</span><div class="meta">hibrido_impreso_y_normales_0029 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<h3>IP_ADDRESS (3 total)</h3>
+<div class="example-block"><span class="entity-text">176.135.25.108</span><div class="meta">hibrido_expediente_con_escaneo_0048 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">10.19.108.3</span><div class="meta">hibrido_pagina_mixta_0022 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">10.194.88.228</span><div class="meta">hibrido_prosa_densa_escaneada_0018 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>LICENSE_PLATE (4 total)</h3>
+<div class="example-block"><span class="entity-text">1661-HTS</span><div class="meta">hibrido_giro_dentro_0034 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">2191-WKV</span><div class="meta">hibrido_impreso_y_normales_0013 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">9378-BNV</span><div class="meta">hibrido_prosa_densa_escaneada_0018 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">5563-GYC</span><div class="meta">hibrido_prosa_densa_escaneada_0018 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>MONEY (39 total)</h3>
+<div class="example-block"><span class="entity-text">357</span><div class="meta">hibrido_expediente_con_escaneo_0032 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">286</span><div class="meta">hibrido_expediente_con_escaneo_0032 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">4.410,22</span><div class="meta">hibrido_giro_dentro_0034 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">4.410,22</span><div class="meta">hibrido_giro_dentro_0034 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">4.410,22</span><div class="meta">hibrido_giro_dentro_0034 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<h3>PERSON (82 total)</h3>
+<div class="example-block"><span class="entity-text">Carmen</span><div class="meta">hibrido_escaneado_con_digital_0004 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">Prieto Marín</span><div class="meta">hibrido_escaneado_con_digital_0004 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">Elena Pérez García</span><div class="meta">hibrido_escaneado_con_digital_0004 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">Miguel</span><div class="meta">hibrido_escaneado_con_digital_0005 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">Ramos Gutiérrez</span><div class="meta">hibrido_escaneado_con_digital_0005 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<h3>PHONE_NUMBER (12 total)</h3>
+<div class="example-block"><span class="entity-text">60 885 718 1</span><div class="meta">hibrido_expediente_con_escaneo_0038 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">(617) 995-181</span><div class="meta">hibrido_giro_dentro_0015 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">64 233 235 8</span><div class="meta">hibrido_giro_dentro_0020 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">+34680542687</span><div class="meta">hibrido_giro_dentro_0034 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">+34686851512</span><div class="meta">hibrido_impreso_y_normales_0010 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>POSTAL_CODE (27 total)</h3>
+<div class="example-block"><span class="entity-text">03202</span><div class="meta">hibrido_escaneado_con_digital_0005 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">03202</span><div class="meta">hibrido_escaneado_con_digital_0026 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">03202</span><div class="meta">hibrido_expediente_con_escaneo_0017 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">29001</span><div class="meta">hibrido_expediente_con_escaneo_0032 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">41003</span><div class="meta">hibrido_expediente_con_escaneo_0032 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>QR_CODE (11 total)</h3>
+<div class="example-block"><span class="entity-text">CTR:CTR/2024/2027|Ana Guerrero Cruz</span><div class="meta">hibrido_escaneado_con_digital_0014 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">Víctor Cortés Álvarez | NHC:989975964</span><div class="meta">hibrido_escaneado_con_digital_0026 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">MUL:MUL/2021/6470/00|Fernando Cortés Prieto</span><div class="meta">hibrido_expediente_con_escaneo_0032 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">NOT:ADM/2023/0741/00|Beatriz Domínguez Guerrero</span><div class="meta">hibrido_expediente_con_escaneo_0048 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">Pablo Pérez García | 46429289V</span><div class="meta">hibrido_giro_dentro_0015 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>URL (9 total)</h3>
+<div class="example-block"><span class="entity-text">www.clinicaspb.es</span><div class="meta">hibrido_escaneado_con_digital_0026 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">www.bellaterra.cat</span><div class="meta">hibrido_giro_dentro_0015 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">www.albaida.es</span><div class="meta">hibrido_giro_dentro_0020 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">www.umelx.es</span><div class="meta">hibrido_giro_dentro_0034 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">www.icsl.cat/sede</span><div class="meta">hibrido_pagina_mixta_0022 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+</div>
+<div class="section">
+<h2>Ejemplos de Falsos Positivos por tipo (entidades detectadas de más)</h2>
+<h3>ADDRESS (3 total)</h3>
+<div class="example-block"><span class="entity-text">Plaza del Hospital, 2, 46300 Utiel</span><div class="meta">hibrido_escaneado_con_digital_0026 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">Plaza de la Vila, 1, 08193</span><div class="meta">hibrido_expediente_con_escaneo_0047 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">Paseo de la Filosofía, 3, 37001 Salamanca</span><div class="meta">hibrido_prosa_densa_escaneada_0018 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>DATE_TIME (4 total)</h3>
+<div class="example-block"><span class="entity-text">4 de julio de 2021</span><div class="meta">hibrido_escaneado_con_digital_0004 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">18/11/1972</span><div class="meta">hibrido_escaneado_con_digital_0014 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">09/03/1977</span><div class="meta">hibrido_giro_dentro_0034 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">04/10/1996</span><div class="meta">hibrido_giro_dentro_0034 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<h3>ES_NSS (1 total)</h3>
+<div class="example-block"><span class="entity-text">18/8713585175 Categoría Técnico/a Superior (Grupo A1)</span><div class="meta">hibrido_pagina_mixta_0037 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>LICENSE_PLATE (1 total)</h3>
+<div class="example-block"><span class="entity-text">vehicle: 2191-WKV</span><div class="meta">hibrido_impreso_y_normales_0013 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>MONEY (3 total)</h3>
+<div class="example-block"><span class="entity-text">59.583</span><div class="meta">hibrido_escaneado_con_digital_0014 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">27.764</span><div class="meta">hibrido_expediente_con_escaneo_0038 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></div></div>
+<div class="example-block"><span class="entity-text">27.292</span><div class="meta">hibrido_pagina_mixta_0023 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>PERSON (14 total)</h3>
+<div class="example-block"><span class="entity-text">Català de Salut Laboral</span><div class="meta">hibrido_escaneado_con_digital_0004 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">Alicante Representant</span><div class="meta">hibrido_escaneado_con_digital_0014 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">Temporal</span><div class="meta">hibrido_escaneado_con_digital_0014 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">San Pascual Baylón</span><div class="meta">hibrido_escaneado_con_digital_0026 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">Concepte Valor</span><div class="meta">hibrido_expediente_con_escaneo_0021 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<h3>POSTAL_CODE (3 total)</h3>
+<div class="example-block"><span class="entity-text">08193</span><div class="meta">hibrido_expediente_con_escaneo_0047 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">08193</span><div class="meta">hibrido_giro_dentro_0020 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+<div class="example-block"><span class="entity-text">37001</span><div class="meta">hibrido_prosa_densa_escaneada_0018 &nbsp;·&nbsp; mixto &nbsp;·&nbsp; <span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></div></div>
+</div>
+<div class="section">
+<h2>Detalle por documento (ordenado por F1 ascendente)</h2>
+<div style='overflow-x:auto'>
+<table>
+<thead><tr>
+<th>Documento</th><th>Tipo</th><th>Calidad/Idioma</th>
+<th>Precision</th><th>Recall</th><th>F1</th>
+<th>TP/FN/FP</th><th>Tiempo</th><th>Estado API</th>
+</tr></thead><tbody>
+<tr><td>hibrido_prosa_densa_escaneada_0027</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">94.7%</span></td><td><span class="bad">34.6%</span></td><td><span class="warn">50.7%</span></td><td>18/34/1</td><td>2630 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_giro_dentro_0034</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></td><td><span class="good">92.3%</span></td><td><span class="bad">38.7%</span></td><td><span class="warn">54.5%</span></td><td>24/38/2</td><td>3224 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_giro_dentro_0015</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">100.0%</span></td><td><span class="bad">45.2%</span></td><td><span class="warn">62.3%</span></td><td>19/23/0</td><td>3127 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_giro_dentro_0020</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">96.7%</span></td><td><span class="warn">50.0%</span></td><td><span class="warn">65.9%</span></td><td>29/29/1</td><td>3760 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_escaneado_con_digital_0014</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">81.0%</span></td><td><span class="warn">56.7%</span></td><td><span class="warn">66.7%</span></td><td>17/13/4</td><td>2581 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_impreso_y_normales_0013</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">96.0%</span></td><td><span class="warn">52.2%</span></td><td><span class="warn">67.6%</span></td><td>24/22/1</td><td>3376 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_escaneado_con_digital_0026</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">90.5%</span></td><td><span class="warn">54.3%</span></td><td><span class="warn">67.9%</span></td><td>19/16/2</td><td>3341 ms</td><td style='font-size:11px;color:#888'>completed</td></tr>
+<tr><td>hibrido_pagina_mixta_0022</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">95.0%</span></td><td><span class="warn">52.8%</span></td><td><span class="warn">67.9%</span></td><td>19/17/1</td><td>2611 ms</td><td style='font-size:11px;color:#888'>completed</td></tr>
+<tr><td>hibrido_prosa_densa_escaneada_0018</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">88.6%</span></td><td><span class="warn">55.4%</span></td><td><span class="warn">68.1%</span></td><td>31/25/4</td><td>2953 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_impreso_y_normales_0010</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">100.0%</span></td><td><span class="warn">55.6%</span></td><td><span class="warn">71.4%</span></td><td>20/16/0</td><td>3260 ms</td><td style='font-size:11px;color:#888'>completed</td></tr>
+<tr><td>hibrido_impreso_y_normales_0042</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">95.8%</span></td><td><span class="warn">57.5%</span></td><td><span class="warn">71.9%</span></td><td>23/17/1</td><td>3274 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_impreso_y_normales_0029</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></td><td><span class="good">100.0%</span></td><td><span class="warn">61.0%</span></td><td><span class="warn">75.8%</span></td><td>25/16/0</td><td>3595 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_pagina_mixta_0023</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">91.7%</span></td><td><span class="warn">64.7%</span></td><td><span class="warn">75.9%</span></td><td>22/12/2</td><td>2928 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_pagina_mixta_0037</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">95.5%</span></td><td><span class="warn">63.6%</span></td><td><span class="warn">76.4%</span></td><td>21/12/1</td><td>2285 ms</td><td style='font-size:11px;color:#888'>completed</td></tr>
+<tr><td>hibrido_expediente_con_escaneo_0032</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">100.0%</span></td><td><span class="warn">65.9%</span></td><td><span class="warn">79.4%</span></td><td>27/14/0</td><td>3118 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_expediente_con_escaneo_0048</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">93.1%</span></td><td><span class="warn">71.1%</span></td><td><span class="good">80.6%</span></td><td>27/11/2</td><td>3370 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_expediente_con_escaneo_0021</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">93.3%</span></td><td><span class="warn">73.7%</span></td><td><span class="good">82.4%</span></td><td>14/5/1</td><td>2317 ms</td><td style='font-size:11px;color:#888'>completed</td></tr>
+<tr><td>hibrido_escaneado_con_digital_0005</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></td><td><span class="good">100.0%</span></td><td><span class="warn">71.9%</span></td><td><span class="good">83.6%</span></td><td>23/9/0</td><td>2994 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_escaneado_con_digital_0004</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">92.9%</span></td><td><span class="warn">76.5%</span></td><td><span class="good">83.9%</span></td><td>26/8/2</td><td>2749 ms</td><td style='font-size:11px;color:#888'>completed</td></tr>
+<tr><td>hibrido_expediente_con_escaneo_0043</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">va</span></td><td><span class="good">100.0%</span></td><td><span class="warn">72.7%</span></td><td><span class="good">84.2%</span></td><td>24/9/0</td><td>2732 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_expediente_con_escaneo_0017</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></td><td><span class="good">100.0%</span></td><td><span class="warn">73.5%</span></td><td><span class="good">84.7%</span></td><td>25/9/0</td><td>2850 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_pagina_mixta_0008</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">100.0%</span></td><td><span class="warn">73.5%</span></td><td><span class="good">84.7%</span></td><td>25/9/0</td><td>4793 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_pagina_mixta_0011</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">100.0%</span></td><td><span class="warn">73.5%</span></td><td><span class="good">84.7%</span></td><td>25/9/0</td><td>4458 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_expediente_con_escaneo_0047</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">mixed</span></td><td><span class="good">93.1%</span></td><td><span class="good">81.8%</span></td><td><span class="good">87.1%</span></td><td>27/6/2</td><td>2723 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_expediente_con_escaneo_0038</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></td><td><span class="good">96.6%</span></td><td><span class="good">80.0%</span></td><td><span class="good">87.5%</span></td><td>28/7/1</td><td>3211 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+<tr><td>hibrido_expediente_con_escaneo_0039</td><td>mixto</td><td><span class="tag ">hibrido</span> <span class="tag tag-lang">es</span></td><td><span class="good">96.2%</span></td><td><span class="good">80.6%</span></td><td><span class="good">87.7%</span></td><td>25/6/1</td><td>2963 ms</td><td style='font-size:11px;color:#888'>completed_with_warnings</td></tr>
+</tbody></table>
+</div>
+</div>
+</div>
+</body></html>
