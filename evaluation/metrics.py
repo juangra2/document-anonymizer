@@ -220,6 +220,7 @@ def evaluate_document(
     gt_entities: list[dict],
     detected_entities: list[dict],
     iou_threshold: float = 0.5,
+    camino: str = "",
 ) -> DocResult:
     gt_records = [
         EntityRecord(text=e["text"], entity_type=e["type"], page=e.get("page"))
@@ -260,6 +261,7 @@ def evaluate_document(
         quality=quality,
         api_status=api_status,
         processing_ms=processing_ms,
+        camino=camino,
         tp_exact=tp_exact,
         tp_partial=tp_partial,
         fn=fn_list,
