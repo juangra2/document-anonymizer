@@ -115,6 +115,12 @@ def main() -> None:
         help="Skip documents already in --checkpoint file.",
     )
     parser.add_argument(
+        "--guardar-salidas", type=Path, default=None,
+        help="Carpeta donde escribir los PDF anonimizados.  El zip ya los trae, "
+             "asi que guardarlos no cuesta proceso; sin ellos no se puede "
+             "comprobar despues si las barras tapan de verdad el dato.",
+    )
+    parser.add_argument(
         "--timeout", type=int, default=180,
         help="Segundos de espera por documento.  Los escaneados girados pueden pasar "
              "de 180 s; un documento que agota la espera cuenta como error de API.",
@@ -131,6 +137,7 @@ def main() -> None:
         resume=args.resume,
         disabled_types=_disabled_types_arg(args.disabled_types),
         timeout=args.timeout,
+        guardar_salidas=args.guardar_salidas,
     )
 
     if not doc_results:

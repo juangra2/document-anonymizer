@@ -47,10 +47,16 @@ def call_api(
     pdf_path: Path,
     timeout: int = _DEFAULT_TIMEOUT,
     disabled_types: list[str] | None = None,
+    guardar_salidas: Path | None = None,
 ) -> tuple[dict, str | None]:
     """POST pdf_path to /anonymize?output=zip&include_entities=true.
 
     Returns (report_dict, error_string). error_string is None on success.
+
+    El zip trae el informe Y el PDF anonimizado, y hasta ahora el PDF se tiraba.
+    Con `guardar_salidas` se escribe en disco: no cuesta ni un segundo de
+    proceso y es lo unico que permite comprobar despues si las barras negras
+    tapan de verdad el dato, que es algo que las metricas de entidades no ven.
     """
     try:
         with open(pdf_path, "rb") as fh:
@@ -74,6 +80,17 @@ def call_api(
         with zipfile.ZipFile(BytesIO(response.content)) as zf:
             with zf.open("report.json") as rf:
                 report = json.load(rf)
+
+            if guardar_salidas is not None:
+                guardar_salidas.mkdir(parents=True, exist_ok=True)
+                pdfs = [n for n in zf.namelist() if n.lower().endswith(".pdf")]
+                if not pdfs:
+                    report.setdefault("warnings", []).append(
+                        "El zip no traia ningun PDF: no se pudo guardar la salida."
+                    )
+                for nombre in pdfs:
+                    destino = guardar_salidas / f"{pdf_path.stem}.pdf"
+                    destino.write_bytes(zf.read(nombre))
 
         return report, None
 
@@ -149,6 +166,7 @@ def evaluate_single(
     iou_threshold: float = 0.5,
     disabled_types: list[str] | None = None,
     timeout: int = _DEFAULT_TIMEOUT,
+    guardar_salidas: Path | None = None,
 ) -> DocResult | None:
     """Evaluate one document. Returns None when no ground truth exists."""
     doc_id = pdf_path.stem
@@ -156,7 +174,9 @@ def evaluate_single(
     if gt_doc is None:
         return None
 
-    report, error = call_api(pdf_path, timeout=timeout, disabled_types=disabled_types)
+    report, error = call_api(pdf_path, timeout=timeout,
+                             disabled_types=disabled_types,
+                             guardar_salidas=guardar_salidas)
     if error:
         result = _all_gt_as_fn(gt_doc)
         result = DocResult(
@@ -199,6 +219,7 @@ def run_evaluation(
     resume: bool = False,
     disabled_types: list[str] | None = None,
     timeout: int = _DEFAULT_TIMEOUT,
+    guardar_salidas: Path | None = None,
 ) -> list[DocResult]:
     """Evaluate all PDFs in pdfs_dir against labels_dir ground truth.
 
@@ -251,7 +272,8 @@ def run_evaluation(
     try:
         with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = {
-                executor.submit(evaluate_single, pdf, gt, iou_threshold, disabled_types, timeout): pdf
+                executor.submit(evaluate_single, pdf, gt, iou_threshold, disabled_types,
+                                timeout, guardar_salidas): pdf
                 for pdf in pdf_files
             }
             for future in as_completed(futures):
