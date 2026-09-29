@@ -172,16 +172,28 @@ class JobStore:
         Se registra CUÁNTAS carpetas se borran, nunca sus nombres: el nombre de
         un fichero puede llevar el del interesado.
 
-        Da por supuesto que el directorio temporal es de este servicio y de un
-        solo proceso, que es como se despliega: un nodo con una GPU.
+        NO da por supuesto que sea el unico proceso.  Se comprobo que no lo es:
+        un segundo servicio que ni llego a ocupar el puerto ejecuto esta limpieza
+        y borro la carpeta del documento que el servicio vivo estaba procesando,
+        con el resultado de un error interno sin causa entendible.  Las carpetas
+        de procesos vivos se respetan (ver services/storage/propiedad.py).
         """
+        from app.services.storage import propiedad
+
+        propiedad.registrar_proceso()
         root = Path(settings.temp_root)
         if not root.exists():
             return 0
 
         removed = 0
+        respetadas = 0
         for entry in list(root.iterdir()):
             try:
+                if entry.name == ".procesos":
+                    continue
+                if entry.is_dir() and propiedad.esta_en_uso(entry):
+                    respetadas += 1
+                    continue
                 if entry.is_dir():
                     shutil.rmtree(entry, ignore_errors=False)
                 else:
@@ -197,6 +209,10 @@ class JobStore:
             logger.info(
                 "removed %d leftover work director%s from previous runs",
                 removed, "y" if removed == 1 else "ies",
+            )
+        if respetadas:
+            logger.info(
+                "respetadas %d carpetas en uso por otro proceso vivo", respetadas,
             )
         return removed
 
@@ -526,6 +542,12 @@ class JobStore:
     def _sweep_forever(self) -> None:
         while not self._stopping.wait(self._sweep_interval):
             try:
+                # "Sigo vivo": si esta marca deja de refrescarse, la limpieza de
+                # arranque de otra instancia dara por restos las carpetas de este
+                # proceso y las borrara con el documento dentro.
+                from app.services.storage import propiedad
+                propiedad.refrescar_proceso()
+                propiedad.limpiar_marcas_muertas()
                 self.sweep()
             except Exception:  # noqa: BLE001 — el limpiador nunca debe morir
                 logger.exception("job sweep failed")
