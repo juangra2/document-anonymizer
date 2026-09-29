@@ -231,6 +231,23 @@ class Settings(BaseSettings):
     ocr_image_dominant_area_frac: float = 0.70
     ocr_image_dominant_megapixels: float = 25.0
 
+    # Tope de pixeles al rasterizar una pagina para OCR.
+    #
+    # Antes, una pagina con una imagen enorme se SALTABA: salia sin mirar.  Eso
+    # no es un plano raro, es un expediente archivado a buena resolucion — un A4
+    # a 600 DPI son 35 MP — y se entregaba intacto.  La respuesta correcta a
+    # "esto es caro" no es "no lo mires", es "hazlo mas barato".
+    #
+    # Medido antes de elegir el numero: leyendo un certificado con letra menuda
+    # rasterizado a 600 DPI, el OCR encuentra los MISMOS datos desde 600 DPI
+    # hasta 102 DPI equivalentes, y solo se rompe por debajo (a 72 DPI cae a la
+    # mitad).  Con 8 MP hay seis veces mas resolucion de la que hace falta.
+    #
+    # Y no afecta a ninguna pagina normal: el render de OCR va a 200 DPI, que en
+    # un A4 son 3,9 MP.  El tope solo actua sobre las patologicas, como la
+    # pagina escrita a un punto por pixel, donde 200 DPI dan 30 MP.
+    ocr_max_megapixels: float = 8.0
+
     # Post-redaction verification thresholds [0.0–1.0].
     # review  : risk >= threshold → manual_review_required = True.
     # reject  : risk >= threshold → RedactionVerificationError raised.

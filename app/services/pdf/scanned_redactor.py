@@ -376,40 +376,18 @@ def redact_pdf_scanned(
                         )
                         continue
 
+                    # El render respeta un tope de pixeles (ocr_max_megapixels),
+                    # asi que una pagina enorme ya no es cara: es una pagina
+                    # normal reducida.
+                    #
+                    # Aqui habia un atajo que SALTABA las paginas con una imagen
+                    # dominante —mas de 25 MP cubriendo el 70 % de la pagina— y
+                    # solo les tachaba los codigos visuales.  Se entregaban sin
+                    # mirar.  No era un caso raro: un A4 escaneado a 600 DPI son
+                    # 35 MP, o sea un expediente archivado a buena resolucion, y
+                    # una foto de movil moderna tambien pasa de ese umbral.
+                    # Ahora pasan por el mismo tratamiento que las demas.
                     image = _render_page_to_image(page, dpi=settings.ocr_pdf_render_dpi)
-
-                    # Fast path: oversized plan/photo page → skip heavy text OCR and
-                    # redact only visual codes (and, later, signatures/stamps).
-                    if _is_image_dominant_page(page):
-                        logger.warning(
-                            "Page %d is image-dominant (plan/photo); skipping full OCR.",
-                            page_index,
-                        )
-                        code_rects = detect_visual_code_rects(image)
-                        if QR_TYPE in analyzer.disabled_types:
-                            # Esta vía solo localiza códigos.  Quedan visibles los que
-                            # se pueden leer y no llevan ningún obligatorio; los que
-                            # no se leen se redactan, porque no se puede descartar PII.
-                            visible = [
-                                rect for rect, payload in detect_redactable_codes(image)
-                                if code_may_stay_visible(payload, analyzer)
-                            ]
-                            code_rects = [
-                                r for r in code_rects
-                                if not any(_mostly_same(r, v) for v in visible)
-                            ]
-                        if settings.detect_visual_stamps:
-                            code_rects = code_rects + detect_stamp_rects(image)
-                        draw = ImageDraw.Draw(image)
-                        for rect in code_rects:
-                            draw.rectangle(
-                                [int(rect.x0), int(rect.y0), int(rect.x1), int(rect.y1)],
-                                fill="black",
-                            )
-                        redacted_count += len(code_rects)
-                        skipped_pages.append(page_index)
-                        _append_image_as_pdf_page(output_doc, image, page.rect)
-                        continue
 
                     # Per-page timeout: a stalled page must not hang the whole job.
                     # Sin leerla no se puede descartar que lleve datos, así que se
@@ -1238,8 +1216,31 @@ def _center_in_any(rect: fitz.Rect, containers: list[fitz.Rect]) -> bool:
 # Shared PDF/image utilities (also used by hybrid_redactor)
 # ---------------------------------------------------------------------------
 
-def _render_page_to_image(page: fitz.Page, dpi: int) -> Image.Image:
+def _zoom_con_tope(page: fitz.Page, dpi: int, tope_mp: float) -> float:
+    """Zoom de render que no pasa del tope de pixeles.
+
+    Una pagina declarada a un punto por pixel —lo que escriben muchos
+    conversores de imagen a PDF— dice medir 58 x 82 cm, y a 200 DPI daria 30 MP.
+    Reducir es barato y no cuesta calidad de lectura (ver ocr_max_megapixels);
+    saltarse la pagina, que es lo que se hacia antes, si cuesta: sale sin mirar.
+    """
     zoom = dpi / 72
+    if tope_mp <= 0:
+        return zoom
+    megapixeles = (page.rect.width * zoom) * (page.rect.height * zoom) / 1e6
+    if megapixeles <= tope_mp:
+        return zoom
+    return zoom * (tope_mp / megapixeles) ** 0.5
+
+
+def _render_page_to_image(page: fitz.Page, dpi: int) -> Image.Image:
+    zoom = _zoom_con_tope(page, dpi, settings.ocr_max_megapixels)
+    if zoom < dpi / 72:
+        logger.info(
+            "Pagina %d rasterizada por debajo de %d DPI para no pasar de %.0f MP: "
+            "antes una pagina asi se saltaba entera.",
+            (page.number or 0) + 1, dpi, settings.ocr_max_megapixels,
+        )
     matrix = fitz.Matrix(zoom, zoom)
     pixmap = page.get_pixmap(matrix=matrix, alpha=False)
     return Image.open(BytesIO(pixmap.tobytes("png"))).convert("RGB")
