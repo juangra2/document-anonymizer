@@ -752,6 +752,49 @@ def _canon_tok(raw: str) -> str | None:
     return norm
 
 
+#: Parecido minimo para dar por igual un token del dato y uno del OCR.
+#:
+#: Elegido con datos, no por analogia con el 0.85 de la lectura de salidas: alli
+#: se comparan cadenas para VERIFICAR, aqui se decide DONDE se pinta una barra y
+#: emparejar mal tapa el sitio equivocado.  Medido sobre las fugas reales:
+#:   Z4422899G leido como 24422899G (Z->2)  ->  0.89   hay que aceptarlo
+#:   18001 frente a 18002 (datos distintos) ->  0.80   hay que rechazarlo
+#: 0.85 separa los dos casos.  Y solo se aplica a tokens de 5 caracteres o mas
+#: —identificadores—: en uno corto cualquier parecido es casualidad.
+PARECIDO_TOKEN = 0.85
+_LARGO_MINIMO_PARECIDO = 5
+
+
+def _casan(token_dato: str, token_ocr: str) -> bool:
+    """¿Son el mismo token, admitiendo que el OCR lo haya leido con erratas?"""
+    if token_dato == token_ocr:
+        return True
+    # El OCR pega tokens vecinos cuando se come un separador: "PAD/2023/6391"
+    # leido como "PADI2023/6391" deja las piezas dentro de una palabra mas larga.
+    # Se exige que la palabra del OCR lleve digitos —es un identificador pegado,
+    # no prosa— para que "Ana" no case con "Anastasia".
+    if any(c.isdigit() for c in token_ocr):
+        if len(token_dato) >= 4 and token_dato in token_ocr:
+            return True
+        if len(token_dato) >= 3 and token_ocr.startswith(token_dato):
+            return True
+    if len(token_dato) < _LARGO_MINIMO_PARECIDO or len(token_ocr) < _LARGO_MINIMO_PARECIDO:
+        return False
+    from difflib import SequenceMatcher
+    return SequenceMatcher(None, token_dato, token_ocr).ratio() >= PARECIDO_TOKEN
+
+
+def _compartidos(tokens_dato: set[str], tokens_ocr: set[str]) -> set[str]:
+    """Tokens del dato que aparecen en el OCR, tolerando sus erratas."""
+    iguales = tokens_dato & tokens_ocr
+    restantes = tokens_dato - iguales
+    if not restantes:
+        return iguales
+    return iguales | {
+        td for td in restantes if any(_casan(td, to) for to in tokens_ocr)
+    }
+
+
 def _content_tokens(text: str) -> set[str]:
     """Set of canonical tokens (≥2 chars) of *text* for content matching."""
     return {c for raw in _WORD_TOK_RE.findall(text) if (c := _canon_tok(raw))}
@@ -774,10 +817,14 @@ def _subrect_for_line_token(ent_tokens: set[str], word) -> fitz.Rect | None:
     anchored when that token is identifier-like (so an ID such as a DNI is
     covered, but a lone common word is not).
     """
+    # La busqueda dentro del token admite las mismas erratas que el emparejado
+    # de fuera.  Sin esto, un NIE leido "24422899G" en vez de "Z4422899G" se
+    # reconocia al elegir el candidato y luego no se le sabia construir el
+    # rect, asi que su segunda aparicion se quedaba sin tapar.
     matches = []
     for m in _WORD_TOK_RE.finditer(word.text):
         canon = _canon_tok(m.group())
-        if canon and canon in ent_tokens:
+        if canon and any(_casan(td, canon) for td in ent_tokens):
             matches.append((m.start(), m.end()))
 
     if len(ent_tokens) == 1:
@@ -818,6 +865,20 @@ def _median_height(words: list) -> float:
     return heights[len(heights) // 2] if heights else 0.0
 
 
+class _CajaSuelta:
+    """Envuelve un rect suelto para que se agrupe igual que una palabra.
+
+    `_cluster_by_line` trabaja sobre objetos con `.rect`; los sub-rects que salen
+    de un token de linea larga no lo eran, y por eso quedaban fuera del agrupado.
+    """
+
+    __slots__ = ("rect", "text")
+
+    def __init__(self, rect: fitz.Rect):
+        self.rect = rect
+        self.text = ""
+
+
 def _cluster_by_line(candidates: list, line_h: float) -> list[list]:
     """Group (word, shared_tokens) candidates into visual lines by y-proximity."""
     gap = max(8.0, line_h * 0.7) if line_h > 0 else 10.0
@@ -836,6 +897,44 @@ def _cluster_by_line(candidates: list, line_h: float) -> list[list]:
     if current:
         clusters.append(current)
     return clusters
+
+
+#: Cuantas veces cae el emparejamiento en cada caso.  Si "cobertura_parcial" o
+#: "sin_emparejar" crecen, el emparejamiento no esta funcionando y hay que verlo
+#: en un numero, no descubrirlo dentro de tres semanas mirando un documento.
+CASOS_EMPAREJADO: dict[str, int] = {}
+
+
+#: Fraccion de los tokens que una linea debe cubrir para tomarla por OTRA
+#: aparicion del mismo dato.  Solo se aplica cuando ya hay una aparicion
+#: COMPLETA en la pagina: sin esa ancla, una cobertura parcial puede ser
+#: simplemente que el OCR leyo mal un trozo, y entonces lo seguro es tapar la
+#: region entera en vez de pintar solo lo emparejado y dejar el resto a la
+#: vista.
+#:
+#: Por que 2/3 y no cobertura total: el OCR parte y degrada.  "Elena Ramos
+#: Munoz" aparecia dos veces en la pagina y la del parrafo llegaba partida entre
+#: dos cajas, cubriendo 2 de 3 tokens; exigir el total la descartaba y el nombre
+#: se entregaba legible.  Y por que no menos: con 1 de 3 bastaria una mencion
+#: suelta del apellido en otro parrafo para tacharlo, que es sobre-redaccion.
+#:
+#: Un dato de un solo token —un DNI, un IBAN— exige ese token, asi que se pinta
+#: dondequiera que aparezca, que es justo lo que se busca.
+FRACCION_APARICION = 2 / 3
+
+
+def _cubre_bastante(cubiertos: set, del_dato: set) -> bool:
+    if not del_dato:
+        return False
+    return len(cubiertos & del_dato) / len(del_dato) >= FRACCION_APARICION
+
+
+def _contar(caso: str) -> None:
+    CASOS_EMPAREJADO[caso] = CASOS_EMPAREJADO.get(caso, 0) + 1
+
+
+def reiniciar_casos_emparejado() -> None:
+    CASOS_EMPAREJADO.clear()
 
 
 def _entity_rects_via_easy(
@@ -866,7 +965,7 @@ def _entity_rects_via_easy(
         w_tokens = _content_tokens(word.text)
         if not w_tokens:
             continue
-        shared = ent_tokens & w_tokens
+        shared = _compartidos(ent_tokens, w_tokens)
         if not shared:
             continue
         if len(shared) / len(w_tokens) > 0.5:
@@ -878,43 +977,84 @@ def _entity_rects_via_easy(
             if sub is not None:
                 line_groups.append((sub, shared))
 
-    # Uniform groups: (rects, covered_tokens, centre_x, centre_y).
+    # Los candidatos de los dos tipos se agrupan JUNTOS por linea visual.
+    #
+    # Antes se agrupaba solo `whole` y los sub-rects iban sueltos, asi que una
+    # aparicion repartida entre una palabra propia ("Ramos Munoz") y un token de
+    # linea larga ("El/La representante Elena ...") quedaba partida en dos
+    # grupos incompletos y perdia frente a otra aparicion que si estaba entera
+    # en un solo token.  Resultado: de un dato que salia DOS veces en la pagina,
+    # se tapaba una y se entregaba la otra.
+    _Falsa = _CajaSuelta
+    candidatos = list(whole) + [(_Falsa(sub), shared) for sub, shared in line_groups]
+
     groups: list = []
-    for cluster in _cluster_by_line(whole, line_h):
+    for cluster in _cluster_by_line(candidatos, line_h):
         cov: set = set()
         for _, shared in cluster:
             cov |= shared
         cx = sum((w.rect.x0 + w.rect.x1) / 2 for w, _ in cluster) / len(cluster)
         cy = sum((w.rect.y0 + w.rect.y1) / 2 for w, _ in cluster) / len(cluster)
         groups.append(([_padded(fitz.Rect(w.rect)) for w, _ in cluster], cov, cx, cy))
-    for sub, shared in line_groups:
-        groups.append(([sub], shared, (sub.x0 + sub.x1) / 2, (sub.y0 + sub.y1) / 2))
 
     if not groups:
         # Nothing matched: fall back only for a small region; never paint a big
         # multi-line block (almost always an NER false positive on a paragraph).
         return [_padded(region)] if _small(region, line_h) else []
 
+    # TODAS las apariciones completas, no solo una.
+    #
+    # Antes se acumulaban grupos hasta cubrir los tokens del dato y se paraba:
+    # un nombre que aparece en la fila del formulario Y en el parrafo de abajo
+    # se tapaba una vez y se entregaba la otra.  Medido sobre la linea base: 9
+    # datos legibles en 6 de 15 documentos escaneados, todos ellos contados como
+    # acierto por la evaluacion, que no mira el PDF de salida.
+    completos = [g for g in groups if g[1] >= ent_tokens]
+    if completos:
+        # Hay al menos un sitio donde el dato esta entero: se sabe que el
+        # emparejamiento funciona en esta pagina.  Entonces las demas lineas con
+        # solapamiento sustancial son OTRAS APARICIONES del mismo dato, aunque
+        # el OCR las haya partido o degradado, y tambien hay que taparlas.
+        otras = [g for g in groups
+                 if g not in completos and _cubre_bastante(g[1], ent_tokens)]
+        _contar("todas_las_apariciones")
+        rects: list[fitz.Rect] = []
+        for group_rects, _, _, _ in completos + otras:
+            rects.extend(group_rects)
+        return rects
+
+    # Ningun grupo cubre el dato entero: se acumula lo que haya, ordenado por
+    # cobertura y cercania a donde el motor de layout creia que estaba.
     rcx = (region.x0 + region.x1) / 2
     rcy = (region.y0 + region.y1) / 2
     groups.sort(key=lambda g: (-len(g[1]), abs(g[3] - rcy) + abs(g[2] - rcx)))
 
-    rects: list[fitz.Rect] = []
+    rects = []
     covered: set = set()
     for group_rects, cov, _, _ in groups:
         if cov - covered:
             rects.extend(group_rects)
             covered |= cov
-        if covered >= ent_tokens:
-            break
 
-    if covered >= ent_tokens:
-        return rects
-    # Incomplete coverage (e.g. OCR misread part of a name): cover the whole
-    # region if it is small (no leak), but never paint a big multi-line block.
     if _small(region, line_h):
+        # Region pequena: se tapa entera, que no deja fuga.
+        _contar("region_completa")
         return [_padded(region)]
-    return rects
+
+    if rects:
+        _contar("cobertura_parcial")
+        return rects
+
+    # Nada que pintar y la region es un bloque grande: pintarla entera seria
+    # tachar parrafos enteros por un falso positivo del NER.  Se declara.
+    _contar("sin_emparejar")
+    logger.warning(
+        "No se pudo situar una entidad %s en la pagina: no hay ninguna palabra "
+        "del OCR que la contenga y la region del motor de layout es un bloque "
+        "de %.0f px. La pagina necesita revision manual.",
+        entity.entity_type, region.height,
+    )
+    return []
 
 
 def _small(region: fitz.Rect, line_h: float) -> bool:
