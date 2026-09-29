@@ -1,0 +1,56 @@
+{
+  "media_f1": 0.8241,
+  "por_corpus": {
+    "digital": {
+      "documentos": 400,
+      "f1": 0.924,
+      "precision": 0.9196,
+      "recall": 0.9286,
+      "desviados": 0,
+      "desvio_esperado": false,
+      "por_tipo_documento": {
+        "acuerdo_adscripcion": 34,
+        "acuerdo_modificativo": 28,
+        "certificado_empadronamiento": 19,
+        "certificado_servicios": 29,
+        "contrato_laboral": 44,
+        "contrato_prestacion_servicios": 31,
+        "formulario_medico": 33,
+        "nomina": 32,
+        "notificacion_ayuntamiento": 33,
+        "notificacion_sancionador": 21,
+        "resolucion_administrativa": 29,
+        "resolucion_universitaria": 36,
+        "solicitud_generica": 31
+      }
+    },
+    "escaneado": {
+      "documentos": 28,
+      "f1": 0.852,
+      "precision": 0.8676,
+      "recall": 0.837,
+      "desviados": 0,
+      "desvio_esperado": false,
+      "por_tipo_documento": {
+        "autoliquidacion": 4,
+        "certificado_empadronamiento": 4,
+        "contrato_laboral": 4,
+        "dni_escaneado": 6,
+        "nomina": 4,
+        "notificacion_ayuntamiento": 4,
+        "solicitud_generica": 2
+      }
+    },
+    "hibrido": {
+      "documentos": 24,
+      "f1": 0.6964,
+      "precision": 0.9472,
+      "recall": 0.5507,
+      "desviados": 24,
+      "desvio_esperado": true,
+      "por_tipo_documento": {
+        "mixto": 24
+      }
+    }
+  }
+}
