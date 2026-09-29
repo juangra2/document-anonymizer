@@ -122,8 +122,18 @@ def classify_page(text: str) -> str | None:
         return DNI_SCAN
 
     fam_a, fam_b = _tax_signals(norm)
-    # "AUTOLIQUIDACIÓN" junto a "MODELO NNN" identifica el impreso por sí solo.
-    if {"autoliquidacion", "modelo"} <= fam_a:
+    # "AUTOLIQUIDACIÓN" junto a "MODELO NNN" NO basta por sí solo.
+    #
+    # Nombrar el impreso no es ser el impreso: «en relación con el modelo 600
+    # presentado, se le comunica que la autoliquidación ha sido revisada» lleva
+    # las dos palabras en prosa corriente, y con esa regla una notificación
+    # normal salía ENTERA EN NEGRO.  Esa frase está en toda la correspondencia
+    # tributaria.
+    #
+    # Lo que distingue al impreso de quien lo menciona es su ESTRUCTURA de
+    # liquidación —base imponible, cuota, total a ingresar, devengo—, que ningún
+    # texto corrido tiene.  Así que se exige también una señal de la familia B.
+    if {"autoliquidacion", "modelo"} <= fam_a and fam_b:
         return TAX_FORM
     # En los demás casos, al menos una señal de CADA familia (naturaleza del
     # impreso + estructura de liquidación) y el total exigido por configuración.
@@ -133,12 +143,23 @@ def classify_page(text: str) -> str | None:
 
 
 def form_references(text: str) -> set[str]:
-    """Identificadores del impreso (modelo, justificante) para la propagación."""
+    """Identificadores del impreso para la propagación: SOLO justificante o referencia.
+
+    El número de modelo NO cuenta.  Medido: una notificación normal que solo
+    decía «en relación con el modelo 600 presentado…» compartía `modelo:600` con
+    la autoliquidación anterior y salía ENTERA EN NEGRO.  No es una fuga, es
+    destruir contenido legítimo, y esa frase aparece en toda la correspondencia
+    tributaria: cualquier resolución que mencione el impreso al que responde.
+
+    Un número de modelo identifica un TIPO de impreso, no un expediente
+    concreto; el justificante o la referencia sí identifican el documento.  La
+    propagación necesita lo segundo.
+
+    Esto se aprieta ANTES de ampliar la clasificación a más páginas: aplicar la
+    regla floja a todas las páginas de un documento multiplicaría el problema.
+    """
     norm = _norm(text)
-    refs = {
-        "modelo:" + (m.group(1).lstrip("0") or "0")
-        for m in _MODEL_REF_RE.finditer(norm)
-    }
+    refs: set[str] = set()
     for match in _DOC_REF_RE.finditer(norm):
         ref = match.group(1) or match.group(2)
         if ref:
