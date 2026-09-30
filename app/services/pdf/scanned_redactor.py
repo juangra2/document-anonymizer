@@ -42,7 +42,7 @@ from app.services.ocr.models import OcrPage
 from app.services.ocr.orientation import resolve_orientation
 from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pdf.partial import append_partial_notice
-from app.services.pdf.full_redaction import DNI_SCAN, classify_page
+from app.services.pdf.full_redaction import DNI_SCAN, classify_page, classify_pages
 from app.services.pdf.plan_pages import is_image_dominant_page, is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services import cancellation, notices, progress
@@ -120,6 +120,9 @@ def redact_pdf_scanned(
     skipped_pages: list[int] = []
     plan_pages_done: list[int] = []
     full_redaction_pages: dict[int, str] = {}
+    # El texto de cada pagina, para clasificar UNA VEZ sobre el documento entero
+    # cuando termina el recorrido (ver _propagar_redaccion_total).
+    textos_por_pagina: dict[int, str] = {}
     rotated_pages: dict[int, int] = {}
     cropped_pages: list[int] = []
     crop_fallbacks: dict[int, str] = {}
@@ -302,6 +305,7 @@ def redact_pdf_scanned(
                         "crop_fallback_reason": crop_reason if not crop_rects else None,
                         "rotated": orientation.angle,
                         "poor_ocr": orientation.poor_quality,
+                        "texto": page_ocr_text,
                     }
 
                 page_rects, page_entities = _collect_redaction_rects(
@@ -340,6 +344,7 @@ def redact_pdf_scanned(
                     "confidence": ocr_page.avg_confidence,
                     "rotated": orientation.angle,
                     "poor_ocr": orientation.poor_quality,
+                    "texto": page_ocr_text,
                 }
 
             on_page = progress.claim(source_doc.page_count)
@@ -436,6 +441,8 @@ def redact_pdf_scanned(
                         else:
                             poor_ocr_pages.append(page_index)
 
+                    textos_por_pagina[page_index] = result.get("texto") or ""
+
                     if result.get("full_redaction"):
                         full_redaction_pages[page_index] = result["full_redaction"]
                         if result.get("cropped"):
@@ -467,6 +474,18 @@ def redact_pdf_scanned(
                     f"Partial document: pages 1-{pages_done} of "
                     f"{pages_total_original} were processed before the stop request."
                 )
+
+            # Clasificacion del documento ENTERO, una sola vez y con el texto de
+            # todas las paginas.  Solo cuando el recorrido ha terminado: sobre una
+            # entrega parcial faltarian paginas y la propagacion decidiria con
+            # medio documento delante.
+            if not partial:
+                propagadas = _propagar_redaccion_total(
+                    output_doc, textos_por_pagina, full_redaction_pages,
+                )
+                if propagadas:
+                    full_redaction_pages.update(propagadas)
+                    redacted_count += len(propagadas)
 
         output_doc.set_metadata({})
         try:
@@ -1231,6 +1250,52 @@ def _zoom_con_tope(page: fitz.Page, dpi: int, tope_mp: float) -> float:
     if megapixeles <= tope_mp:
         return zoom
     return zoom * (tope_mp / megapixeles) ** 0.5
+
+
+def _propagar_redaccion_total(
+    output_doc: "fitz.Document",
+    textos_por_pagina: dict[int, str],
+    ya_redactadas: dict[int, str],
+) -> dict[int, str]:
+    """Clasifica el documento ENTERO y tacha las paginas que arrastre la propagacion.
+
+    El camino escaneado decide pagina a pagina, y cuando decide aun no conoce a
+    las vecinas: no puede propagar.  Asi, el segundo ejemplar de una
+    autoliquidacion —el que repite el justificante pero no la cabecera— se
+    entregaba con redaccion selectiva mientras el primero salia entero en negro.
+
+    La clasificacion se hace aqui una sola vez, sobre el texto de todas las
+    paginas, igual que en el camino digital.  Y la propagacion ya esta apretada:
+    hace falta compartir justificante o referencia, nunca el numero de modelo.
+
+    El tachado es una redaccion de verdad —se eliminan los pixeles— y no un
+    rectangulo negro encima, que dejaria la imagen original dentro del PDF.
+
+    Devuelve las paginas que ha anadido, para el informe.
+    """
+    if not textos_por_pagina:
+        return {}
+
+    paginas = max(textos_por_pagina) + 1
+    textos = [textos_por_pagina.get(i, "") for i in range(paginas)]
+    clasificadas = classify_pages(textos)
+
+    anadidas: dict[int, str] = {}
+    for indice, motivo in sorted(clasificadas.items()):
+        if indice in ya_redactadas or indice >= output_doc.page_count:
+            continue
+        pagina = output_doc[indice]
+        pagina.add_redact_annot(pagina.rect, fill=(0, 0, 0))
+        try:
+            pagina.apply_redactions(images=fitz.PDF_REDACT_IMAGE_PIXELS)
+        except Exception:
+            pagina.apply_redactions(images=fitz.PDF_REDACT_IMAGE_REMOVE)
+        anadidas[indice] = motivo
+        logger.info(
+            "Pagina %d tachada entera por propagacion (%s): comparte "
+            "justificante con otra pagina del mismo impreso.", indice, motivo,
+        )
+    return anadidas
 
 
 def _render_page_to_image(page: fitz.Page, dpi: int) -> Image.Image:
