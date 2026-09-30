@@ -97,7 +97,31 @@ def redact_pdf_scanned(
     mode: str = "strict",
     document_type: str = "pdf_scanned",
     collect_entities: bool = False,
+    paginas_ocr: set[int] | None = None,
+    textos_previos: dict[int, str] | None = None,
+    redactadas_previas: dict[int, str] | None = None,
 ) -> ProcessingReport:
+    """Redacta un PDF pasando por OCR las paginas que lo necesitan.
+
+    `paginas_ocr` dice cuales.  Con None, todas: es el documento escaneado.  El
+    camino hibrido pasa solo las que su criterio de superficie senala, y las
+    demas se copian tal cual —con su capa de texto ya redactada por el pase
+    digital— para que conserven el texto seleccionable.
+
+    Que un solo bucle recorra el documento entero en orden, pasen o no por
+    OCR, es lo que hace que la clasificacion de redaccion total, la parada
+    parcial, los numeros de pagina de los avisos y el avance funcionen igual en
+    un documento escaneado que en uno mixto.  Antes el camino hibrido tenia su
+    propio bucle de OCR, sin enderezado, sin clasificacion y con una geometria
+    de barras distinta.
+
+    `textos_previos` es el texto ORIGINAL de cada pagina, antes del pase
+    digital.  Hace falta para propagar entre tipos de pagina: una
+    autoliquidacion digital que el pase digital ya dejo en negro no conserva
+    su justificante en el intermedio, y sin su texto original la clasificacion
+    global no podria arrastrar el anexo escaneado que lo repite.
+    `redactadas_previas` son las paginas que ese pase ya tacho enteras.
+    """
     inspection = inspect_pdf_for_phase1(input_path)
 
     ocr_engine = get_ocr_engine()
@@ -123,6 +147,8 @@ def redact_pdf_scanned(
     # El texto de cada pagina, para clasificar UNA VEZ sobre el documento entero
     # cuando termina el recorrido (ver _propagar_redaccion_total).
     textos_por_pagina: dict[int, str] = {}
+    # Paginas que el camino hibrido pide dejar pasar sin OCR.
+    paginas_copiadas = 0
     rotated_pages: dict[int, int] = {}
     cropped_pages: list[int] = []
     crop_fallbacks: dict[int, str] = {}
@@ -353,6 +379,24 @@ def redact_pdf_scanned(
                 for page_index, page in enumerate(source_doc):
                     on_page(page_index)
                     cancellation.check()
+
+                    # Pagina que no necesita OCR (documento mixto): se copia tal
+                    # cual.  Viene del intermedio que ya redacto el pase digital,
+                    # asi que su capa de texto esta limpia y se conserva
+                    # seleccionable.  Su texto se apunta igualmente, porque la
+                    # clasificacion de redaccion total mira el documento entero.
+                    if paginas_ocr is not None and page_index not in paginas_ocr:
+                        textos_por_pagina[page_index] = (
+                            textos_previos.get(page_index, "")
+                            if textos_previos is not None
+                            else page.get_text("text")
+                        )
+                        output_doc.insert_pdf(
+                            source_doc, from_page=page_index, to_page=page_index,
+                        )
+                        paginas_copiadas += 1
+                        continue
+
                     # Plan pages (A1/A0 drawings) are detected from metadata BEFORE
                     # rendering: rasterising them is the expensive step the page
                     # budget cannot cover.  Only the title block is analysed and
@@ -441,7 +485,14 @@ def redact_pdf_scanned(
                         else:
                             poor_ocr_pages.append(page_index)
 
-                    textos_por_pagina[page_index] = result.get("texto") or ""
+                    # En una pagina mixta el OCR lee la imagen del intermedio,
+                    # donde el pase digital ya tacho la capa de texto: el texto
+                    # original de esa capa se suma para no perder sus
+                    # referencias al clasificar el documento entero.
+                    textos_por_pagina[page_index] = (
+                        (textos_previos.get(page_index, "") + "\n" if textos_previos else "")
+                        + (result.get("texto") or "")
+                    )
 
                     if result.get("full_redaction"):
                         full_redaction_pages[page_index] = result["full_redaction"]
@@ -481,7 +532,8 @@ def redact_pdf_scanned(
             # medio documento delante.
             if not partial:
                 propagadas = _propagar_redaccion_total(
-                    output_doc, textos_por_pagina, full_redaction_pages,
+                    output_doc, textos_por_pagina,
+                    {**(redactadas_previas or {}), **full_redaction_pages},
                 )
                 if propagadas:
                     full_redaction_pages.update(propagadas)
@@ -600,9 +652,13 @@ def redact_pdf_scanned(
             min_digital_text_chars=settings.min_digital_text_chars,
         ),
         ocr=OcrInfo(
-            enabled=True,
+            # Las paginas copiadas sin OCR (documento mixto) no cuentan: el
+            # informe tiene que decir cuantas se miraron de verdad.
+            enabled=(pages_done if partial else inspection.pages) - paginas_copiadas > 0,
             engine=ocr_engine.engine_name,
-            pages_ocr_processed=pages_done if partial else inspection.pages,
+            pages_ocr_processed=max(
+                0, (pages_done if partial else inspection.pages) - paginas_copiadas,
+            ),
             images_processed=0,
             ocr_confidence_avg=confidence_avg,
             low_confidence_pages=low_confidence_pages,

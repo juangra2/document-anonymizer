@@ -33,6 +33,14 @@ class OcrInfo(BaseModel):
     ocr_confidence_avg: float | None = None
     low_confidence_pages: list[int] = Field(default_factory=list)
     second_pass_verification: bool = False
+    # Paginas con texto e imagen que el criterio de superficie decidio NO mirar
+    # (ver ocr_imagen_pagina).  No es un aviso al usuario: es el numero donde se
+    # veria un dia que la imagen relevante era pequena, antes que en una fuga.
+    pages_with_image_not_ocr: int = 0
+    # De ellas, las de la zona gris: alguna imagen por encima del minimo por
+    # imagen pero sin llegar al umbral de la pagina.  Un DNI pegado a mitad de
+    # escala (1,9 %) caeria aqui.
+    pages_image_grey_zone: int = 0
 
 
 class InputFileInfo(BaseModel):

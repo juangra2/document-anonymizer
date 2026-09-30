@@ -248,9 +248,13 @@ def test_a_stopped_hybrid_document_only_keeps_processed_pages(
     tmp_path, monkeypatch, analyzer,
 ):
     import app.services.pdf.hybrid_redactor as hr
+    import app.services.pdf.scanned_redactor as sr
 
+    # El hibrido ya no tiene motor de OCR propio: usa el MISMO bucle que el
+    # camino escaneado, asi que el motor se sustituye alli.
     motor = _FakeEngine()
-    monkeypatch.setattr(hr, "get_ocr_engine", lambda: motor)
+    monkeypatch.setattr(sr, "get_ocr_engine", lambda: motor)
+    monkeypatch.setattr(sr, "get_word_ocr_engine", lambda *_a, **_k: motor)
 
     origen = _pdf_hibrido(tmp_path / "mixto.pdf", pages=5)
     salida = tmp_path / "out.pdf"
@@ -272,9 +276,13 @@ def test_the_hybrid_digital_pass_is_not_cut_in_half(tmp_path, monkeypatch, analy
     leería páginas que no existen.  Es el pase rápido: se le deja acabar.
     """
     import app.services.pdf.hybrid_redactor as hr
+    import app.services.pdf.scanned_redactor as sr
 
+    # El hibrido ya no tiene motor de OCR propio: usa el MISMO bucle que el
+    # camino escaneado, asi que el motor se sustituye alli.
     motor = _FakeEngine()
-    monkeypatch.setattr(hr, "get_ocr_engine", lambda: motor)
+    monkeypatch.setattr(sr, "get_ocr_engine", lambda: motor)
+    monkeypatch.setattr(sr, "get_word_ocr_engine", lambda *_a, **_k: motor)
 
     origen = _pdf_hibrido(tmp_path / "mixto.pdf", pages=4)
     salida = tmp_path / "out.pdf"

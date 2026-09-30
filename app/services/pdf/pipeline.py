@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from time import perf_counter
 
@@ -13,6 +14,9 @@ from app.services.pdf.scanned_redactor import redact_pdf_scanned
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services.verification import DocumentVerifier
 from app.services.verification.models import DocumentVerificationResult
+
+
+logger = logging.getLogger(__name__)
 
 
 class PdfAnonymizationPipeline:
@@ -98,17 +102,44 @@ class PdfAnonymizationPipeline:
             return self._process_digital_pdf(input_path, output_path, job_id, mode, collect_entities)
         if inspection.document_type == "pdf_scanned":
             return self._process_scanned_pdf(input_path, output_path, job_id, mode, collect_entities)
-        # pdf_hybrid: if text-dominant (images are icons/QR, not rasterized text),
-        # the digital pipeline already covers all PII — skip the expensive OCR pass.
-        avg_chars = inspection.selectable_text_chars / max(1, inspection.pages)
-        if avg_chars >= 200:
-            return self._process_digital_pdf(input_path, output_path, job_id, mode, collect_entities)
-        report = redact_pdf_hybrid_secure(
-            input_path=input_path, output_path=output_path,
-            job_id=job_id, analyzer=self._analyzer, mode=mode,
-            collect_entities=collect_entities,
-        )
-        self._run_verification(report, output_path, mode)
+
+        # pdf_hybrid: PAGINA A PAGINA CON UN CRITERIO DE SUPERFICIE.
+        #
+        # Aqui habia una decision POR DOCUMENTO: si la media llegaba a 200
+        # caracteres por pagina, el documento entero iba por el camino digital
+        # sin pasar ni una pagina por OCR.  Dos folios de texto tapaban veinte
+        # paginas escaneadas, y una copia de DNI pegada en un expediente salia
+        # intacta, con el informe diciendo "pdf_digital" y sin un solo aviso.
+        #
+        # Pero lo contrario —toda pagina con imagen al OCR— tampoco: la mitad
+        # de las paginas del corpus digital llevan el logo del membrete.  Cada
+        # pagina se mira si sus imagenes cubren lo bastante como para llevar
+        # texto que la capa no tiene (ver ocr_imagen_pagina en la config).
+        paginas_ocr, sin_ocr, zona_gris = _reparto(input_path)
+
+        if not paginas_ocr:
+            # Todas las imagenes son adornos: la redaccion sobre capa de texto
+            # es exacta y conserva el texto seleccionable.
+            report = self._process_digital_pdf(
+                input_path, output_path, job_id, mode, collect_entities,
+            )
+        else:
+            report = redact_pdf_hybrid_secure(
+                input_path=input_path, output_path=output_path,
+                job_id=job_id, analyzer=self._analyzer, mode=mode,
+                collect_entities=collect_entities, paginas_ocr=paginas_ocr,
+            )
+            self._run_verification(report, output_path, mode)
+
+        report.ocr.pages_with_image_not_ocr = sin_ocr
+        report.ocr.pages_image_grey_zone = zona_gris
+        if zona_gris:
+            logger.info(
+                "%d pagina(s) con una imagen de mas del %.0f %% de la pagina no "
+                "llegaron al umbral del %.0f %% y no pasaron por OCR (zona gris).",
+                zona_gris, settings.ocr_imagen_minima * 100,
+                settings.ocr_imagen_pagina * 100,
+            )
         return report
 
     def _process_pdf_auto(self, input_path, output_path, job_id, mode, inspection, collect_entities=False):
@@ -195,6 +226,35 @@ class PdfAnonymizationPipeline:
         for lr in result.document_layer_results:
             for w in lr.warnings:
                 _add_unique_warning(report, f"[{lr.layer.value}] {w}")
+
+
+def _reparto(input_path: Path) -> tuple[set[int], int, int]:
+    """(paginas que van al OCR, paginas con imagen que no van, de ellas zona gris).
+
+    Las dos ultimas cifras son el recuento que permite ver, en un numero y no
+    en una fuga, si el criterio de superficie deja sin mirar algo que importaba.
+    """
+    import fitz
+
+    from app.services.pdf.inspector import cobertura_imagenes, pagina_necesita_ocr
+
+    paginas_ocr: set[int] = set()
+    sin_ocr = 0
+    zona_gris = 0
+    with fitz.open(input_path) as doc:
+        for indice, page in enumerate(doc):
+            if pagina_necesita_ocr(page):
+                paginas_ocr.add(indice)
+                continue
+            try:
+                tiene_imagen = bool(page.get_images(full=True))
+            except Exception:
+                tiene_imagen = False
+            if tiene_imagen:
+                sin_ocr += 1
+                if cobertura_imagenes(page) > 0:
+                    zona_gris += 1
+    return paginas_ocr, sin_ocr, zona_gris
 
 
 def _add_unique_warning(report: ProcessingReport, warning: str) -> None:

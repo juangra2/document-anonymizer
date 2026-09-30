@@ -248,6 +248,43 @@ class Settings(BaseSettings):
     # pagina escrita a un punto por pixel, donde 200 DPI dan 30 MP.
     ocr_max_megapixels: float = 8.0
 
+    # ¿Cuando una pagina con texto Y con imagen necesita pasar por OCR?
+    #
+    # El reparto es PAGINA A PAGINA CON UN CRITERIO DE SUPERFICIE, no "siempre
+    # OCR".  Antes se decidia por documento con una media de 200 caracteres por
+    # pagina, y dos folios de texto tapaban veinte paginas escaneadas.  Pero la
+    # correccion no puede ser mandar al OCR toda pagina con una imagen: el 51 %
+    # de las paginas del corpus digital llevan una (el logo del membrete), y
+    # pasarlas por OCR cambiaria una redaccion sobre capa de texto —sin fugas de
+    # geometria medidas— por una que si las tiene, y les quitaria el texto
+    # seleccionable, para tachar un logo.
+    #
+    # El criterio es FRACCION DE PAGINA CUBIERTA, no pixeles: con las puertas de
+    # tamano ya vimos lo que pasa al mezclar unidades.  Medido:
+    #
+    #   imagenes legitimas en paginas digitales   maximo 0,38 %   (logo, QR, sello)
+    #   firma escaneada tipica (7 x 3 cm)                3,4 %
+    #   DNI pegado a tamano real                         7,4 %
+    #   foto pequena de un anexo (9 x 6 cm)              8,7 %
+    #   copias pegadas del corpus hibrido               20 %
+    #
+    # Se SUMAN las imagenes, y no se mira solo la mayor: cuatro miniaturas de un
+    # anexo fotografico de 3 % cada una son 12 % y hay que mirarlas; con la
+    # mayor, ninguna llegaria.  Los costes no son simetricos —mirar de mas
+    # cuesta tiempo y el texto seleccionable de esa pagina, mirar de menos puede
+    # dejar un DNI a la vista—, y la suma se equivoca hacia mirar.
+    #
+    # Para que la suma no la disparen los adornos, solo cuentan las imagenes que
+    # cubren al menos ocr_imagen_minima: los logos se quedan en 0,38 % y el
+    # minimo esta casi tres veces por encima.
+    #
+    # LIMITE CONOCIDO: un DNI pegado a la mitad de escala cubre 1,9 % y NO pasa
+    # por OCR.  Por eso las paginas con imagen que se quedan sin OCR se cuentan,
+    # y aparte las de la zona gris (alguna imagen por encima del minimo): si un
+    # dia llega ese caso, se ve en un numero y no en una fuga.
+    ocr_imagen_pagina: float = 0.05
+    ocr_imagen_minima: float = 0.01
+
     # Post-redaction verification thresholds [0.0–1.0].
     # review  : risk >= threshold → manual_review_required = True.
     # reject  : risk >= threshold → RedactionVerificationError raised.

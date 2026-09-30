@@ -29,6 +29,56 @@ class PdfInspection:
     page_inspections: list[PdfPageInspection]
 
 
+def cobertura_imagenes(page: fitz.Page) -> float:
+    """Fraccion de la pagina cubierta por imagenes que cuentan.
+
+    Suma, no maximo: cuatro miniaturas de un anexo fotografico de 3 % son 12 %
+    y hay que mirarlas, aunque ninguna llegue sola.  Solo entran las imagenes
+    que cubren al menos `ocr_imagen_minima`, para que los adornos (logos de
+    0,38 %) no se acumulen hasta disparar el OCR.  El razonamiento y las
+    mediciones estan junto a `ocr_imagen_pagina` en la config.
+    """
+    area = page.rect.width * page.rect.height
+    if area <= 0:
+        return 0.0
+    total = 0.0
+    try:
+        imagenes = page.get_images(full=True)
+    except Exception:
+        return 0.0
+    for imagen in imagenes:
+        try:
+            rects = page.get_image_rects(imagen[0])
+        except Exception:
+            continue
+        for rect in rects:
+            visible = rect & page.rect
+            if visible.is_empty:
+                continue
+            fraccion = visible.get_area() / area
+            if fraccion >= settings.ocr_imagen_minima:
+                total += fraccion
+    return min(1.0, total)
+
+
+def pagina_necesita_ocr(page: fitz.Page) -> bool:
+    """¿Hay que mirar los pixeles de esta pagina, o basta con su capa de texto?
+
+    Una pagina sin texto se mira siempre: no tiene nada que conservar.  Una con
+    texto solo si sus imagenes cubren una parte suficiente de la pagina como
+    para llevar texto que la capa no tiene.  Pasar al OCR una pagina que no lo
+    necesita no es gratis: pierde su texto seleccionable y cambia una redaccion
+    exacta por otra que no lo es.
+    """
+    try:
+        caracteres = len(page.get_text("text").strip())
+    except Exception:
+        caracteres = 0
+    if caracteres < settings.min_digital_text_chars:
+        return True
+    return cobertura_imagenes(page) >= settings.ocr_imagen_pagina
+
+
 def assert_pdf_within_limits(input_path: Path) -> int:
     """Comprueba PÁGINAS y legibilidad antes de encolar.  Devuelve las páginas.
 

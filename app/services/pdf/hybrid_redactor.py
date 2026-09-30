@@ -1,17 +1,25 @@
-"""Hybrid-secure PDF redactor.
+"""Camino hibrido: documentos con paginas digitales y paginas que hay que mirar.
 
-Delegates to the two specialised redactors:
-  - redact_pdf_digital  → handles digital pages (text-layer redaction)
-  - OcrPageSegmenter + pixel painting → handles scanned/hybrid pages
+Ya no tiene bucle de OCR propio
+-------------------------------
+Antes lo tenia, y era una segunda copia del tratamiento de una pagina escaneada
+que se habia quedado atras: sin enderezado, sin clasificacion de redaccion total
+—una copia de DNI dentro de un expediente no se tachaba entera— y con una
+geometria de barras distinta, que las pintaba desplazadas.  Cada mejora del
+camino escaneado dejaba al hibrido un paso mas lejos.
 
-Flow
-────
-1. Run redact_pdf_digital on the full input → intermediate redacted PDF.
-2. Build the final output PDF:
-   • Digital pages  → copy directly from the intermediate PDF.
-   • Scanned/hybrid → render page from intermediate, run OcrPageSegmenter,
-     paint redaction rects, embed as image page.
-3. Scrub metadata, save.
+Ahora el hibrido es solo el orden de dos pasos:
+
+1. El pase digital sobre el documento entero: redacta la capa de texto de todas
+   las paginas, que es exacto.
+2. El MISMO bucle que el camino escaneado, sobre el intermedio que deja el paso
+   anterior, pasando por OCR solo las paginas que lo necesitan
+   (`pagina_necesita_ocr`, criterio de superficie).  Las demas se copian tal cual
+   y conservan su texto seleccionable.
+
+Una pagina se trata del mismo modo venga en un documento escaneado o en uno
+mixto, y la clasificacion de redaccion total, la parada parcial, los avisos en
+vivo y el avance funcionan sobre el documento entero porque es un solo recorrido.
 """
 from __future__ import annotations
 
@@ -20,24 +28,20 @@ from pathlib import Path
 
 import fitz
 
-from app.core.config import settings
-from app.schemas.report import DetectedEntityInfo, OcrInfo, ProcessingLimits, ProcessingReport
-from app.services.layout.segmenters import OcrPageSegmenter
-from app.services.ocr.factory import get_ocr_engine
-from app.services.pdf.inspector import inspect_pdf_for_phase1
-from app.services.pdf.partial import append_partial_notice
-from app.services.pdf.plan_pages import is_plan_page
-from app.services.pdf.redactor import redact_pdf_digital
-from app.services.pdf.scanned_redactor import (
-    _append_image_as_pdf_page,
-    _collect_redaction_rects,
-    _render_page_to_image,
-)
-from app.services.pii.analyzer import PiiAnalyzer
+from app.schemas.report import ProcessingReport
 from app.services import cancellation, progress
+from app.services.pdf.full_redaction import classify_pages
+from app.services.pdf.inspector import pagina_necesita_ocr
+from app.services.pdf.redactor import redact_pdf_digital
+from app.services.pdf.scanned_redactor import redact_pdf_scanned
+from app.services.pii.analyzer import PiiAnalyzer
 from app.services.storage.temp_storage import scratch_dir
-from app.services.pii.models import PiiEntity
-from PIL import ImageDraw
+
+
+def paginas_para_ocr(input_path: Path) -> set[int]:
+    """Indices de las paginas que hay que mirar, segun el criterio de superficie."""
+    with fitz.open(input_path) as doc:
+        return {i for i, page in enumerate(doc) if pagina_necesita_ocr(page)}
 
 
 def redact_pdf_hybrid_secure(
@@ -47,243 +51,78 @@ def redact_pdf_hybrid_secure(
     analyzer: PiiAnalyzer,
     mode: str = "strict",
     collect_entities: bool = False,
+    paginas_ocr: set[int] | None = None,
 ) -> ProcessingReport:
-    inspection = inspect_pdf_for_phase1(input_path)
+    if paginas_ocr is None:
+        paginas_ocr = paginas_para_ocr(input_path)
 
-    # Se reclama el aviso de avance ANTES del pase digital: ese pase recorre las
-    # mismas paginas, y si informara el, el avance llegaria al 100 % justo antes
-    # de empezar el OCR, que es la parte lenta.
-    on_page = progress.claim(len(inspection.page_inspections))
+    # Texto ORIGINAL de cada pagina, para que la clasificacion de redaccion
+    # total pueda propagar entre tipos de pagina: el pase digital borra el
+    # justificante de una autoliquidacion digital del intermedio.
+    with fitz.open(input_path) as doc:
+        textos_originales = {i: page.get_text("text") for i, page in enumerate(doc)}
+    # Lo que el pase digital va a tachar entero: la misma clasificacion sobre
+    # los mismos textos, para que la pasada global no lo cuente dos veces.
+    redactadas_previas = classify_pages(
+        [textos_originales[i] for i in range(len(textos_originales))]
+    )
 
-    ocr_engine = get_ocr_engine()
-    segmenter = OcrPageSegmenter()
+    with scratch_dir(prefix="pdf_hybrid_") as tmp:
+        intermedio = Path(tmp) / "digital_redacted.pdf"
 
-    all_ocr_entities: list[PiiEntity] = []
-    all_residual_entities: list[PiiEntity] = []
-    confidence_values: list[float] = []
-    low_confidence_pages: list[int] = []
-    warnings: list[str] = []
-
-    ocr_redacted_count = 0
-    ocr_pages_processed = 0
-    plan_pages_carried: list[int] = []
-    pages_total_original = len(inspection.page_inspections)
-    pages_done = pages_total_original
-    partial = False
-    stop = cancellation.current()
-
-    with scratch_dir(prefix="pdf_hybrid_") as tmp_dir_name:
-        tmp_dir = Path(tmp_dir_name)
-        digital_redacted_path = tmp_dir / "digital_redacted.pdf"
-
-        # El pase digital recorre el documento entero y es el rápido: si se
-        # cortara a medias, el bucle de abajo leería páginas que no existen.
-        with cancellation.without_partial():
-            digital_report = redact_pdf_digital(
+        # El pase digital es rapido y recorre el documento entero: si se
+        # cortara a medias, el bucle de despues leeria paginas que no existen.
+        # Corre con un receptor de avance desechable: el aviso de avance lo
+        # reclama el PRIMERO que llega, y tiene que ser el bucle que va a pasar
+        # el OCR, que es la parte lenta.  Si lo reclamara este pase, la barra se
+        # quedaria quieta durante todo el OCR.
+        with cancellation.without_partial(), progress.track(lambda *_: None):
+            digital = redact_pdf_digital(
                 input_path=input_path,
-                output_path=digital_redacted_path,
+                output_path=intermedio,
                 job_id=job_id,
                 analyzer=analyzer,
                 mode=mode,
                 collect_entities=collect_entities,
             )
-        warnings.extend(digital_report.warnings)
 
-        redacted_doc = fitz.open(digital_redacted_path)
-        output_doc = fitz.open()
-
-        try:
-            try:
-                for page_info in inspection.page_inspections:
-                    page_index = page_info.page_index
-                    on_page(page_index)
-                    cancellation.check()
-                    page = redacted_doc[page_index]
-
-                    # Plan pages (A1/A0 drawings): the digital pass already located
-                    # and redacted the title block (or flagged the page — its
-                    # warnings propagate).  Carried through without OCR: the page
-                    # budget cannot cover rasterising an A1/A0 drawing.
-                    if is_plan_page(page):
-                        plan_pages_carried.append(page_index)
-                        output_doc.insert_pdf(
-                            redacted_doc, from_page=page_index, to_page=page_index,
-                        )
-                        continue
-
-                    if page_info.page_type == "digital":
-                        output_doc.insert_pdf(
-                            redacted_doc,
-                            from_page=page_index,
-                            to_page=page_index,
-                        )
-                        continue
-
-                    ocr_pages_processed += 1
-                    image = _render_page_to_image(page, dpi=settings.ocr_pdf_render_dpi)
-                    page_image_path = tmp_dir / f"page_{page_index + 1}.png"
-                    image.save(page_image_path)
-
-                    ocr_page = ocr_engine.analyze_image(
-                        image_path=page_image_path,
-                        page_index=page_index,
-                    )
-
-                    if ocr_page.avg_confidence is not None:
-                        confidence_values.append(ocr_page.avg_confidence)
-                        if ocr_page.avg_confidence < 0.75:
-                            low_confidence_pages.append(page_index)
-
-                    zoned_page = segmenter.segment(ocr_page, image=image)
-                    page_rects, page_entities = _collect_redaction_rects(
-                        zoned_page=zoned_page,
-                        analyzer=analyzer,
-                        mode=mode,
-                        collect_entities=collect_entities,
-                    )
-
-                    all_ocr_entities.extend(page_entities)
-                    ocr_redacted_count += len(page_rects)
-
-                    from PIL import ImageDraw as _ID
-                    draw = _ID.Draw(image)
-                    for rect in page_rects:
-                        draw.rectangle(
-                            [int(rect.x0), int(rect.y0), int(rect.x1), int(rect.y1)],
-                            fill="black",
-                        )
-
-                    if settings.ocr_second_pass_verification:
-                        redacted_path = tmp_dir / f"page_{page_index + 1}_redacted.png"
-                        image.save(redacted_path)
-                        residual_ocr = ocr_engine.analyze_image(
-                            image_path=redacted_path,
-                            page_index=page_index,
-                        )
-                        residual_zoned = segmenter.segment(residual_ocr)
-                        _, residual_entities = _collect_redaction_rects(
-                            zoned_page=residual_zoned,
-                            analyzer=analyzer,
-                            mode=mode,
-                        )
-                        all_residual_entities.extend(residual_entities)
-
-                    _append_image_as_pdf_page(output_doc, image, page.rect)
-
-            except cancellation.JobStopped:
-                # El PDF de salida solo lleva las páginas ya terminadas: cada una se
-                # añade al acabarla, así que la que estaba en curso no está.
-                stop.honor()
-                partial = True
-                pages_done = output_doc.page_count
-                append_partial_notice(output_doc, pages_done, pages_total_original)
-                warnings.append(
-                    f"Partial document: pages 1-{pages_done} of "
-                    f"{pages_total_original} were processed before the stop request."
-                )
-
-            try:
-                output_doc.scrub(
-                    attached_files=True,
-                    clean_pages=True,
-                    embedded_files=True,
-                    hidden_text=True,
-                    javascript=True,
-                    metadata=True,
-                    redactions=True,
-                    remove_links=True,
-                    reset_fields=True,
-                    reset_responses=True,
-                    thumbnails=True,
-                    xml_metadata=True,
-                )
-            except Exception:
-                warnings.append(
-                    "PDF scrub cleanup could not be fully completed. "
-                    "Metadata and auxiliary object cleanup may be partial."
-                )
-
-            output_doc.set_metadata({})
-            try:
-                output_doc.del_xml_metadata()
-            except Exception:
-                pass
-
-            output_doc.save(
-                output_path,
-                garbage=4,
-                deflate=True,
-                clean=True,
-                incremental=False,
-            )
-
-        finally:
-            redacted_doc.close()
-            output_doc.close()
-
-    residual_count = len(all_residual_entities)
-    residual_by_type = analyzer.count_by_type(all_residual_entities)
-
-    if low_confidence_pages:
-        warnings.append("Low OCR confidence detected in one or more hybrid/scanned pages.")
-    if residual_count > 0:
-        warnings.append(
-            "Residual PII-like entities detected after OCR redaction. Manual review required."
+        escaneado = redact_pdf_scanned(
+            input_path=intermedio,
+            output_path=output_path,
+            job_id=job_id,
+            analyzer=analyzer,
+            mode=mode,
+            document_type="pdf_hybrid",
+            collect_entities=collect_entities,
+            paginas_ocr=paginas_ocr,
+            textos_previos=textos_originales,
+            redactadas_previas=redactadas_previas,
         )
 
-    confidence_avg = (
-        sum(confidence_values) / len(confidence_values) if confidence_values else None
-    )
+    # Sin doble recuento: el pase digital cuenta lo que hay en la capa de texto,
+    # y cuando el OCR lee una pagina mixta lo hace sobre el intermedio, donde
+    # esa capa ya esta tachada.  Cada dato se cuenta en un solo lado.
+    avisos = list(digital.warnings)
+    for aviso in escaneado.warnings:
+        if aviso not in avisos:
+            avisos.append(aviso)
 
-    all_detected = (
-        list(digital_report.detected_entities) + [
-            DetectedEntityInfo(text=e.text, type=e.entity_type, score=e.score, source=e.source)
-            for e in all_ocr_entities
-            if e.text
-        ]
-        if collect_entities
-        else []
-    )
-
-    return ProcessingReport(
-        job_id=job_id,
-        status="completed_with_warnings" if warnings else "completed",
-        document_type="pdf_hybrid",
-        pages=pages_done if partial else inspection.pages,
-        partial=partial,
-        pages_total_original=pages_total_original if partial else None,
-        selectable_text_chars=inspection.selectable_text_chars,
-        entities_detected=digital_report.entities_detected + len(all_ocr_entities),
-        entities_redacted=digital_report.entities_redacted + ocr_redacted_count,
+    return escaneado.model_copy(update={
+        "document_type": "pdf_hybrid",
+        "status": "completed_with_warnings" if avisos else "completed",
+        "entities_detected": digital.entities_detected + escaneado.entities_detected,
+        "entities_redacted": digital.entities_redacted + escaneado.entities_redacted,
         # Se suman: con {**a, **b} el recuento OCR pisaba al digital del mismo tipo.
-        entities_by_type=dict(
-            Counter(digital_report.entities_by_type)
-            + Counter(analyzer.count_by_type(all_ocr_entities))
+        "entities_by_type": dict(
+            Counter(digital.entities_by_type) + Counter(escaneado.entities_by_type)
         ),
-        structural_redactions_untyped=digital_report.structural_redactions_untyped,
-        residual_entities=residual_count,
-        residual_entities_by_type=residual_by_type,
-        manual_review_required=(
-            bool(low_confidence_pages)
-            or residual_count > 0
-            or digital_report.manual_review_required
+        "structural_redactions_untyped": digital.structural_redactions_untyped,
+        "manual_review_required": (
+            digital.manual_review_required or escaneado.manual_review_required
         ),
-        warnings=warnings,
-        redaction_strategy="hybrid_secure_pdf_redaction",
-        redaction_mode=mode,
-        limits=ProcessingLimits(
-            max_upload_mb=settings.max_upload_mb,
-            max_pdf_pages=settings.max_pdf_pages,
-            min_digital_text_chars=settings.min_digital_text_chars,
+        "warnings": avisos,
+        "redaction_strategy": "hybrid_secure_pdf_redaction",
+        "detected_entities": (
+            list(digital.detected_entities) + list(escaneado.detected_entities)
         ),
-        ocr=OcrInfo(
-            enabled=ocr_pages_processed > 0,
-            engine=ocr_engine.engine_name,
-            pages_ocr_processed=ocr_pages_processed,
-            images_processed=0,
-            ocr_confidence_avg=confidence_avg,
-            low_confidence_pages=low_confidence_pages,
-            second_pass_verification=settings.ocr_second_pass_verification,
-        ),
-        detected_entities=all_detected,
-    )
+    })
