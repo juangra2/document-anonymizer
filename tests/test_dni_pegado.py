@@ -32,6 +32,7 @@ def _documento(nombre: str):
     return pdf, json.loads(etiqueta.read_text(encoding="utf-8"))
 
 
+@pytest.mark.lento
 @pytest.mark.parametrize("nombre", QUE_FALLABAN)
 def test_los_datos_del_dni_pegado_no_se_leen_en_la_salida(nombre, tmp_path):
     from app.services.pdf.pipeline import PdfAnonymizationPipeline

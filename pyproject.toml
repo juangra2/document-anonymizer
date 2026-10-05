@@ -53,6 +53,12 @@ gazetteer-build = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# `lento`: pruebas que pasan documentos enteros por el pipeline con OCR y tardan
+# minutos.  Corren por defecto —la suite completa antes de cada commit
+# relevante— y se pueden excluir en local con:  pytest -m "not lento"
+markers = [
+    "lento: pasa documentos completos por el pipeline con OCR (minutos)",
+]
 
 [tool.setuptools.packages.find]
 include = ["app*"]
