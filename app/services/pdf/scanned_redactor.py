@@ -1374,12 +1374,27 @@ def _zona_de_lo_no_leido(tokens_mineru: list, tokens_easy: list) -> "PageZone | 
                   t.rect.x1 + _HOLGURA_BLOQUE_PX, t.rect.y1 + _HOLGURA_BLOQUE_PX)
         for t in tokens_mineru
     ]
+    # Lo que MinerU SI leyo, por su contenido.  Una palabra cuya caja asoma
+    # fuera de un bloque pero cuyo texto ya esta aqui no es texto sin leer: es
+    # la misma palabra vista por otro motor.  Dejarla entrar detectaba el dato
+    # dos veces —28 de 40 falsos positivos nuevos en el corpus hibrido—.  Y
+    # quitarla es seguro: la geometria tapa todas las apariciones de un dato,
+    # asi que si se detecta en el texto de MinerU, la barra cae tambien donde
+    # asome.
+    leido_por_contenido: set[str] = set()
+    for t in tokens_mineru:
+        leido_por_contenido |= _content_tokens(t.text or "")
+
     fuera = []
     for palabra in tokens_easy:
         centro = fitz.Point((palabra.rect.x0 + palabra.rect.x1) / 2,
                             (palabra.rect.y0 + palabra.rect.y1) / 2)
-        if not any(r.contains(centro) for r in leidos):
-            fuera.append(palabra)
+        if any(r.contains(centro) for r in leidos):
+            continue
+        propios = _content_tokens(palabra.text or "")
+        if propios and _compartidos(propios, leido_por_contenido) >= propios:
+            continue
+        fuera.append(palabra)
     if not fuera:
         return None
 
