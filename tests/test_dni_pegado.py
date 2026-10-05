@@ -32,18 +32,6 @@ def _documento(nombre: str):
     return pdf, json.loads(etiqueta.read_text(encoding="utf-8"))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO CONOCIDO, pendiente de arreglo.  Desde a23d7e8 no se pide a "
-        "MinerU el contenido de los bloques de imagen (ocr_mineru_skip_block_types) "
-        "y el repliegue a EasyOCR solo actua si la pagina ENTERA sale vacia: una "
-        "figura dentro de una pagina con texto no la lee nadie, asi que el DNI "
-        "pegado ni se detecta ni se clasifica.  Es estricto a proposito: cuando "
-        "el arreglo funcione, este test pasara, pytest lo marcara como error y "
-        "habra que quitar esta marca."
-    ),
-)
 @pytest.mark.parametrize("nombre", QUE_FALLABAN)
 def test_los_datos_del_dni_pegado_no_se_leen_en_la_salida(nombre, tmp_path):
     from app.services.pdf.pipeline import PdfAnonymizationPipeline

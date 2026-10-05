@@ -243,6 +243,15 @@ def redact_pdf_scanned(
                 if layout_page is not None and layout_page.tokens:
                     zoned_page = segmenter.segment(layout_page, image=work_image)
                     easy_words = ocr_page.tokens
+                    # Lo que MinerU no leyo, lo lee EasyOCR (ver
+                    # _zona_de_lo_no_leido).  El repliegue de arriba cubria solo
+                    # el caso de todo-o-nada; este cubre la region que falta.
+                    complemento = _zona_de_lo_no_leido(
+                        layout_page.tokens, ocr_page.tokens,
+                    )
+                    if complemento is not None:
+                        zoned_page.zones.append(complemento)
+                        _contar_no_leido(len(complemento.tokens))
                 else:
                     if layout_page is not None and not layout_page.tokens:
                         logger.info(
@@ -1306,6 +1315,87 @@ def _zoom_con_tope(page: fitz.Page, dpi: int, tope_mp: float) -> float:
     if megapixeles <= tope_mp:
         return zoom
     return zoom * (tope_mp / megapixeles) ** 0.5
+
+
+#: Holgura al decidir si una palabra de EasyOCR cae dentro de un bloque leido
+#: por MinerU: sus recuadros son de bloque y las palabras del borde pueden
+#: asomar unos pixeles.
+_HOLGURA_BLOQUE_PX = 6
+
+#: Palabras de EasyOCR que han entrado por la zona de lo no leido, en total.
+#: Si crece mucho, MinerU esta dejando de leer mas de lo que creiamos.
+NO_LEIDO_POR_MINERU: dict[str, int] = {"paginas": 0, "palabras": 0}
+
+
+def _contar_no_leido(palabras: int) -> None:
+    NO_LEIDO_POR_MINERU["paginas"] += 1
+    NO_LEIDO_POR_MINERU["palabras"] += palabras
+
+
+def _zona_de_lo_no_leido(tokens_mineru: list, tokens_easy: list) -> "PageZone | None":
+    """Zona con las palabras de EasyOCR que caen fuera de todo bloque leido por MinerU.
+
+    Por que hace falta
+    ------------------
+    El texto que se analiza en una pagina escaneada es el de MinerU; EasyOCR
+    solo servia para colocar las barras.  Lo que MinerU no lee, no se analiza:
+    ni se detecta, ni se tacha, ni llega a la clasificacion de documento de
+    identidad.  Y deja cosas sin leer por dos vias:
+
+    1. A proposito.  Desde a23d7e8 no se le pide el contenido de los bloques
+       de imagen y grafico (ocr_mineru_skip_block_types): extraerlos tardaba unos
+       27 minutos en un escaneo.  Se supuso que el repliegue al OCR de palabras
+       lo cubriria, pero ese repliegue solo actuaba si la pagina ENTERA salia
+       vacia.  Una copia de DNI pegada en una pagina con texto no la leia nadie,
+       y se entregaba legible.
+    2. Sin decirlo.  Hay texto corriente, fuera de cualquier figura, que MinerU
+       tampoco devuelve.
+
+    Medido sobre los corpus escaneado e hibrido (67 paginas por OCR, 23 con
+    alguna figura sin leer), comparando dos formas de complementar:
+
+        solo las figuras de MinerU   14 datos reales recuperados,  4 falsos positivos
+        todo lo que MinerU no leyo   67 datos reales recuperados, 27 falsos positivos
+
+    Se usa la segunda: recupera casi cinco veces mas, y la precision de lo que
+    anade (un 82 % sin contar LOCATION, que no se anota) es parecida a la del
+    propio camino escaneado.  El temor era que fuera de las figuras entrara
+    ruido de bordes de tabla y texturas de sello; casi no aparecio.
+
+    No deshace a23d7e8: el VLM sigue sin leer figuras, que es lo caro.  Las lee
+    EasyOCR, que ya habia leido la pagina entera para colocar las barras.
+    """
+    if not tokens_easy:
+        return None
+    from app.services.layout.segmenters import _build_ocr_zone_text_and_tokens
+
+    leidos = [
+        fitz.Rect(t.rect.x0 - _HOLGURA_BLOQUE_PX, t.rect.y0 - _HOLGURA_BLOQUE_PX,
+                  t.rect.x1 + _HOLGURA_BLOQUE_PX, t.rect.y1 + _HOLGURA_BLOQUE_PX)
+        for t in tokens_mineru
+    ]
+    fuera = []
+    for palabra in tokens_easy:
+        centro = fitz.Point((palabra.rect.x0 + palabra.rect.x1) / 2,
+                            (palabra.rect.y0 + palabra.rect.y1) / 2)
+        if not any(r.contains(centro) for r in leidos):
+            fuera.append(palabra)
+    if not fuera:
+        return None
+
+    texto, tokens = _build_ocr_zone_text_and_tokens(fuera)
+    if not texto.strip():
+        return None
+    marco = fitz.Rect(fuera[0].rect)
+    for palabra in fuera[1:]:
+        marco |= palabra.rect
+    return PageZone(
+        zone_type=ZoneType.BODY,
+        rect=marco,
+        text=texto,
+        tokens=tokens,
+        source="ocr",
+    )
 
 
 def _propagar_redaccion_total(
