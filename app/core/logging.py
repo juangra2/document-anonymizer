@@ -69,6 +69,31 @@ def configure_logging() -> None:
 
     install_pii_filter()
     warn_if_logging_pii()
+    warn_if_safety_net_off()
+
+
+def warn_if_safety_net_off() -> bool:
+    """Avisa, bien visible, si la segunda pasada esta desactivada.
+
+    La red de seguridad —lo que la segunda pasada todavia lee tras tachar se
+    tapa antes de entregar— vive dentro de esa pasada.  Desactivarla para ganar
+    velocidad (duplica el coste del OCR) quita la red SIN que nada lo diga, y
+    vuelven a poder entregarse datos que el propio sistema habria visto.
+    """
+    from app.core.config import settings
+
+    if settings.ocr_second_pass_verification:
+        return False
+
+    logger = logging.getLogger("app")
+    logger.warning("=" * 72)
+    logger.warning(
+        "OCR_SECOND_PASS_VERIFICATION ESTA DESACTIVADA: sin segunda pasada no "
+        "hay red de seguridad, y un dato que siga a la vista tras tachar se "
+        "entregara sin que nada lo tape ni lo avise."
+    )
+    logger.warning("=" * 72)
+    return True
 
 
 def warn_if_logging_pii() -> bool:

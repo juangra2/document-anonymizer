@@ -41,6 +41,12 @@ class OcrInfo(BaseModel):
     # imagen pero sin llegar al umbral de la pagina.  Un DNI pegado a mitad de
     # escala (1,9 %) caeria aqui.
     pages_image_grey_zone: int = 0
+    # Red de seguridad: lo que la segunda pasada todavia leia tras tachar y se
+    # tapo antes de entregar.  Si estos numeros suben, la primera pasada esta
+    # dejando cosas a la vista y conviene saber donde.
+    safety_net_images_redacted: int = 0
+    safety_net_zones_repainted: int = 0
+    safety_net_still_readable: int = 0
 
 
 class InputFileInfo(BaseModel):

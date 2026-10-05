@@ -149,6 +149,9 @@ def redact_pdf_scanned(
     textos_por_pagina: dict[int, str] = {}
     # Paginas que el camino hibrido pide dejar pasar sin OCR.
     paginas_copiadas = 0
+    # Lo que la red de seguridad hace en este documento.
+    red_documento = {"imagenes_tachadas": 0, "zonas_repasadas": 0,
+                     "persisten": 0, "paginas": 0}
     rotated_pages: dict[int, int] = {}
     cropped_pages: list[int] = []
     crop_fallbacks: dict[int, str] = {}
@@ -180,7 +183,9 @@ def redact_pdf_scanned(
             # las variables de hilo de quien lo lanza, pero sí ve este objeto.
             stop = cancellation.current()
 
-            def _process_page_heavy(page_index: int, image: Image.Image) -> dict:
+            def _process_page_heavy(
+                page_index: int, image: Image.Image, imagenes_px=(),
+            ) -> dict:
                 """OCR + segment + collect + draw + second pass for one page.
 
                 Runs under a per-page timeout; draws on a copy so the caller can
@@ -359,6 +364,7 @@ def redact_pdf_scanned(
                     )
 
                 residuals: list[PiiEntity] = []
+                red = {"imagenes": 0, "zonas": 0, "persisten": 0}
                 stop.check()
                 if settings.ocr_second_pass_verification:
                     redacted_path = tmp_dir / f"page_{page_index + 1}_redacted.png"
@@ -366,15 +372,35 @@ def redact_pdf_scanned(
                     residual_ocr = word_engine.analyze_image(
                         image_path=redacted_path, page_index=page_index,
                     )
-                    residual_zoned = segmenter.segment(residual_ocr)
-                    _, residuals = _collect_redaction_rects(
-                        zoned_page=residual_zoned, analyzer=analyzer, mode=mode,
+                    situados = _residuos_situados(
+                        segmenter.segment(residual_ocr), analyzer, mode,
                     )
+                    if situados:
+                        # Red de seguridad (ver TIPOS_FIABLES_RED).  Las imagenes
+                        # pegadas se situan en coordenadas del render sin girar:
+                        # si la pagina se enderezo, no casan y se usa solo la
+                        # regla de la zona, que es la prudente.
+                        marcos = list(imagenes_px) if not orientation.angle else []
+                        red["imagenes"], red["zonas"], _ = _aplicar_red(
+                            work_image, situados, marcos,
+                        )
+                        # Tercera lectura: ¿se sigue viendo algo tras repasar?
+                        stop.check()
+                        work_image.save(redacted_path)
+                        tercera = word_engine.analyze_image(
+                            image_path=redacted_path, page_index=page_index,
+                        )
+                        persisten = _residuos_situados(
+                            segmenter.segment(tercera), analyzer, mode,
+                        )
+                        residuals = [e for e, _ in persisten]
+                        red["persisten"] = len(residuals)
 
                 return {
                     "image": _restore(work_image, orientation.angle),
                     "entities": page_entities,
                     "residuals": residuals,
+                    "red": red,
                     "rect_count": len(page_rects),
                     "confidence": ocr_page.avg_confidence,
                     "rotated": orientation.angle,
@@ -446,13 +472,17 @@ def redact_pdf_scanned(
                     # una foto de movil moderna tambien pasa de ese umbral.
                     # Ahora pasan por el mismo tratamiento que las demas.
                     image = _render_page_to_image(page, dpi=settings.ocr_pdf_render_dpi)
+                    # Donde estan las imagenes pegadas, para la red de seguridad.
+                    imagenes_px = _imagenes_pegadas_px(page, _zoom_con_tope(
+                        page, settings.ocr_pdf_render_dpi, settings.ocr_max_megapixels,
+                    ))
 
                     # Per-page timeout: a stalled page must not hang the whole job.
                     # Sin leerla no se puede descartar que lleve datos, así que se
                     # tacha entera en vez de entregarse intacta.
                     try:
                         result = _run_with_timeout(
-                            lambda: _process_page_heavy(page_index, image),
+                            lambda: _process_page_heavy(page_index, image, imagenes_px),
                             settings.ocr_page_timeout_s,
                         )
                     except FuturesTimeout:
@@ -514,6 +544,16 @@ def redact_pdf_scanned(
 
                     all_entities.extend(result["entities"])
                     all_residual_entities.extend(result["residuals"])
+                    red_pagina = result.get("red") or {}
+                    if red_pagina.get("imagenes") or red_pagina.get("zonas"):
+                        red_documento["paginas"] += 1
+                        RED_SEGURIDAD["paginas"] += 1
+                    for clave_red, clave_doc in (("imagenes", "imagenes_tachadas"),
+                                                 ("zonas", "zonas_repasadas"),
+                                                 ("persisten", "persisten")):
+                        valor = red_pagina.get(clave_red, 0)
+                        red_documento[clave_doc] += valor
+                        RED_SEGURIDAD[clave_doc] += valor
                     redacted_count += result["rect_count"]
                     if result["confidence"] is not None:
                         confidence_values.append(result["confidence"])
@@ -571,9 +611,20 @@ def redact_pdf_scanned(
 
     if low_confidence_pages:
         warnings.append("Low OCR confidence detected in one or more pages.")
-    if residual_count > 0:
+    if red_documento["imagenes_tachadas"] or red_documento["zonas_repasadas"]:
+        # La red ha actuado: se dice, porque significa que la primera pasada
+        # dejo algo a la vista y quien revise el documento tiene que saberlo.
         warnings.append(
-            "Residual PII-like entities detected after OCR redaction. Manual review required."
+            f"Safety net: the post-redaction check still read personal data on "
+            f"{red_documento['paginas']} page(s) and covered it "
+            f"({red_documento['imagenes_tachadas']} pasted image(s) redacted in full, "
+            f"{red_documento['zonas_repasadas']} zone(s) repainted)."
+        )
+    if residual_count > 0:
+        # Siguen viendose TRAS la red: el aviso es mas alto que antes.
+        warnings.append(
+            "Residual PII-like entities STILL readable after the safety net "
+            "repainted them. Manual review required."
         )
     if rotated_pages:
         detail = ", ".join(
@@ -672,6 +723,9 @@ def redact_pdf_scanned(
             ocr_confidence_avg=confidence_avg,
             low_confidence_pages=low_confidence_pages,
             second_pass_verification=settings.ocr_second_pass_verification,
+            safety_net_images_redacted=red_documento["imagenes_tachadas"],
+            safety_net_zones_repainted=red_documento["zonas_repasadas"],
+            safety_net_still_readable=red_documento["persisten"],
         ),
         detected_entities=(
             [
@@ -1411,6 +1465,167 @@ def _zona_de_lo_no_leido(tokens_mineru: list, tokens_easy: list) -> "PageZone | 
         tokens=tokens,
         source="ocr",
     )
+
+
+# ---------------------------------------------------------------------------
+# Red de seguridad: lo que la segunda pasada todavia lee, no se entrega
+# ---------------------------------------------------------------------------
+#
+# La segunda pasada vuelve a leer la pagina ya tachada con EasyOCR.  Hasta ahora
+# lo que encontraba se contaba como "residuo", se pedia revision manual y el
+# documento se entregaba igual: el sistema SABIA que un dato seguia a la vista
+# y lo entregaba.  Es el mismo patron que ya se corrigio con las paginas
+# ilegibles y con los tiempos agotados, y la respuesta es la misma: tachar, no
+# solo avisar.  Pero de forma proporcional:
+#
+#   - Dentro de una IMAGEN PEGADA en una pagina con texto (una copia de DNI en
+#     un expediente) se tacha la imagen entera: no tiene nada que conservar.
+#   - En cualquier otro sitio se repasa solo la zona del residuo.  Tachar la
+#     pagina seria sobre-redaccion.
+#
+# Dos cuidados que salieron al disenarla:
+#
+#   - En una pagina ESCANEADA la "imagen" es la pagina entera.  Si la regla de
+#     imagen se le aplicara, un solo residuo tacharia la pagina completa.  Por
+#     eso solo cuentan las imagenes de paginas que tienen capa de texto.
+#   - La segunda pasada usa el mismo analizador que la primera, con sus falsos
+#     positivos (en el camino escaneado, precision ~0,6 en direccion, codigo
+#     postal y telefono).  Tachar una imagen entera exige un residuo de tipo
+#     FIABLE o dos residuos en la misma imagen: un codigo postal suelto no basta
+#     para borrar la foto de un anexo.
+#
+# Limite: solo actua sobre lo que la segunda pasada VE.  Cubre "lo detecte y
+# lo pinte en el sitio equivocado"; no cubre "nunca lo detecte", porque la
+# segunda pasada no ve mas que lo que lee EasyOCR.  Es la ultima defensa, no la
+# solucion.
+
+#: Tipos que bastan solos para tachar una imagen pegada entera.  Se validan con
+#: digito de control (DNI, NIE, IBAN, CIF) o son el dato que mas importa (PERSON).
+TIPOS_FIABLES_RED = frozenset({"ES_DNI", "ES_NIE", "IBAN_CODE", "ES_CIF", "PERSON"})
+
+#: Recuento de lo que hace la red, para ver en un numero si actua y como.
+RED_SEGURIDAD: dict[str, int] = {
+    "imagenes_tachadas": 0, "zonas_repasadas": 0, "persisten": 0, "paginas": 0,
+}
+#: Detalle por residuo (tipo, si cae en imagen pegada y que se hizo), sin
+#: valores: es lo que permite medir si la regla de tipos fiables es la buena.
+RED_DETALLE: list[dict] = []
+
+
+def reiniciar_red() -> None:
+    for clave in RED_SEGURIDAD:
+        RED_SEGURIDAD[clave] = 0
+    RED_DETALLE.clear()
+
+
+def _residuos_situados(zoned_page, analyzer: PiiAnalyzer, mode: str) -> list[tuple]:
+    """Residuos de la segunda pasada CON su posicion: (entidad, [rects]).
+
+    `_collect_redaction_rects` devuelve las barras y las entidades por separado;
+    para decidir si un residuo cae dentro de una imagen pegada hace falta saber
+    que barra es de que entidad.
+    """
+    plan = RedactionPlan(disabled_types=frozenset(analyzer.disabled_types))
+    situados = []
+    for zone in zoned_page.zones:
+        if zone.is_auto_redact:
+            continue
+        cfg = get_detector_config(zone.zone_type)
+        if not zone.text.strip() or cfg.entity_types is None:
+            continue
+        permitidos = set(cfg.entity_types)
+        for entidad in analyzer.analyze(zone.text, mode=mode,
+                                        zone_type=zone.zone_type.value):
+            if entidad.entity_type not in permitidos:
+                continue
+            if not plan.admits(entidad.entity_type):
+                continue
+            rects = _entity_rects_from_zone(entidad, zone)
+            if rects:
+                situados.append((PiiEntity(
+                    entity_type=entidad.entity_type, start=entidad.start,
+                    end=entidad.end, score=entidad.score, source="segunda_pasada",
+                    text=zone.text[entidad.start:entidad.end],
+                ), rects))
+    return situados
+
+
+def _imagenes_pegadas_px(page: fitz.Page, zoom: float) -> list[fitz.Rect]:
+    """Recuadros, en pixeles del render, de las imagenes pegadas en una pagina con texto.
+
+    Solo paginas con capa de texto: en una pagina escaneada la unica imagen es
+    la pagina, y tacharla por un residuo seria tachar el documento.  Y solo
+    imagenes que cubren al menos `ocr_imagen_minima`: un logo no es una copia.
+    """
+    try:
+        if len(page.get_text("text").strip()) < settings.min_digital_text_chars:
+            return []
+        area = page.rect.width * page.rect.height
+        if area <= 0:
+            return []
+        rects = []
+        for imagen in page.get_images(full=True):
+            for r in page.get_image_rects(imagen[0]):
+                visible = r & page.rect
+                if visible.is_empty or visible.get_area() / area < settings.ocr_imagen_minima:
+                    continue
+                rects.append(fitz.Rect(visible.x0 * zoom, visible.y0 * zoom,
+                                       visible.x1 * zoom, visible.y1 * zoom))
+        return rects
+    except Exception:
+        return []
+
+
+def _aplicar_red(
+    imagen: "Image.Image",
+    situados: list[tuple],
+    imagenes_px: list[fitz.Rect],
+) -> tuple[int, int, list]:
+    """Tapa lo que la segunda pasada todavia lee.  Devuelve (imagenes, zonas, residuos).
+
+    Los residuos devueltos son los que quedan sin una accion de la red: ninguno,
+    salvo que no traigan posicion.
+    """
+    dibujo = ImageDraw.Draw(imagen)
+    tachadas: list[fitz.Rect] = []
+
+    for marco in imagenes_px:
+        dentro = [
+            (e, rs) for e, rs in situados
+            if any(marco.contains(fitz.Point((r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2))
+                   for r in rs)
+        ]
+        if not dentro:
+            continue
+        fiable = any(e.entity_type in TIPOS_FIABLES_RED for e, _ in dentro)
+        if fiable or len(dentro) >= 2:
+            dibujo.rectangle([int(marco.x0), int(marco.y0), int(marco.x1), int(marco.y1)],
+                             fill="black")
+            tachadas.append(marco)
+            for e, _ in dentro:
+                RED_DETALLE.append({"tipo": e.entity_type, "en_imagen": True,
+                                    "accion": "imagen_tachada"})
+
+    zonas = 0
+    for e, rs in situados:
+        centro_en_tachada = any(
+            m.contains(fitz.Point((r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2))
+            for m in tachadas for r in rs
+        )
+        if centro_en_tachada:
+            continue
+        en_imagen = any(
+            m.contains(fitz.Point((r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2))
+            for m in imagenes_px for r in rs
+        )
+        for r in rs:
+            dibujo.rectangle([int(r.x0) - 2, int(r.y0) - 2, int(r.x1) + 2, int(r.y1) + 2],
+                             fill="black")
+        zonas += 1
+        RED_DETALLE.append({"tipo": e.entity_type, "en_imagen": en_imagen,
+                            "accion": "zona_repasada"})
+
+    return len(tachadas), zonas, []
 
 
 def _propagar_redaccion_total(
