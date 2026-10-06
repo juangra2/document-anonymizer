@@ -27,7 +27,7 @@ from presidio_analyzer.nlp_engine import NlpEngineProvider
 from app.services.pii import gazetteer
 from app.services.pii.models import PiiEntity
 from app.services.pii.recognizers_es import build_spanish_pattern_recognizers
-from app.services.pii.validators_es import is_valid_spanish_iban
+from app.services.pii.validators_es import DNI_LETTERS, is_valid_spanish_iban
 
 logger = logging.getLogger(__name__)
 
@@ -1135,6 +1135,19 @@ _CSV_LABEL_RE = re.compile(
 _CSV_VALUE_RE = re.compile(r"\b(?=[A-Z0-9]*\d[A-Z0-9]*\d)[A-Z0-9]{14,44}\b")
 _CSV_WINDOW = 80   # max chars between a CSV label end and its value start
 
+# DNI/NIE con la letra de control leida como cifra por el OCR (_detect_dni_letra_ocr).
+_DNI_LABEL_OCR_RE = re.compile(
+    r"(?i)\b(?:D\.?\s?N\.?\s?I|N\.?\s?I\.?\s?[FE]|DNI|NIF|NIE"
+    r"|doc(?:ument[oa]?)?\.?\s+(?:de\s+|d')?identi(?:dad|tat))\b\.?"
+)
+# Ocho cifras (o X/Y/Z y siete) y una NOVENA cifra donde iba la letra.
+_DNI_CIFRA_FINAL_RE = re.compile(r"(?<![0-9A-Za-z])(?:\d{8}|[XYZ]\d{7})\d(?![0-9A-Za-z])")
+_DNI_LABEL_WINDOW = 40   # caracteres entre el final de la etiqueta y el valor
+# Cifra leida -> letras de control a las que se parece.  Conservador: solo las
+# confusiones habituales del OCR.
+_CIFRA_PARECIDA_A = {"0": "DQ", "1": "TLJ", "2": "Z", "4": "A", "5": "S",
+                     "6": "G", "7": "T", "8": "B"}
+
 # Measurement-unit tokens that open a budget line item ("Ud Par de…", "Ml Tubo
 # de…").  A PERSON span starting with one is a line item, not a person name.
 _MEASURE_UNITS = {
@@ -1384,6 +1397,7 @@ class PiiAnalyzer:
 
         entities.extend(self._detect_direct_regex(text, mode=mode))
         entities.extend(self._detect_ocr_iban(text))
+        entities.extend(self._detect_dni_letra_ocr(text))
         entities.extend(self._detect_csv(text))
         entities.extend(self._detect_money(text, context_text))
         entities.extend(self._detect_private_companies(text))
@@ -2541,6 +2555,37 @@ class PiiAnalyzer:
                     entities.append(
                         PiiEntity("CSV", span[0], span[1], 0.9, source="deterministic_regex")
                     )
+        return entities
+
+    @staticmethod
+    def _detect_dni_letra_ocr(text: str) -> list[PiiEntity]:
+        """DNI/NIE cuya letra de control el OCR leyo como cifra ("496747448").
+
+        Solo tras una etiqueta de DNI o NIE, y solo si la cifra final se parece
+        a la letra que exige el digito de control (8->B, 6->G, 5->S...).  Ver
+        tests/test_dni_letra_ocr.py.
+        """
+        entities: list[PiiEntity] = []
+        etiquetas = [m.end() for m in _DNI_LABEL_OCR_RE.finditer(text)]
+        if not etiquetas:
+            return entities
+        for m in _DNI_CIFRA_FINAL_RE.finditer(text):
+            # La etiqueta tiene que ser de ESTE valor: entre ella y el valor no
+            # puede haber otro valor con cifras ("DNI/NIE: X1156016J Tfno.:
+            # 678939806" -> el telefono no es el DNI).
+            if not any(0 <= m.start() - fin <= _DNI_LABEL_WINDOW
+                       and not any(c.isdigit() for c in text[fin:m.start()])
+                       for fin in etiquetas):
+                continue
+            valor = m.group()
+            cuerpo = valor[:-1]
+            if cuerpo[0] in "XYZ":
+                cuerpo = str("XYZ".index(cuerpo[0])) + cuerpo[1:]
+            letra = DNI_LETTERS[int(cuerpo) % 23]
+            if letra in _CIFRA_PARECIDA_A.get(valor[-1], ""):
+                tipo = "ES_NIE" if valor[0] in "XYZ" else "ES_DNI"
+                entities.append(PiiEntity(tipo, m.start(), m.end(), 0.9,
+                                          source="deterministic_regex"))
         return entities
 
     @staticmethod
