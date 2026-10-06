@@ -1128,8 +1128,11 @@ _CSV_LABEL_RE = re.compile(
     r"c[oó]digo[^\S\r\n]+seguro[^\S\r\n]+de[^\S\r\n]+verificaci[oó]n?|"
     r"codi[^\S\r\n]+segur[^\S\r\n]+de[^\S\r\n]+verificaci[oó])"
 )
-# A CSV is a long alphanumeric run with several digits (rules out plain words).
-_CSV_VALUE_RE = re.compile(r"\b(?=[A-Z0-9]*\d(?:[A-Z0-9]*\d){7})[A-Z0-9]{14,44}\b")
+# A CSV is a long alphanumeric run with at least two digits (rules out plain
+# words).  Se exigian 8 cifras y un CSV de letras y cifras mezcladas
+# ("EGFGOHHL0FWCSC1MWWQP") se escapaba: 165 de 200 en el corpus digital.  Lo que
+# descarta el falso positivo es la etiqueta a menos de _CSV_WINDOW caracteres.
+_CSV_VALUE_RE = re.compile(r"\b(?=[A-Z0-9]*\d[A-Z0-9]*\d)[A-Z0-9]{14,44}\b")
 _CSV_WINDOW = 80   # max chars between a CSV label end and its value start
 
 # Measurement-unit tokens that open a budget line item ("Ud Par de…", "Ml Tubo

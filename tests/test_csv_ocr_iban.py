@@ -46,6 +46,23 @@ def test_csv_explanatory_note_without_value_not_matched():
     assert not any(t == "CSV" for t, _, _ in _ents(text))
 
 
+def test_csv_con_pocas_cifras():
+    """Un CSV de letras y cifras mezcladas no tiene por que llevar 8 cifras.
+
+    Se exigian 8 y se escapaban 165 de 200 CSV del corpus digital y 7 de 8 del
+    escaneado.  Lo que descarta el falso positivo es la etiqueta al lado, no el
+    numero de cifras.
+    """
+    for valor in ("EGFGOHHL0FWCSC1MWWQP", "KISOW3DQQ12NHCV3VXWN"):
+        assert any(t == "CSV" and v == valor for t, v, _ in _ents(f"CSV: {valor}")), valor
+
+
+def test_csv_sin_cifras_no():
+    """Una palabra larga en mayusculas tras la etiqueta no es un codigo."""
+    text = "CSV: VERIFICACIONELECTRONICA del documento"
+    assert not any(t == "CSV" for t, _, _ in _ents(text))
+
+
 # --- OCR-tolerant IBAN ----------------------------------------------------
 
 _MANGLED = "ES91 21OO O418 45O2 OOO5 1332"   # zeros misread as letter O
