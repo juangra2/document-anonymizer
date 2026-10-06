@@ -341,9 +341,9 @@ def anotar(resultado: ResultadoDocumento, valor: str, tipo: str, estado: str,
     aparte: contarlos como fuga inflaba el numero —11 de 44 en la medicion de
     la red—.  Es el mismo criterio que aplica el evaluador.
     """
-    from evaluation.metrics import OUT_OF_SCOPE_GT_TYPES
+    from evaluation.metrics import fuera_de_alcance
 
-    fuera = tipo in OUT_OF_SCOPE_GT_TYPES
+    fuera = fuera_de_alcance(tipo, valor)
     if fuera:
         resultado.fuera_de_alcance += 1
     elif estado == TAPADO:

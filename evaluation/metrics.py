@@ -11,6 +11,7 @@ Matching is one-to-one (greedy bipartite, highest IoU first).
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 
@@ -132,6 +133,25 @@ OUT_OF_SCOPE_GT_TYPES: frozenset[str] = frozenset({
 })
 
 
+# Telefonos con el formato que inventa nuestro generador de corpus
+# (mobile_parens): "(618) 741-017", nueve cifras agrupadas al estilo de EE. UU.
+# No es como se escribe un telefono en Espana, asi que fallar en el no dice nada
+# del sistema; ajustar el detector a el seria ajustarse a datos falsos.  Se
+# excluye por su FORMA, no todo PHONE_NUMBER.
+# PROVISIONAL: el generador ya no lo produce.  Cuando se regeneren los corpus
+# (ahora congelados para comparar con la linea base), QUITAR esta exclusion.
+_TELEFONO_FORMATO_DEL_GENERADOR = re.compile(r"\(\d{3}\) \d{3}-\d{3}")
+
+
+def fuera_de_alcance(tipo: str, texto: str = "") -> bool:
+    """Si un dato queda fuera de la metrica global (y de la lectura de barras)."""
+    if tipo in OUT_OF_SCOPE_GT_TYPES:
+        return True
+    return tipo == "PHONE_NUMBER" and bool(
+        _TELEFONO_FORMATO_DEL_GENERADOR.fullmatch((texto or "").strip())
+    )
+
+
 # ---------------------------------------------------------------------------
 # IoU helpers
 # ---------------------------------------------------------------------------
@@ -237,8 +257,8 @@ def evaluate_document(
     ]
 
     # Global TP/FP/FN exclude out-of-scope types so they don't distort P/R/F1.
-    gt_scope = [e for e in gt_records if e.entity_type not in OUT_OF_SCOPE_GT_TYPES]
-    det_scope = [e for e in det_records if e.entity_type not in OUT_OF_SCOPE_GT_TYPES]
+    gt_scope = [e for e in gt_records if not fuera_de_alcance(e.entity_type, e.text)]
+    det_scope = [e for e in det_records if not fuera_de_alcance(e.entity_type, e.text)]
     tp_exact, tp_partial, fn_list, fp_list = match_entities(gt_scope, det_scope, iou_threshold)
 
     # Per-type breakdown includes ALL types (out-of-scope appear for reference).
