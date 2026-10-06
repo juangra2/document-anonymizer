@@ -34,8 +34,12 @@ El evaluador cuenta ahora cada valor UNA vez por documento ("¿se detecto este
 valor?"), no aparicion por aparicion; si cada aparicion queda tapada lo mide la
 lectura de barras.  Y un valor que solo aparece en paginas que salen enteras en
 negro (>= 90 % de pixeles oscuros en la salida) cuenta como detectado.  Ademas
-quedan fuera los telefonos con el formato inventado por el generador,
-"(618) 741-017" (PROVISIONAL: quitar al regenerar los corpus).
+quedan fuera los defectos conocidos del corpus —el telefono "(618) 741-017" y
+los 10 QR fantasma del hibrido—, listados con lo que hay que corregir en el
+generador y la exclusion que hay que quitar al regenerar en UN solo sitio:
+`evaluation/defectos_corpus.py`.  Desde este cambio el evaluador guarda en cada
+resultado la lista de detecciones y las paginas en negro, asi que las proximas
+medidas se recuentan exactas, no reconstruidas.
 
 Durante la transicion se guardan los dos numeros (`transicion_contabilidad.json`,
 reconstruido con `scripts/recontar_resultados.py`):
@@ -45,13 +49,13 @@ reconstruido con `scripts/recontar_resultados.py`):
 | **linea base** (antes del arreglo) | | |
 | digital | 0.9256 | 0.9135 |
 | escaneado | 0.8535 | 0.8773 |
-| hibrido | 0.7005 | 0.7063 |
-| media | 0.8265 | 0.8324 |
+| hibrido | 0.7051 | 0.7131 |
+| media | 0.8281 | 0.8346 |
 | **actual** (complemento B + red) | | |
 | digital | 0.9256 | 0.9135 |
 | escaneado | 0.8540 | 0.8771 |
-| hibrido | 0.8595 | 0.9069 |
-| media | 0.8797 | 0.8992 |
+| hibrido | 0.8642 | 0.9105 |
+| media | 0.8813 | 0.9004 |
 
 Como leerlo: la mejora del pipeline es la diferencia entre filas de la misma
 columna; la de la contabilidad, la diferencia entre columnas de la misma fila.

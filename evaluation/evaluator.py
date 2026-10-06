@@ -138,6 +138,7 @@ def _doc_result_desde_json(obj: dict) -> DocResult:
     campos = {k: v for k, v in obj.items() if k in DocResult.__dataclass_fields__}
     campos["fn"] = entidades(campos.get("fn"))
     campos["fp"] = entidades(campos.get("fp"))
+    campos["detectados"] = entidades(campos.get("detectados"))
 
     por_tipo = {}
     for tipo, valor in (campos.get("by_type") or {}).items():

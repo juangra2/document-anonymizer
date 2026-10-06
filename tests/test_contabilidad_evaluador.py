@@ -85,3 +85,20 @@ def test_la_negrura_distingue_una_pagina_tachada(tmp_path):
     datos = doc.tobytes()
     n = negrura(datos)
     assert n[0] > 0.9 and n[1] < 0.05
+
+
+def test_se_guardan_las_detecciones_y_las_paginas_en_negro():
+    """Para que las proximas medidas salgan exactas, no reconstruidas."""
+    r = _ev([_g("Pilar Moreno Sanz")], [_d("Pilar Moreno Sanz"), _d("Pilar Moreno Sanz")],
+            negras={2})
+    assert [e.text for e in r.detectados] == ["Pilar Moreno Sanz"] * 2
+    assert r.paginas_en_negro == [2]
+
+
+def test_un_resultado_guardado_se_reconstruye_con_sus_detecciones():
+    import dataclasses
+    from evaluation.evaluator import _doc_result_desde_json
+
+    r = _ev([_g("Pilar Moreno Sanz")], [_d("Pilar Moreno Sanz")])
+    vuelta = _doc_result_desde_json(dataclasses.asdict(r))
+    assert vuelta.detectados[0].text == "Pilar Moreno Sanz"

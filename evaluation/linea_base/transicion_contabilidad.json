@@ -1,5 +1,5 @@
 {
-  "nota": "Recuento con la contabilidad nueva (por valor + paginas en negro), reconstruido desde los FN/FP guardados con scripts/recontar_resultados.py. por_aparicion ya excluye el telefono con el formato del generador, por eso difiere un poco del guardado original.",
+  "nota": "Recuento con la contabilidad nueva (por valor + paginas en negro), reconstruido desde los FN/FP guardados con scripts/recontar_resultados.py. por_aparicion ya excluye el telefono con el formato del generador, por eso difiere un poco del guardado original. Hibrido sin los 10 QR fantasma (evaluation/defectos_corpus.py).",
   "linea_base_antes_del_arreglo": {
     "fuente": "evaluation/resultados_{c}.json + salidas_{c} (digital: salidas_h4_digital)",
     "digital": {
@@ -21,16 +21,16 @@
       "documentos": 28
     },
     "hibrido": {
-      "f1_por_valor": 0.7063,
+      "f1_por_valor": 0.7131,
       "precision": 0.935,
-      "recall": 0.5675,
+      "recall": 0.5763,
       "tp_pagina_negra": 0,
-      "f1_por_aparicion": 0.7005,
+      "f1_por_aparicion": 0.7051,
       "f1_guardado_original": 0.6964,
       "documentos": 24
     },
-    "media_f1_por_valor": 0.8324,
-    "media_f1_por_aparicion": 0.8265
+    "media_f1_por_valor": 0.8346,
+    "media_f1_por_aparicion": 0.8281
   },
   "actual_red_y_complemento_B": {
     "fuente": "resultados_b2_{c} / resultados_h4_digital",
@@ -53,15 +53,15 @@
       "documentos": 28
     },
     "hibrido": {
-      "f1_por_valor": 0.9069,
-      "precision": 0.8975,
-      "recall": 0.9165,
-      "tp_pagina_negra": 38,
-      "f1_por_aparicion": 0.8595,
+      "f1_por_valor": 0.9105,
+      "precision": 0.8969,
+      "recall": 0.9245,
+      "tp_pagina_negra": 34,
+      "f1_por_aparicion": 0.8642,
       "f1_guardado_original": 0.8553,
       "documentos": 24
     },
-    "media_f1_por_valor": 0.8992,
-    "media_f1_por_aparicion": 0.8797
+    "media_f1_por_valor": 0.9004,
+    "media_f1_por_aparicion": 0.8813
   }
 }

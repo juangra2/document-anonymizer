@@ -41,3 +41,22 @@ def test_la_lectura_de_barras_tampoco_como_fuga():
     anotar(r, "(618) 741-017", "PHONE_NUMBER", FUGA)
     anotar(r, "612 345 678", "PHONE_NUMBER", FUGA)
     assert (r.fugas, r.fuera_de_alcance) == (1, 1)
+
+
+# --- QR fantasma (defecto pagina_siempre_1) ---------------------------------------
+
+def test_un_qr_fantasma_no_cuenta_y_un_qr_real_del_mismo_documento_si():
+    """hibrido_giro_dentro_0003 lleva un QR que no esta en el PDF y otro que si."""
+    gt = [{"text": "NOM:x|Ana", "type": "QR_CODE", "page": 1, "procede_de": "nomina_0005"},
+          {"text": "NOT:y|Luis", "type": "QR_CODE", "page": 3, "procede_de": "otro_0001"}]
+    r = evaluate_document("hibrido_giro_dentro_0003", "mixto", "es", "hibrido",
+                          "completed", 0, gt_entities=gt, detected_entities=[])
+    assert [e.text for e in r.fn] == ["NOT:y|Luis"]
+    assert [e.text for e in r.by_type["QR_CODE"].fn] == ["NOT:y|Luis"]
+
+
+def test_cada_defecto_dice_que_corregir_y_que_quitar():
+    from evaluation.defectos_corpus import DEFECTOS
+
+    for d in DEFECTOS:
+        assert d["generador"] and d["al_regenerar"], d["id"]

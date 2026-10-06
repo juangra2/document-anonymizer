@@ -19,7 +19,6 @@ tambien la cuenta antigua, por aparicion (DocResult.por_aparicion).
 """
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 
 
@@ -85,6 +84,10 @@ class DocResult:
     #: La cuenta antigua, aparicion por aparicion: {"tp", "fn", "fp"}.  Solo
     #: para la transicion; ver el docstring del modulo.
     por_aparicion: dict = field(default_factory=dict)
+    #: Todo lo que devolvio el servicio, y las paginas que salieron en negro:
+    #: con esto cualquier recuento posterior sale exacto, no reconstruido.
+    detectados: list[EntityRecord] = field(default_factory=list)
+    paginas_en_negro: list[int] = field(default_factory=list)
 
     @property
     def tp(self) -> int:
@@ -147,23 +150,15 @@ OUT_OF_SCOPE_GT_TYPES: frozenset[str] = frozenset({
 })
 
 
-# Telefonos con el formato que inventa nuestro generador de corpus
-# (mobile_parens): "(618) 741-017", nueve cifras agrupadas al estilo de EE. UU.
-# No es como se escribe un telefono en Espana, asi que fallar en el no dice nada
-# del sistema; ajustar el detector a el seria ajustarse a datos falsos.  Se
-# excluye por su FORMA, no todo PHONE_NUMBER.
-# PROVISIONAL: el generador ya no lo produce.  Cuando se regeneren los corpus
-# (ahora congelados para comparar con la linea base), QUITAR esta exclusion.
-_TELEFONO_FORMATO_DEL_GENERADOR = re.compile(r"\(\d{3}\) \d{3}-\d{3}")
-
-
 def fuera_de_alcance(tipo: str, texto: str = "") -> bool:
-    """Si un dato queda fuera de la metrica global (y de la lectura de barras)."""
-    if tipo in OUT_OF_SCOPE_GT_TYPES:
-        return True
-    return tipo == "PHONE_NUMBER" and bool(
-        _TELEFONO_FORMATO_DEL_GENERADOR.fullmatch((texto or "").strip())
-    )
+    """Si un dato queda fuera de la metrica global (y de la lectura de barras).
+
+    Por politica (OUT_OF_SCOPE_GT_TYPES) o por un defecto conocido del corpus
+    (evaluation/defectos_corpus.py, la lista unica).
+    """
+    from evaluation.defectos_corpus import telefono_del_generador
+
+    return tipo in OUT_OF_SCOPE_GT_TYPES or telefono_del_generador(tipo, texto)
 
 
 # ---------------------------------------------------------------------------
@@ -302,10 +297,15 @@ def evaluate_document(
     paginas_en_negro: set[int] | None = None,
 ) -> DocResult:
     """Evalua un documento.  `paginas_en_negro`: numeracion de usuario (1 = primera)."""
+    from evaluation.defectos_corpus import es_qr_fantasma
+
     negras = set(paginas_en_negro or ())
+    # Etiquetas de datos que no estan en el PDF (defecto pagina_siempre_1): ni
+    # en la metrica global ni en el desglose por tipo.
     gt_records = [
         EntityRecord(text=e["text"], entity_type=e["type"], page=e.get("page"))
         for e in gt_entities
+        if not es_qr_fantasma(doc_id, e)
     ]
     det_records = [
         EntityRecord(
@@ -352,6 +352,8 @@ def evaluate_document(
         by_type=by_type,
         tp_pagina_negra=tp_negra,
         por_aparicion={"tp": a_te + a_tp, "fn": len(a_fn), "fp": len(a_fp)},
+        detectados=det_records,
+        paginas_en_negro=sorted(negras),
     )
 
 
