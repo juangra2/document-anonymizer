@@ -8,6 +8,14 @@ Matching strategy
 - Unmatched det: False Positive
 
 Matching is one-to-one (greedy bipartite, highest IoU first).
+
+Se empareja por VALOR, no por aparicion: cada valor distinto de la etiqueta
+cuenta una vez, y esta detectado si el sistema lo detecto en algun sitio del
+documento (la geometria tapa todas sus apariciones).  Si cada aparicion queda
+tapada lo mide la lectura de barras, que abre el PDF.  Un valor que solo
+aparece en paginas que salen enteras en negro cuenta como detectado: lo decide
+la negrura de la salida, no el clasificador.  Durante la transicion se guarda
+tambien la cuenta antigua, por aparicion (DocResult.por_aparicion).
 """
 from __future__ import annotations
 
@@ -71,6 +79,12 @@ class DocResult:
     fn: list[EntityRecord] = field(default_factory=list)
     fp: list[EntityRecord] = field(default_factory=list)
     by_type: dict[str, TypeResult] = field(default_factory=dict)
+    #: De los TP, cuantos son valores que solo vivian en paginas que salieron
+    #: enteras en negro (ya sumados en tp_exact).
+    tp_pagina_negra: int = 0
+    #: La cuenta antigua, aparicion por aparicion: {"tp", "fn", "fp"}.  Solo
+    #: para la transicion; ver el docstring del modulo.
+    por_aparicion: dict = field(default_factory=dict)
 
     @property
     def tp(self) -> int:
@@ -230,6 +244,50 @@ def match_entities(
 # Document-level evaluation
 # ---------------------------------------------------------------------------
 
+# Fraccion de pixeles oscuros a partir de la cual una pagina de la salida esta
+# tachada entera.  Una pagina tachada da ~1.0; una con barras sueltas, unas
+# centesimas.  Una copia de DNI recortada (solo la tarjeta) NO pasa: ahi lo que
+# cuenta es si se detecto.
+NEGRURA_PAGINA_TACHADA = 0.9
+
+
+def _clave(e: EntityRecord) -> tuple[str, str]:
+    return e.entity_type, " ".join(e.text.lower().split())
+
+
+def _emparejar_por_valor(
+    gt: list[EntityRecord],
+    det: list[EntityRecord],
+    paginas_en_negro: set[int],
+    iou_threshold: float,
+) -> tuple[int, int, list[EntityRecord], list[EntityRecord], int]:
+    """(tp_exact, tp_partial, fn, fp, tp_pagina_negra) contando cada valor una vez."""
+    paginas: dict[tuple, set] = {}
+    gt_unicos: dict[tuple, EntityRecord] = {}
+    for e in gt:
+        k = _clave(e)
+        gt_unicos.setdefault(k, e)
+        paginas.setdefault(k, set()).add(e.page)
+    det_unicos: dict[tuple, EntityRecord] = {}
+    for e in det:
+        det_unicos.setdefault(_clave(e), e)
+
+    te, tp, fn, fp = match_entities(list(gt_unicos.values()), list(det_unicos.values()),
+                                    iou_threshold)
+    # Un valor no detectado cuyas apariciones caen TODAS en paginas en negro
+    # esta tapado.  Si alguna aparicion esta en una pagina visible, o no se
+    # sabe en que pagina estaba, sigue siendo falso negativo.
+    negros = 0
+    fn_final = []
+    for e in fn:
+        pags = paginas[_clave(e)]
+        if paginas_en_negro and None not in pags and pags <= paginas_en_negro:
+            negros += 1
+        else:
+            fn_final.append(e)
+    return te + negros, tp, fn_final, fp, negros
+
+
 def evaluate_document(
     doc_id: str,
     doc_type: str,
@@ -241,7 +299,10 @@ def evaluate_document(
     detected_entities: list[dict],
     iou_threshold: float = 0.5,
     camino: str = "",
+    paginas_en_negro: set[int] | None = None,
 ) -> DocResult:
+    """Evalua un documento.  `paginas_en_negro`: numeracion de usuario (1 = primera)."""
+    negras = set(paginas_en_negro or ())
     gt_records = [
         EntityRecord(text=e["text"], entity_type=e["type"], page=e.get("page"))
         for e in gt_entities
@@ -259,7 +320,9 @@ def evaluate_document(
     # Global TP/FP/FN exclude out-of-scope types so they don't distort P/R/F1.
     gt_scope = [e for e in gt_records if not fuera_de_alcance(e.entity_type, e.text)]
     det_scope = [e for e in det_records if not fuera_de_alcance(e.entity_type, e.text)]
-    tp_exact, tp_partial, fn_list, fp_list = match_entities(gt_scope, det_scope, iou_threshold)
+    tp_exact, tp_partial, fn_list, fp_list, tp_negra = _emparejar_por_valor(
+        gt_scope, det_scope, negras, iou_threshold)
+    a_te, a_tp, a_fn, a_fp = match_entities(gt_scope, det_scope, iou_threshold)
 
     # Per-type breakdown includes ALL types (out-of-scope appear for reference).
     all_types = sorted(
@@ -269,7 +332,7 @@ def evaluate_document(
     for et in all_types:
         gt_t = [e for e in gt_records if e.entity_type == et]
         det_t = [e for e in det_records if e.entity_type == et]
-        te, tp, fn_t, fp_t = match_entities(gt_t, det_t, iou_threshold)
+        te, tp, fn_t, fp_t, _ = _emparejar_por_valor(gt_t, det_t, negras, iou_threshold)
         by_type[et] = TypeResult(
             entity_type=et, tp_exact=te, tp_partial=tp, fn=fn_t, fp=fp_t
         )
@@ -287,6 +350,8 @@ def evaluate_document(
         fn=fn_list,
         fp=fp_list,
         by_type=by_type,
+        tp_pagina_negra=tp_negra,
+        por_aparicion={"tp": a_te + a_tp, "fn": len(a_fn), "fp": len(a_fp)},
     )
 
 
@@ -314,6 +379,9 @@ def aggregate_results(doc_results: list[DocResult]) -> dict:
     entity_type → AggregatedMetrics).
     """
     overall = AggregatedMetrics()
+    # La cuenta antigua, por aparicion, solo para la transicion.
+    por_aparicion = AggregatedMetrics()
+    tp_pagina_negra = 0
     by_type: dict[str, AggregatedMetrics] = {}
     by_doc_type: dict[str, AggregatedMetrics] = {}
     by_language: dict[str, AggregatedMetrics] = {}
@@ -334,6 +402,11 @@ def aggregate_results(doc_results: list[DocResult]) -> dict:
         overall.fp_count += len(doc.fp)
         overall.fn_examples.extend(_example_dict(e, doc) for e in doc.fn)
         overall.fp_examples.extend(_example_dict(e, doc) for e in doc.fp)
+        tp_pagina_negra += doc.tp_pagina_negra
+        if doc.por_aparicion:
+            por_aparicion.tp_exact += doc.por_aparicion["tp"]
+            por_aparicion.fn_count += doc.por_aparicion["fn"]
+            por_aparicion.fp_count += doc.por_aparicion["fp"]
 
         for bucket, key in [
             (by_doc_type, doc.doc_type),
@@ -359,6 +432,8 @@ def aggregate_results(doc_results: list[DocResult]) -> dict:
 
     return {
         "overall": overall,
+        "overall_por_aparicion": por_aparicion,
+        "tp_pagina_negra": tp_pagina_negra,
         "by_type": by_type,
         "by_doc_type": by_doc_type,
         "by_language": by_language,

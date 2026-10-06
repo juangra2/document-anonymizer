@@ -24,6 +24,13 @@ def _serialize(obj):
     raise TypeError(f"Not JSON serializable: {type(obj)}")
 
 
+def _resumen_corto(agg: AggregatedMetrics | None) -> dict | None:
+    if agg is None:
+        return None
+    return {"precision": round(agg.precision(), 4), "recall": round(agg.recall(), 4),
+            "f1": round(agg.f1(), 4), "tp": agg.tp, "fn": agg.fn_count, "fp": agg.fp_count}
+
+
 def save_results_json(doc_results, aggregated: dict, path: Path) -> None:
     overall: AggregatedMetrics = aggregated["overall"]
     data = {
@@ -36,6 +43,10 @@ def save_results_json(doc_results, aggregated: dict, path: Path) -> None:
             "tp_partial": overall.tp_partial,
             "fn": overall.fn_count,
             "fp": overall.fp_count,
+            "tp_pagina_negra": aggregated.get("tp_pagina_negra", 0),
+            # La cuenta antigua, por aparicion: solo durante la transicion, para
+            # separar lo que es contabilidad de lo que es pipeline.
+            "por_aparicion": _resumen_corto(aggregated.get("overall_por_aparicion")),
         },
         "by_type": {
             et: {
@@ -157,6 +168,11 @@ def main() -> None:
     print(f"  TP (exact/partial)  : {overall.tp_exact}/{overall.tp_partial}")
     print(f"  FN                  : {overall.fn_count}")
     print(f"  FP                  : {overall.fp_count}")
+    print(f"  de los TP, en pagina en negro: {aggregated.get('tp_pagina_negra', 0)}")
+    antigua = aggregated.get("overall_por_aparicion")
+    if antigua is not None:
+        print(f"  (cuenta antigua, por aparicion: F1 {antigua.f1():.3f}  "
+              f"P {antigua.precision():.3f}  R {antigua.recall():.3f})")
     print(f"{'='*55}")
     print(f"\nReport: {args.output}")
 

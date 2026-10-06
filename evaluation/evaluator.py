@@ -81,9 +81,21 @@ def call_api(
             with zf.open("report.json") as rf:
                 report = json.load(rf)
 
+            pdfs = [n for n in zf.namelist() if n.lower().endswith(".pdf")]
+            # Paginas de la salida que estan de verdad en negro: es lo que deja
+            # contar como detectado un dato de una pagina tachada entera (ver
+            # metrics.NEGRURA_PAGINA_TACHADA).  Se mide sobre el PDF, no se
+            # cree al clasificador.
+            if pdfs:
+                from evaluation.lectura_salida import negrura
+                from evaluation.metrics import NEGRURA_PAGINA_TACHADA
+                report["_paginas_en_negro"] = [
+                    i + 1 for i, n in enumerate(negrura(zf.read(pdfs[0])))
+                    if n >= NEGRURA_PAGINA_TACHADA
+                ]
+
             if guardar_salidas is not None:
                 guardar_salidas.mkdir(parents=True, exist_ok=True)
-                pdfs = [n for n in zf.namelist() if n.lower().endswith(".pdf")]
                 if not pdfs:
                     report.setdefault("warnings", []).append(
                         "El zip no traia ningun PDF: no se pudo guardar la salida."
@@ -201,6 +213,7 @@ def evaluate_single(
         gt_entities=gt_doc.get("entities", []),
         detected_entities=report.get("detected_entities", []),
         iou_threshold=iou_threshold,
+        paginas_en_negro=set(report.get("_paginas_en_negro", [])),
     )
 
 

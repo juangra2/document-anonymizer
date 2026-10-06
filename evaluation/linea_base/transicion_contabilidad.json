@@ -1,0 +1,67 @@
+{
+  "nota": "Recuento con la contabilidad nueva (por valor + paginas en negro), reconstruido desde los FN/FP guardados con scripts/recontar_resultados.py. por_aparicion ya excluye el telefono con el formato del generador, por eso difiere un poco del guardado original.",
+  "linea_base_antes_del_arreglo": {
+    "fuente": "evaluation/resultados_{c}.json + salidas_{c} (digital: salidas_h4_digital)",
+    "digital": {
+      "f1_por_valor": 0.9135,
+      "precision": 0.9005,
+      "recall": 0.9268,
+      "tp_pagina_negra": 0,
+      "f1_por_aparicion": 0.9256,
+      "f1_guardado_original": 0.924,
+      "documentos": 400
+    },
+    "escaneado": {
+      "f1_por_valor": 0.8773,
+      "precision": 0.8575,
+      "recall": 0.898,
+      "tp_pagina_negra": 4,
+      "f1_por_aparicion": 0.8535,
+      "f1_guardado_original": 0.852,
+      "documentos": 28
+    },
+    "hibrido": {
+      "f1_por_valor": 0.7063,
+      "precision": 0.935,
+      "recall": 0.5675,
+      "tp_pagina_negra": 0,
+      "f1_por_aparicion": 0.7005,
+      "f1_guardado_original": 0.6964,
+      "documentos": 24
+    },
+    "media_f1_por_valor": 0.8324,
+    "media_f1_por_aparicion": 0.8265
+  },
+  "actual_red_y_complemento_B": {
+    "fuente": "resultados_b2_{c} / resultados_h4_digital",
+    "digital": {
+      "f1_por_valor": 0.9135,
+      "precision": 0.9005,
+      "recall": 0.9268,
+      "tp_pagina_negra": 0,
+      "f1_por_aparicion": 0.9256,
+      "f1_guardado_original": 0.924,
+      "documentos": 400
+    },
+    "escaneado": {
+      "f1_por_valor": 0.8771,
+      "precision": 0.8505,
+      "recall": 0.9055,
+      "tp_pagina_negra": 4,
+      "f1_por_aparicion": 0.854,
+      "f1_guardado_original": 0.8525,
+      "documentos": 28
+    },
+    "hibrido": {
+      "f1_por_valor": 0.9069,
+      "precision": 0.8975,
+      "recall": 0.9165,
+      "tp_pagina_negra": 38,
+      "f1_por_aparicion": 0.8595,
+      "f1_guardado_original": 0.8553,
+      "documentos": 24
+    },
+    "media_f1_por_valor": 0.8992,
+    "media_f1_por_aparicion": 0.8797
+  }
+}

@@ -27,3 +27,35 @@ diferencia ya deciden, y habria que repetirla despues del arreglo igualmente.
 El evaluador compara listas de entidades; no abre el PDF de salida. Una barra
 negra pintada al lado del dato cuenta como acierto. El desplazamiento de barras
 del camino hibrido esta documentado a mano (samples/mixtos), no en estas cifras.
+
+## Contabilidad nueva (06-10-2026): por valor y con paginas en negro
+
+El evaluador cuenta ahora cada valor UNA vez por documento ("¿se detecto este
+valor?"), no aparicion por aparicion; si cada aparicion queda tapada lo mide la
+lectura de barras.  Y un valor que solo aparece en paginas que salen enteras en
+negro (>= 90 % de pixeles oscuros en la salida) cuenta como detectado.  Ademas
+quedan fuera los telefonos con el formato inventado por el generador,
+"(618) 741-017" (PROVISIONAL: quitar al regenerar los corpus).
+
+Durante la transicion se guardan los dos numeros (`transicion_contabilidad.json`,
+reconstruido con `scripts/recontar_resultados.py`):
+
+| | F1 por aparicion | F1 por valor |
+|---|---|---|
+| **linea base** (antes del arreglo) | | |
+| digital | 0.9256 | 0.9135 |
+| escaneado | 0.8535 | 0.8773 |
+| hibrido | 0.7005 | 0.7063 |
+| media | 0.8265 | 0.8324 |
+| **actual** (complemento B + red) | | |
+| digital | 0.9256 | 0.9135 |
+| escaneado | 0.8540 | 0.8771 |
+| hibrido | 0.8595 | 0.9069 |
+| media | 0.8797 | 0.8992 |
+
+Como leerlo: la mejora del pipeline es la diferencia entre filas de la misma
+columna; la de la contabilidad, la diferencia entre columnas de la misma fila.
+El digital BAJA por valor: los aciertos repetidos (un nombre detectado diez
+veces) inflaban la precision, y los falsos positivos casi nunca se repiten.
+"Por aparicion" ya no es exactamente el F1 guardado (0.924 en digital) porque
+incluye la exclusion del telefono del generador.

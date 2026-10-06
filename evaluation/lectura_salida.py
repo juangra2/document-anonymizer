@@ -197,15 +197,17 @@ def leer_documento(pdf: Path) -> list[LecturaPagina]:
     return lecturas
 
 
-def negrura(pdf: Path) -> list[float]:
-    """Fraccion de pixeles oscuros por pagina.
+def negrura(pdf: "Path | bytes") -> list[float]:
+    """Fraccion de pixeles oscuros por pagina (de un fichero o de sus bytes).
 
     Distingue una redaccion TOTAL (cerca de 1.0) de una selectiva (unas
     centesimas).  Sin esto, una pagina entera en negro y una pagina intacta se
     parecen demasiado: en las dos el OCR no encuentra el dato.
     """
     valores = []
-    with fitz.open(pdf) as doc:
+    abierto = (fitz.open(stream=pdf, filetype="pdf") if isinstance(pdf, bytes)
+               else fitz.open(pdf))
+    with abierto as doc:
         for pagina in doc:
             pix = pagina.get_pixmap(matrix=fitz.Matrix(0.5, 0.5),
                                     colorspace=fitz.csGRAY)

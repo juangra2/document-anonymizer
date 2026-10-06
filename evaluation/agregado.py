@@ -73,6 +73,12 @@ class Corpus:
         return self.datos["summary"]["overall_recall"]
 
     @property
+    def f1_por_aparicion(self) -> float | None:
+        """F1 con la cuenta antigua; None en resultados anteriores al cambio."""
+        antigua = self.datos["summary"].get("por_aparicion")
+        return antigua["f1"] if antigua else None
+
+    @property
     def documentos(self) -> list[dict]:
         return self.datos.get("doc_results", [])
 
@@ -171,11 +177,15 @@ def _envolver(texto: str, ancho: int) -> list[str]:
 
 def imprimir_metricas(corpus: list[Corpus]) -> None:
     _barra("METRICAS POR CAMINO")
-    print(f"\n  {'corpus':12s} {'docs':>5s} {'F1':>8s} {'precision':>10s} {'recall':>8s}")
-    print("  " + "-" * 46)
+    print(f"\n  {'corpus':12s} {'docs':>5s} {'F1':>8s} {'precision':>10s} {'recall':>8s}"
+          f"   {'F1 por aparicion':>16s}")
+    print("  " + "-" * 66)
     for c in corpus:
+        antigua = "—" if c.f1_por_aparicion is None else f"{c.f1_por_aparicion:.4f}"
         print(f"  {c.nombre:12s} {len(c.documentos):5d} {c.f1:8.4f} "
-              f"{c.precision:10.4f} {c.recall:8.4f}")
+              f"{c.precision:10.4f} {c.recall:8.4f}   {antigua:>16s}")
+    print("\n  F1 cuenta cada valor una vez por documento; 'por aparicion' es la")
+    print("  cuenta antigua, que se guarda mientras dure la transicion.")
 
     media = sum(c.f1 for c in corpus) / len(corpus)
     print("  " + "-" * 46)
@@ -243,6 +253,7 @@ def main() -> None:
                 c.nombre: {
                     "documentos": len(c.documentos),
                     "f1": c.f1, "precision": c.precision, "recall": c.recall,
+                    "f1_por_aparicion": c.f1_por_aparicion,
                     "desviados": len(c.desvios()),
                     "desvio_esperado": c.nombre in DESVIO_ESPERADO,
                     "por_tipo_documento": dict(c.por_tipo()),
