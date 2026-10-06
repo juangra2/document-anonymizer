@@ -1,6 +1,6 @@
 """¿Que se pierde en las regiones que MinerU no lee, y que costaria leerlas?
 
-Desde a23d7e8 no se pide al VLM el contenido de los bloques no textuales
+Desde 5e5abc4 no se pide al VLM el contenido de los bloques no textuales
 ("image", "image_block", "chart"): extraerlos tardaba unos 27 minutos en un
 escaneo y el resultado se descartaba.  Se supuso que el repliegue al OCR de
 palabras lo cubriria, pero ese repliegue solo actua si la pagina ENTERA sale

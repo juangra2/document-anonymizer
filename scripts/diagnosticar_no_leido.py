@@ -1,14 +1,14 @@
 """¿Por que pierde MinerU texto que NO es una figura?
 
 La medicion de figuras_sin_leer encontro 67 datos reales que EasyOCR lee y
-MinerU no, y solo 14 estaban dentro de figuras —lo que a23d7e8 le pidio no
+MinerU no, y solo 14 estaban dentro de figuras —lo que 5e5abc4 le pidio no
 leer—.  Los otros 53 los pierde por otra causa.  Esto la busca.  Solo
 diagnostico: no cambia nada.
 
 Para cada palabra de EasyOCR que cae fuera de todo bloque leido por MinerU, se
 mira QUE bloque de MinerU hay debajo, si hay alguno, y por que no aporto texto:
 
-  figura            bloque de imagen/grafico: no se le pide contenido (a23d7e8)
+  figura            bloque de imagen/grafico: no se le pide contenido (5e5abc4)
   degenerado        MinerU devolvio texto, pero el guardia de bucles del VLM lo
                     descarto (_is_degenerate_content)
   bloque vacio      MinerU detecto un bloque de texto y lo devolvio vacio

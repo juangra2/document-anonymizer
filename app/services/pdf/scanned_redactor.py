@@ -1396,7 +1396,7 @@ def _zona_de_lo_no_leido(tokens_mineru: list, tokens_easy: list) -> "PageZone | 
     ni se detecta, ni se tacha, ni llega a la clasificacion de documento de
     identidad.  Y deja cosas sin leer por dos vias:
 
-    1. A proposito.  Desde a23d7e8 no se le pide el contenido de los bloques
+    1. A proposito.  Desde 5e5abc4 no se le pide el contenido de los bloques
        de imagen y grafico (ocr_mineru_skip_block_types): extraerlos tardaba unos
        27 minutos en un escaneo.  Se supuso que el repliegue al OCR de palabras
        lo cubriria, pero ese repliegue solo actuaba si la pagina ENTERA salia
@@ -1416,7 +1416,7 @@ def _zona_de_lo_no_leido(tokens_mineru: list, tokens_easy: list) -> "PageZone | 
     propio camino escaneado.  El temor era que fuera de las figuras entrara
     ruido de bordes de tabla y texturas de sello; casi no aparecio.
 
-    No deshace a23d7e8: el VLM sigue sin leer figuras, que es lo caro.  Las lee
+    No deshace 5e5abc4: el VLM sigue sin leer figuras, que es lo caro.  Las lee
     EasyOCR, que ya habia leido la pagina entera para colocar las barras.
     """
     if not tokens_easy:

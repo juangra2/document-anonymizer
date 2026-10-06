@@ -21,7 +21,7 @@ DEFECTOS = [
                     "cifras agrupadas al estilo de EE. UU., que no es como se "
                     "escribe un telefono en Espana. 8 de las 9 fugas de telefono "
                     "de la medicion de la red eran este formato.",
-        "generador": "HECHO (44f966c): quitado mobile_parens de "
+        "generador": "HECHO (e5779ad): quitado mobile_parens de "
                      "generators/pii_factory.py, con una prueba.",
         "al_regenerar": "Quitar _TELEFONO_FORMATO_DEL_GENERADOR y su uso en "
                         "fuera_de_alcance (este modulo).",

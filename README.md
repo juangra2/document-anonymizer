@@ -429,7 +429,7 @@ genera la evaluación (JSON, HTML, logs) está ignorado por git.
 
 ## Métricas actuales
 
-Corrida de referencia del **15 de septiembre de 2026**, con el código del commit `14d001d`, sobre el
+Corrida de referencia del **15 de septiembre de 2026**, con el código del commit `b0a7ac1`, sobre el
 corpus sintético descrito en [Evaluación](#evaluación). Los resultados completos están en
 `evaluation/reference/results_main.json` y `results_ext.json`; una corrida nueva se compara con
 `python -m evaluation.comparar_eval`.
