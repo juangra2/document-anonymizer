@@ -44,6 +44,10 @@ def save_results_json(doc_results, aggregated: dict, path: Path) -> None:
             "fn": overall.fn_count,
             "fp": overall.fp_count,
             "tp_pagina_negra": aggregated.get("tp_pagina_negra", 0),
+            # Variantes mas largas de un dato ya detectado: no son falsos
+            # positivos, pero la barra se come lo de al lado.  Va con el F1.
+            "sobre_redaccion": aggregated.get("sobre_redaccion", 0),
+            "sobre_redaccion_caracteres": aggregated.get("sobre_redaccion_caracteres", 0),
             # La cuenta antigua, por aparicion: solo durante la transicion, para
             # separar lo que es contabilidad de lo que es pipeline.
             "por_aparicion": _resumen_corto(aggregated.get("overall_por_aparicion")),
@@ -169,6 +173,8 @@ def main() -> None:
     print(f"  FN                  : {overall.fn_count}")
     print(f"  FP                  : {overall.fp_count}")
     print(f"  de los TP, en pagina en negro: {aggregated.get('tp_pagina_negra', 0)}")
+    print(f"  SOBRE-REDACCION     : {aggregated.get('sobre_redaccion', 0)} barras mas largas "
+          f"que el dato ({aggregated.get('sobre_redaccion_caracteres', 0)} caracteres de mas)")
     antigua = aggregated.get("overall_por_aparicion")
     if antigua is not None:
         print(f"  (cuenta antigua, por aparicion: F1 {antigua.f1():.3f}  "

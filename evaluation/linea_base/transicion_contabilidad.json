@@ -1,67 +1,73 @@
 {
-  "nota": "Recuento con la contabilidad nueva (por valor + paginas en negro), reconstruido desde los FN/FP guardados con scripts/recontar_resultados.py. por_aparicion ya excluye el telefono con el formato del generador, por eso difiere un poco del guardado original. Hibrido sin los 10 QR fantasma (evaluation/defectos_corpus.py).",
+  "nota": "Contabilidad por valor + paginas en negro + variantes con el limite pasado contadas como sobre-redaccion y no como falso positivo. La linea base se reconstruye desde los FN/FP guardados (scripts/recontar_resultados.py): su sobre-redaccion es una cota inferior. c1 guarda sus detecciones: recuento exacto. Defectos del corpus excluidos segun evaluation/defectos_corpus.py.",
   "linea_base_antes_del_arreglo": {
-    "fuente": "evaluation/resultados_{c}.json + salidas_{c} (digital: salidas_h4_digital)",
+    "fuente": "evaluation/resultados_{c}.json (reconstruido)",
     "digital": {
-      "f1_por_valor": 0.9135,
-      "precision": 0.9005,
+      "documentos": 400,
+      "f1_por_valor": 0.923,
+      "precision": 0.9192,
       "recall": 0.9268,
       "tp_pagina_negra": 0,
-      "f1_por_aparicion": 0.9256,
-      "f1_guardado_original": 0.924,
-      "documentos": 400
+      "sobre_redaccion": 69,
+      "sobre_redaccion_caracteres": 702,
+      "f1_por_aparicion": 0.9256
     },
     "escaneado": {
+      "documentos": 28,
       "f1_por_valor": 0.8773,
       "precision": 0.8575,
       "recall": 0.898,
       "tp_pagina_negra": 4,
-      "f1_por_aparicion": 0.8535,
-      "f1_guardado_original": 0.852,
-      "documentos": 28
+      "sobre_redaccion": 0,
+      "sobre_redaccion_caracteres": 0,
+      "f1_por_aparicion": 0.8535
     },
     "hibrido": {
-      "f1_por_valor": 0.7131,
-      "precision": 0.935,
+      "documentos": 24,
+      "f1_por_valor": 0.7158,
+      "precision": 0.9444,
       "recall": 0.5763,
       "tp_pagina_negra": 0,
-      "f1_por_aparicion": 0.7051,
-      "f1_guardado_original": 0.6964,
-      "documentos": 24
+      "sobre_redaccion": 1,
+      "sobre_redaccion_caracteres": 13,
+      "f1_por_aparicion": 0.7051
     },
-    "media_f1_por_valor": 0.8346,
+    "media_f1_por_valor": 0.8387,
     "media_f1_por_aparicion": 0.8281
   },
-  "actual_red_y_complemento_B": {
-    "fuente": "resultados_b2_{c} / resultados_h4_digital",
+  "c1_2026_10_06": {
+    "fuente": "evaluation/resultados_c1_{c}.json (exacto). Con zxing y CSV, sin el arreglo del bucle. En escaneado, 2 documentos agotaron el tiempo por pagina con la maquina cargada y salieron en negro.",
     "digital": {
-      "f1_por_valor": 0.9135,
-      "precision": 0.9005,
-      "recall": 0.9268,
+      "documentos": 400,
+      "f1_por_valor": 0.9344,
+      "precision": 0.9162,
+      "recall": 0.9533,
       "tp_pagina_negra": 0,
-      "f1_por_aparicion": 0.9256,
-      "f1_guardado_original": 0.924,
-      "documentos": 400
+      "sobre_redaccion": 390,
+      "sobre_redaccion_caracteres": 2891,
+      "f1_por_aparicion": 0.9344
     },
     "escaneado": {
-      "f1_por_valor": 0.8771,
-      "precision": 0.8505,
-      "recall": 0.9055,
-      "tp_pagina_negra": 4,
-      "f1_por_aparicion": 0.854,
-      "f1_guardado_original": 0.8525,
-      "documentos": 28
+      "documentos": 28,
+      "f1_por_valor": 0.9008,
+      "precision": 0.8667,
+      "recall": 0.9378,
+      "tp_pagina_negra": 37,
+      "sobre_redaccion": 15,
+      "sobre_redaccion_caracteres": 78,
+      "f1_por_aparicion": 0.8295
     },
     "hibrido": {
-      "f1_por_valor": 0.9105,
-      "precision": 0.8969,
-      "recall": 0.9245,
+      "documentos": 24,
+      "f1_por_valor": 0.9206,
+      "precision": 0.9036,
+      "recall": 0.9384,
       "tp_pagina_negra": 34,
-      "f1_por_aparicion": 0.8642,
-      "f1_guardado_original": 0.8553,
-      "documentos": 24
+      "sobre_redaccion": 19,
+      "sobre_redaccion_caracteres": 184,
+      "f1_por_aparicion": 0.8698
     },
-    "media_f1_por_valor": 0.9004,
-    "media_f1_por_aparicion": 0.8813
+    "media_f1_por_valor": 0.9186,
+    "media_f1_por_aparicion": 0.8779
   }
 }

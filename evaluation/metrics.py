@@ -81,6 +81,11 @@ class DocResult:
     #: De los TP, cuantos son valores que solo vivian en paginas que salieron
     #: enteras en negro (ya sumados en tp_exact).
     tp_pagina_negra: int = 0
+    #: Variantes de un dato ya detectado exacto que son MAS LARGAS que el dato:
+    #: la barra se come lo de al lado (sobre-redaccion).  No son falsos
+    #: positivos, pero se publican al lado del F1.  Y los caracteres de mas.
+    sobre_redaccion: int = 0
+    sobre_redaccion_caracteres: int = 0
     #: La cuenta antigua, aparicion por aparicion: {"tp", "fn", "fp"}.  Solo
     #: para la transicion; ver el docstring del modulo.
     por_aparicion: dict = field(default_factory=dict)
@@ -255,8 +260,18 @@ def _emparejar_por_valor(
     det: list[EntityRecord],
     paginas_en_negro: set[int],
     iou_threshold: float,
-) -> tuple[int, int, list[EntityRecord], list[EntityRecord], int]:
-    """(tp_exact, tp_partial, fn, fp, tp_pagina_negra) contando cada valor una vez."""
+) -> tuple[int, int, list[EntityRecord], list[EntityRecord], int, int, int]:
+    """Cuenta cada valor una vez.
+
+    Devuelve (tp_exact, tp_partial, fn, fp, tp_pagina_negra, sobre_redaccion,
+    sobre_redaccion_caracteres).
+
+    Una deteccion que no empareja pero es una VARIANTE de un valor que ya tiene
+    deteccion exacta (mismo tipo, IoU >= umbral: "Luis Molina Medina NIF /"
+    junto a "Luis Molina Medina") no es un falso positivo: es el mismo dato con
+    el limite mal.  Si es mas larga que el dato, la barra se come lo de al lado
+    y se cuenta como sobre-redaccion, con los caracteres de mas.
+    """
     paginas: dict[tuple, set] = {}
     gt_unicos: dict[tuple, EntityRecord] = {}
     for e in gt:
@@ -280,7 +295,19 @@ def _emparejar_por_valor(
             negros += 1
         else:
             fn_final.append(e)
-    return te + negros, tp, fn_final, fp, negros
+
+    exactos = [g for k, g in gt_unicos.items() if k in det_unicos]
+    sobre = sobre_chars = 0
+    fp_final = []
+    for d in fp:
+        variante_de = next((g for g in exactos if g.entity_type == d.entity_type
+                            and text_iou(g.text, d.text) >= iou_threshold), None)
+        if variante_de is None:
+            fp_final.append(d)
+        elif len(d.text.strip()) > len(variante_de.text.strip()):
+            sobre += 1
+            sobre_chars += len(d.text.strip()) - len(variante_de.text.strip())
+    return te + negros, tp, fn_final, fp_final, negros, sobre, sobre_chars
 
 
 def evaluate_document(
@@ -320,7 +347,7 @@ def evaluate_document(
     # Global TP/FP/FN exclude out-of-scope types so they don't distort P/R/F1.
     gt_scope = [e for e in gt_records if not fuera_de_alcance(e.entity_type, e.text)]
     det_scope = [e for e in det_records if not fuera_de_alcance(e.entity_type, e.text)]
-    tp_exact, tp_partial, fn_list, fp_list, tp_negra = _emparejar_por_valor(
+    tp_exact, tp_partial, fn_list, fp_list, tp_negra, sobre, sobre_chars = _emparejar_por_valor(
         gt_scope, det_scope, negras, iou_threshold)
     a_te, a_tp, a_fn, a_fp = match_entities(gt_scope, det_scope, iou_threshold)
 
@@ -332,7 +359,7 @@ def evaluate_document(
     for et in all_types:
         gt_t = [e for e in gt_records if e.entity_type == et]
         det_t = [e for e in det_records if e.entity_type == et]
-        te, tp, fn_t, fp_t, _ = _emparejar_por_valor(gt_t, det_t, negras, iou_threshold)
+        te, tp, fn_t, fp_t, *_ = _emparejar_por_valor(gt_t, det_t, negras, iou_threshold)
         by_type[et] = TypeResult(
             entity_type=et, tp_exact=te, tp_partial=tp, fn=fn_t, fp=fp_t
         )
@@ -351,6 +378,8 @@ def evaluate_document(
         fp=fp_list,
         by_type=by_type,
         tp_pagina_negra=tp_negra,
+        sobre_redaccion=sobre,
+        sobre_redaccion_caracteres=sobre_chars,
         por_aparicion={"tp": a_te + a_tp, "fn": len(a_fn), "fp": len(a_fp)},
         detectados=det_records,
         paginas_en_negro=sorted(negras),
@@ -384,6 +413,7 @@ def aggregate_results(doc_results: list[DocResult]) -> dict:
     # La cuenta antigua, por aparicion, solo para la transicion.
     por_aparicion = AggregatedMetrics()
     tp_pagina_negra = 0
+    sobre_redaccion = sobre_caracteres = 0
     by_type: dict[str, AggregatedMetrics] = {}
     by_doc_type: dict[str, AggregatedMetrics] = {}
     by_language: dict[str, AggregatedMetrics] = {}
@@ -405,6 +435,8 @@ def aggregate_results(doc_results: list[DocResult]) -> dict:
         overall.fn_examples.extend(_example_dict(e, doc) for e in doc.fn)
         overall.fp_examples.extend(_example_dict(e, doc) for e in doc.fp)
         tp_pagina_negra += doc.tp_pagina_negra
+        sobre_redaccion += doc.sobre_redaccion
+        sobre_caracteres += doc.sobre_redaccion_caracteres
         if doc.por_aparicion:
             por_aparicion.tp_exact += doc.por_aparicion["tp"]
             por_aparicion.fn_count += doc.por_aparicion["fn"]
@@ -436,6 +468,8 @@ def aggregate_results(doc_results: list[DocResult]) -> dict:
         "overall": overall,
         "overall_por_aparicion": por_aparicion,
         "tp_pagina_negra": tp_pagina_negra,
+        "sobre_redaccion": sobre_redaccion,
+        "sobre_redaccion_caracteres": sobre_caracteres,
         "by_type": by_type,
         "by_doc_type": by_doc_type,
         "by_language": by_language,

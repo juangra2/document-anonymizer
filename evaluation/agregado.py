@@ -79,6 +79,11 @@ class Corpus:
         return antigua["f1"] if antigua else None
 
     @property
+    def sobre_redaccion(self) -> int | None:
+        """Barras mas largas que el dato; None en resultados anteriores."""
+        return self.datos["summary"].get("sobre_redaccion")
+
+    @property
     def documentos(self) -> list[dict]:
         return self.datos.get("doc_results", [])
 
@@ -178,12 +183,15 @@ def _envolver(texto: str, ancho: int) -> list[str]:
 def imprimir_metricas(corpus: list[Corpus]) -> None:
     _barra("METRICAS POR CAMINO")
     print(f"\n  {'corpus':12s} {'docs':>5s} {'F1':>8s} {'precision':>10s} {'recall':>8s}"
-          f"   {'F1 por aparicion':>16s}")
-    print("  " + "-" * 66)
+          f" {'sobre-red.':>11s}   {'F1 por aparicion':>16s}")
+    print("  " + "-" * 78)
     for c in corpus:
         antigua = "—" if c.f1_por_aparicion is None else f"{c.f1_por_aparicion:.4f}"
+        sobre = "—" if c.sobre_redaccion is None else str(c.sobre_redaccion)
         print(f"  {c.nombre:12s} {len(c.documentos):5d} {c.f1:8.4f} "
-              f"{c.precision:10.4f} {c.recall:8.4f}   {antigua:>16s}")
+              f"{c.precision:10.4f} {c.recall:8.4f} {sobre:>11s}   {antigua:>16s}")
+    print("\n  sobre-red.: barras mas largas que el dato (variantes de un dato ya")
+    print("  detectado).  No cuentan como falso positivo, pero se publican aqui.")
     print("\n  F1 cuenta cada valor una vez por documento; 'por aparicion' es la")
     print("  cuenta antigua, que se guarda mientras dure la transicion.")
 
@@ -254,6 +262,7 @@ def main() -> None:
                     "documentos": len(c.documentos),
                     "f1": c.f1, "precision": c.precision, "recall": c.recall,
                     "f1_por_aparicion": c.f1_por_aparicion,
+                    "sobre_redaccion": c.sobre_redaccion,
                     "desviados": len(c.desvios()),
                     "desvio_esperado": c.nombre in DESVIO_ESPERADO,
                     "por_tipo_documento": dict(c.por_tipo()),

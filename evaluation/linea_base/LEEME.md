@@ -41,25 +41,39 @@ generador y la exclusion que hay que quitar al regenerar en UN solo sitio:
 resultado la lista de detecciones y las paginas en negro, asi que las proximas
 medidas se recuentan exactas, no reconstruidas.
 
-Durante la transicion se guardan los dos numeros (`transicion_contabilidad.json`,
-reconstruido con `scripts/recontar_resultados.py`):
+Y una deteccion que es una VARIANTE de un dato ya detectado exacto ("Luis
+Molina Medina NIF /" junto a "Luis Molina Medina") no cuenta como falso
+positivo: es el mismo dato con el limite mal.  Si es mas larga que el dato, la
+barra se come lo de al lado: eso se cuenta como SOBRE-REDACCION y se publica al
+lado del F1, porque es justo la queja del ayuntamiento.
 
-| | F1 por aparicion | F1 por valor |
-|---|---|---|
-| **linea base** (antes del arreglo) | | |
-| digital | 0.9256 | 0.9135 |
-| escaneado | 0.8535 | 0.8773 |
-| hibrido | 0.7051 | 0.7131 |
-| media | 0.8281 | 0.8346 |
-| **actual** (complemento B + red) | | |
-| digital | 0.9256 | 0.9135 |
-| escaneado | 0.8540 | 0.8771 |
-| hibrido | 0.8642 | 0.9105 |
-| media | 0.8813 | 0.9004 |
+Durante la transicion se guardan los dos numeros (`transicion_contabilidad.json`,
+con `scripts/recontar_resultados.py`):
+
+| | F1 por aparicion | F1 por valor | sobre-redaccion |
+|---|---|---|---|
+| **linea base** (antes del arreglo, reconstruida) | | | |
+| digital | 0.9256 | 0.9230 | >= 69 |
+| escaneado | 0.8535 | 0.8773 | — |
+| hibrido | 0.7051 | 0.7158 | >= 1 |
+| media | 0.8281 | 0.8387 | |
+| **c1** (06-10-2026, exacta: zxing + CSV, sin el arreglo del bucle) | | | |
+| digital | 0.9344 | 0.9344 | 390 (2891 caracteres) |
+| escaneado * | 0.8295 | 0.9008 | 15 (78) |
+| hibrido | 0.8698 | 0.9206 | 19 (184) |
+| media | 0.8779 | 0.9186 | |
+
+\* 2 escaneados agotaron el tiempo por pagina con la maquina cargada y salieron
+enteros en negro: por valor cuentan como tapados (la pagina esta de verdad en
+negro); por aparicion, como perdidos.
 
 Como leerlo: la mejora del pipeline es la diferencia entre filas de la misma
 columna; la de la contabilidad, la diferencia entre columnas de la misma fila.
-El digital BAJA por valor: los aciertos repetidos (un nombre detectado diez
-veces) inflaban la precision, y los falsos positivos casi nunca se repiten.
+La linea base se reconstruye desde los FN/FP que guardo, sin la lista de
+detecciones: pierde las variantes, asi que su sobre-redaccion es una cota
+inferior.  c1 es la primera medida exacta.  Una version anterior de esta tabla
+daba para c1 una precision por valor inflada: la reconstruccion ponia el texto
+exacto de la etiqueta y borraba las variantes, que entonces contaban como
+falsos positivos.
 "Por aparicion" ya no es exactamente el F1 guardado (0.924 en digital) porque
-incluye la exclusion del telefono del generador.
+incluye las exclusiones de defectos del corpus.

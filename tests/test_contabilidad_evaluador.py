@@ -102,3 +102,35 @@ def test_un_resultado_guardado_se_reconstruye_con_sus_detecciones():
     r = _ev([_g("Pilar Moreno Sanz")], [_d("Pilar Moreno Sanz")])
     vuelta = _doc_result_desde_json(dataclasses.asdict(r))
     assert vuelta.detectados[0].text == "Pilar Moreno Sanz"
+
+
+# --- variantes con el limite pasado ---------------------------------------------
+# "Luis Molina Medina NIF /" junto a una deteccion exacta de "Luis Molina Medina":
+# no es un dato inventado, es una barra que se come la etiqueta de al lado.  No
+# cuenta como falso positivo, pero se mide aparte como sobre-redaccion —la queja
+# del ayuntamiento—, al lado del F1.
+
+def test_una_variante_larga_de_un_dato_ya_detectado_es_sobre_redaccion():
+    r = _ev([_g("Luis Molina Medina")],
+            [_d("Luis Molina Medina"), _d("Luis Molina Medina NIF /")])
+    assert (r.tp, len(r.fp)) == (1, 0)
+    assert r.sobre_redaccion == 1
+    assert r.sobre_redaccion_caracteres == len(" NIF /")
+
+
+def test_sin_deteccion_exacta_la_variante_no_se_perdona():
+    """Si el dato solo se detecto con el limite mal, una variante es el acierto
+    parcial y la otra sigue siendo falso positivo."""
+    r = _ev([_g("Luis Molina Medina")],
+            [_d("Luis Molina Medina NIF /"), _d("Luis Molina Medina DNI")])
+    assert r.tp == 1 and len(r.fp) == 1 and r.sobre_redaccion == 0
+
+
+def test_un_falso_positivo_de_verdad_sigue_contando():
+    r = _ev([_g("Luis Molina Medina")], [_d("Luis Molina Medina"), _d("Compte")])
+    assert len(r.fp) == 1 and r.sobre_redaccion == 0
+
+
+def test_una_variante_corta_no_es_sobre_redaccion():
+    r = _ev([_g("Luis Molina Medina")], [_d("Luis Molina Medina"), _d("Luis Molina")])
+    assert len(r.fp) == 0 and r.sobre_redaccion == 0
