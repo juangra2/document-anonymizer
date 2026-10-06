@@ -14,6 +14,14 @@ try:
 except ImportError:
     _PYZBAR_AVAILABLE = False
 
+# zxing-cpp decodifica QR escaneados que zbar y OpenCV no leen: en el corpus
+# escaneado, 11 de 16 frente a 4 (tests/test_qr_escaneado.py).
+try:
+    import zxingcpp  # type: ignore
+    _ZXING_AVAILABLE = True
+except ImportError:
+    _ZXING_AVAILABLE = False
+
 
 def _recover_linear_extent(
     image: Image.Image,
@@ -100,6 +108,30 @@ def _pyzbar_pairs(image: Image.Image, padding: int = 8) -> list[tuple[fitz.Rect,
     return out
 
 
+def _zxing_pairs(image: Image.Image, padding: int = 8) -> list[tuple[fitz.Rect, str]]:
+    """(rect, payload) de zxing-cpp.  Solo lo que decodifica."""
+    if not _ZXING_AVAILABLE:
+        return []
+    out: list[tuple[fitz.Rect, str]] = []
+    try:
+        for r in zxingcpp.read_barcodes(image.convert("RGB")):
+            if not r.text:
+                continue
+            p = r.position
+            xs = [p.top_left.x, p.top_right.x, p.bottom_right.x, p.bottom_left.x]
+            ys = [p.top_left.y, p.top_right.y, p.bottom_right.y, p.bottom_left.y]
+            if min(max(xs) - min(xs), max(ys) - min(ys)) < 12:
+                continue
+            out.append((
+                fitz.Rect(min(xs) - padding, min(ys) - padding,
+                          max(xs) + padding, max(ys) + padding),
+                r.text,
+            ))
+    except Exception:
+        pass
+    return out
+
+
 def detect_and_decode_visual_codes(
     image: Image.Image,
     padding: int = 8,
@@ -162,6 +194,19 @@ def detect_and_decode_visual_codes(
     # naturaleza y el hecho de decodificar ya descarta el falso positivo); la
     # guardia compartida de payload+tamaño (detect_redactable_codes) aplica igual.
     pairs.extend(_pyzbar_pairs(image, padding))
+
+    # --- Pass 5: zxing-cpp, tambien siempre.  Lo que otro paso ya encontro no
+    # se repite: las cajas de dos motores difieren en mas de la tolerancia de
+    # abajo, asi que se compara por centro dentro de una caja ya hallada.  Si
+    # esa caja la LOCALIZO OpenCV sin decodificarla (texto vacio), zxing le pone
+    # el contenido: sin el, el filtro de decodificacion la descartaria.
+    for rect, text in _zxing_pairs(image, padding):
+        centro = fitz.Point((rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2)
+        previo = next((i for i, (ex, _) in enumerate(pairs) if ex.contains(centro)), None)
+        if previo is None:
+            pairs.append((rect, text))
+        elif not pairs[previo][1].strip():
+            pairs[previo] = (pairs[previo][0], text)
 
     # Deduplicate by rect proximity
     tolerance = 4.0
