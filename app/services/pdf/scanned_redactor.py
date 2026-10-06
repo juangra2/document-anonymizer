@@ -1423,10 +1423,16 @@ def _zona_de_lo_no_leido(tokens_mineru: list, tokens_easy: list) -> "PageZone | 
         return None
     from app.services.layout.segmenters import _build_ocr_zone_text_and_tokens
 
+    # Un bloque CORTADO (MinerU cayo en un bucle a mitad, ver
+    # mineru_engine.recortar_bucle) no cubre lo que no llego a leer: sus
+    # palabras de EasyOCR no se dan por leidas por estar dentro de su caja, solo
+    # por contenido.  Medido: el IBAN, el correo y el telefono de
+    # contrato_laboral_0002 se perdian asi.
     leidos = [
         fitz.Rect(t.rect.x0 - _HOLGURA_BLOQUE_PX, t.rect.y0 - _HOLGURA_BLOQUE_PX,
                   t.rect.x1 + _HOLGURA_BLOQUE_PX, t.rect.y1 + _HOLGURA_BLOQUE_PX)
         for t in tokens_mineru
+        if not getattr(t, "cortado", False)
     ]
     # Lo que MinerU SI leyo, por su contenido.  Una palabra cuya caja asoma
     # fuera de un bloque pero cuyo texto ya esta aqui no es texto sin leer: es

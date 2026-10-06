@@ -75,6 +75,27 @@ _BLOCK_TYPE_TO_HINT: dict[str, str] = {
 _CJK_RE = re.compile(r"[㐀-鿿　-〿＀-￯]")
 
 
+# La misma pieza de 1-3 letras o cifras repetida 10 veces o mas hasta el final.
+# Solo alfanumerica: una linea de puntos o guiones para rellenar ("Firma:
+# ..........") es texto del documento, no un bucle.
+_BUCLE_FINAL = re.compile(r"([0-9A-Za-z]{1,3}?)\1{9,}\s*$")
+
+
+def recortar_bucle(content: str) -> tuple[str, bool]:
+    """Quita un bucle de repeticion al final del bloque: (texto, si se corto).
+
+    El VLM a veces se queda repitiendo un caracter a mitad de un bloque
+    ("...28020113133333333333") y lo que venia detras no llega nunca.  No es un
+    bloque degenerado —la primera parte esta bien leida— sino uno CORTADO: se
+    conserva lo leido y se marca, para que lo que el bloque no llego a leer lo
+    lea EasyOCR (scanned_redactor._zona_de_lo_no_leido).
+    """
+    m = _BUCLE_FINAL.search(content)
+    if not m:
+        return content, False
+    return content[:m.start()].rstrip(), True
+
+
 def _is_degenerate_content(content: str) -> bool:
     """True for hallucinated/repetition-loop VLM output (not real document text).
 
@@ -303,6 +324,9 @@ def _blocks_to_tokens(
         content: str = (getattr(block, "content", "") or "").strip()
         if not content:
             continue
+        content, cortado = recortar_bucle(content)
+        if not content:
+            continue
 
         if _is_degenerate_content(content):
             # El contenido sale del documento: aunque sea basura del modelo,
@@ -341,6 +365,7 @@ def _blocks_to_tokens(
             confidence=1.0,  # MinerU VLM does not produce per-token confidence
             rect=rect,
             zone_hint=zone_hint,
+            cortado=cortado,
         ))
 
     return tokens

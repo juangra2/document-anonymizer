@@ -17,6 +17,10 @@ class OcrToken:
     # When set, entity-to-rect mapping uses the full token rect for value entities
     # instead of the linear character-proportion approximation.
     value_offset: int | None = None
+    # El motor de layout cayo en un bucle de repeticion a mitad del bloque y su
+    # texto se recorto: lo que venia detras NO se leyo, aunque la caja del
+    # bloque lo cubra.  Ver mineru_engine.recortar_bucle.
+    cortado: bool = False
 
 
 @dataclass
