@@ -1162,6 +1162,16 @@ _MEASURE_UNITS = {
 # anything that is not a genuine IBAN.
 _ROBUST_IBAN_RE = re.compile(r"(?i)E[S5][ \t\-]?(?:[0-9OILSB][ \t\-]?){22}")
 _IBAN_OCR_TRANS = str.maketrans("OILSBoilsb", "0115801158")
+# Un IBAN que no cuadra el mod-97 se acepta por su forma si al menos estas de
+# sus 22 posiciones son cifras de verdad.
+_IBAN_FORMA_CIFRAS_MIN = 18
+
+# Correo al que el OCR le corto la terminacion ("pilarmoreno@orange") o con
+# tilde en el dominio ("contacto@formació.com"): para tachar basta la forma.
+# Usuario de 3 caracteres o mas: "pr@sent" es "present" con la e leida como @.
+_CORREO_ESTROPEADO_RE = re.compile(
+    r"(?<![\w.+-])[\w.+-]{3,}@[0-9A-Za-zÀ-ÿ-]{3,}(?:\.[0-9A-Za-zÀ-ÿ-]+)*"
+)
 
 # Textual signature attribution: "Fdo.: NAME", "Signat (electrònicament) per
 # NAME", "Firmado (electrónicamente) por NAME".  The captured name is validated
@@ -1398,6 +1408,7 @@ class PiiAnalyzer:
         entities.extend(self._detect_direct_regex(text, mode=mode))
         entities.extend(self._detect_ocr_iban(text))
         entities.extend(self._detect_dni_letra_ocr(text))
+        entities.extend(self._detect_correo_estropeado(text))
         entities.extend(self._detect_csv(text))
         entities.extend(self._detect_money(text, context_text))
         entities.extend(self._detect_private_companies(text))
@@ -2558,6 +2569,20 @@ class PiiAnalyzer:
         return entities
 
     @staticmethod
+    def _detect_correo_estropeado(text: str) -> list[PiiEntity]:
+        """Correo con la forma usuario@dominio aunque falte la terminacion.
+
+        El reconocedor estricto exige un dominio completo y ASCII; un correo al
+        que el OCR corto el ".es", o con tilde en el dominio, se entregaba a la
+        vista.  Donde el estricto tambien lo ve, la fusion de solapes se queda
+        con uno.  Ver tests/test_forma_estropeada.py.
+        """
+        return [
+            PiiEntity("EMAIL_ADDRESS", m.start(), m.end(), 0.8, source="deterministic_regex")
+            for m in _CORREO_ESTROPEADO_RE.finditer(text)
+        ]
+
+    @staticmethod
     def _detect_dni_letra_ocr(text: str) -> list[PiiEntity]:
         """DNI/NIE cuya letra de control el OCR leyo como cifra ("496747448").
 
@@ -2605,7 +2630,12 @@ class PiiAnalyzer:
             body = compact[2:24].upper().translate(_IBAN_OCR_TRANS)
             if not body.isdigit():
                 continue
-            if is_valid_spanish_iban("ES" + body):
+            # Para tachar basta la FORMA: un IBAN con una errata del OCR falla el
+            # mod-97 y antes se entregaba a la vista.  Con mod-97 se acepta como
+            # siempre; sin el, si la mayoria son cifras de verdad (no letras que
+            # el OCR podria haber confundido).  Ver tests/test_forma_estropeada.py.
+            valido = is_valid_spanish_iban("ES" + body)
+            if valido or sum(c.isdigit() for c in compact[2:24]) >= _IBAN_FORMA_CIFRAS_MIN:
                 trimmed = len(m.group()) - len(m.group().rstrip(" \t-"))
                 span = (m.start(), m.end() - trimmed)
                 if span not in seen:
@@ -2615,7 +2645,7 @@ class PiiAnalyzer:
                             entity_type="IBAN_CODE",
                             start=span[0],
                             end=span[1],
-                            score=0.92,
+                            score=0.92 if valido else 0.8,
                             source="deterministic_regex",
                         )
                     )

@@ -95,10 +95,13 @@ def test_ocr_iban_country_letter_misread_as_5():
     assert any(t == "IBAN_CODE" and v.startswith("E5") for t, v, _ in out)
 
 
-def test_ocr_iban_rejects_invalid_unlabeled():
-    # El pase OCR-tolerante exige mod-97: una tira ES+dígitos inválida no sale
-    # de ESTE detector (en el pipeline strict el regex directo puede emitirla
-    # igualmente — política deliberada: con forma de IBAN, se redacta).
+def test_ocr_iban_invalido_con_forma_sale_con_menos_confianza():
+    # Antes este pase exigia mod-97.  La politica es la misma que la del regex
+    # directo —con forma de IBAN, se redacta—, y ahora vale tambien para las
+    # formas con erratas del OCR (tests/test_forma_estropeada.py): sale, pero
+    # con menos confianza que uno valido.
     from app.services.pii.analyzer import PiiAnalyzer
-    out = PiiAnalyzer._detect_ocr_iban("ref ES9921001901552200556699 x")
-    assert out == []
+    (out,) = PiiAnalyzer._detect_ocr_iban("ref ES9921001901552200556699 x")
+    assert out.score < 0.92
+    (valido,) = PiiAnalyzer._detect_ocr_iban("ref ES9121000418450200051332 x")
+    assert valido.score == 0.92
