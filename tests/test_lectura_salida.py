@@ -18,6 +18,8 @@ from evaluation.lectura_salida import (
     NO_CONCLUYENTE,
     TAPADO,
     LecturaPagina,
+    ResultadoDocumento,
+    anotar,
     aparece,
     decidir,
     pagina_fiable,
@@ -98,3 +100,24 @@ def test_una_lectura_comparable_si_es_fiable():
 def test_sin_pagina_de_salida_no_hay_nada_de_que_fiarse():
     """Una entrega parcial tiene menos paginas que la entrada."""
     assert not pagina_fiable(_pagina(0, "TEXTO LARGO"), None, negrura_salida=0.0)
+
+
+# --- tipos que no se anonimizan -------------------------------------------------
+
+def test_un_municipio_a_la_vista_no_es_una_fuga():
+    """LOCATION no se anonimiza: contarlo como fuga inflaba el numero.
+
+    Mismo criterio que el evaluador (OUT_OF_SCOPE_GT_TYPES): se separa, no se
+    pierde.
+    """
+    r = ResultadoDocumento(documento="x")
+    anotar(r, "Alicante", "LOCATION", FUGA)
+    assert r.fugas == 0 and r.fuera_de_alcance == 1
+    assert r.detalle[0]["fuera_de_alcance"] is True
+
+
+def test_un_tipo_en_alcance_si_cuenta():
+    r = ResultadoDocumento(documento="x")
+    anotar(r, "ES80 0049 9069", "IBAN_CODE", FUGA)
+    anotar(r, "Pilar Moreno", "PERSON", TAPADO)
+    assert (r.fugas, r.tapados, r.fuera_de_alcance) == (1, 1, 0)

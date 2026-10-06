@@ -225,6 +225,9 @@ class ResultadoDocumento:
     tapados: int = 0
     fugas: int = 0
     no_concluyentes: int = 0
+    # Datos de tipos que no se anonimizan (LOCATION...): se leen y se listan,
+    # pero no son fugas ni tapados.  Ver anotar().
+    fuera_de_alcance: int = 0
     detalle: list[dict] = field(default_factory=list)
     negrura_por_pagina: list[float] = field(default_factory=list)
     angulos_entrada: list[int] = field(default_factory=list)
@@ -323,33 +326,48 @@ def comprobar_documento(entrada: Path, salida: Path, etiqueta: dict) -> Resultad
             for pagina in paginas_origen
         )
 
-        estado = decidir(en_entrada, en_salida, fiable)
-        if estado == TAPADO:
-            resultado.tapados += 1
-        elif estado == FUGA:
-            resultado.fugas += 1
-        else:
-            resultado.no_concluyentes += 1
-
-        resultado.detalle.append({
-            "texto": valor, "tipo": tipo, "estado": estado,
-            "paginas_en_entrada": [p.indice + 1 for p in paginas_origen],
-            "lectura_fiable": fiable,
-        })
+        anotar(resultado, valor, tipo, decidir(en_entrada, en_salida, fiable),
+               paginas_en_entrada=[p.indice + 1 for p in paginas_origen],
+               lectura_fiable=fiable)
 
     return resultado
+
+
+def anotar(resultado: ResultadoDocumento, valor: str, tipo: str, estado: str,
+           **extra) -> None:
+    """Cuenta un dato en su casilla.
+
+    Los tipos que el sistema no anonimiza por politica (un municipio) quedan
+    aparte: contarlos como fuga inflaba el numero —11 de 44 en la medicion de
+    la red—.  Es el mismo criterio que aplica el evaluador.
+    """
+    from evaluation.metrics import OUT_OF_SCOPE_GT_TYPES
+
+    fuera = tipo in OUT_OF_SCOPE_GT_TYPES
+    if fuera:
+        resultado.fuera_de_alcance += 1
+    elif estado == TAPADO:
+        resultado.tapados += 1
+    elif estado == FUGA:
+        resultado.fugas += 1
+    else:
+        resultado.no_concluyentes += 1
+    resultado.detalle.append({"texto": valor, "tipo": tipo, "estado": estado,
+                              "fuera_de_alcance": fuera, **extra})
 
 
 def resumir(resultados: list[ResultadoDocumento]) -> dict:
     tapados = sum(r.tapados for r in resultados)
     fugas = sum(r.fugas for r in resultados)
     no_concluyentes = sum(r.no_concluyentes for r in resultados)
+    fuera_de_alcance = sum(r.fuera_de_alcance for r in resultados)
     concluyentes = tapados + fugas
     return {
         "documentos": len(resultados),
         "tapados": tapados,
         "fugas": fugas,
         "no_concluyentes": no_concluyentes,
+        "fuera_de_alcance": fuera_de_alcance,
         "concluyentes": concluyentes,
         "porcentaje_tapado": (
             round(100.0 * tapados / concluyentes, 2) if concluyentes else None
@@ -368,6 +386,8 @@ def imprimir(resumen: dict) -> None:
     print(f"  FUGAS                  : {resumen['fugas']}")
     print(f"  no concluyentes        : {resumen['no_concluyentes']}"
           "   (el dato tampoco se leia en la entrada)")
+    print(f"  fuera de alcance       : {resumen['fuera_de_alcance']}"
+          "   (tipos que no se anonimizan, p. ej. municipio)")
     if porcentaje is None:
         print("  porcentaje tapado      : sin datos concluyentes")
     else:
