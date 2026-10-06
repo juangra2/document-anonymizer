@@ -36,7 +36,7 @@
     "media_f1_por_aparicion": 0.8281
   },
   "c1_2026_10_06": {
-    "fuente": "evaluation/resultados_c1_{c}.json (exacto). Con zxing y CSV, sin el arreglo del bucle. En escaneado, 2 documentos agotaron el tiempo por pagina con la maquina cargada y salieron en negro.",
+    "fuente": "evaluation/resultados_c1_{c}.json (exacto). Con zxing y CSV, sin el arreglo del bucle. En escaneado, contrato_laboral_0002 y certificado_empadronamiento_0004 agotaron el tiempo con la maquina cargada y se repitieron con la maquina libre (resultados_c1b_repetidos.json, codigo con el arreglo del bucle).",
     "digital": {
       "documentos": 400,
       "f1_por_valor": 0.9344,
@@ -49,13 +49,13 @@
     },
     "escaneado": {
       "documentos": 28,
-      "f1_por_valor": 0.9008,
-      "precision": 0.8667,
-      "recall": 0.9378,
-      "tp_pagina_negra": 37,
+      "f1_por_valor": 0.8876,
+      "precision": 0.8548,
+      "recall": 0.9229,
+      "tp_pagina_negra": 4,
       "sobre_redaccion": 15,
       "sobre_redaccion_caracteres": 78,
-      "f1_por_aparicion": 0.8295
+      "f1_por_aparicion": 0.8598
     },
     "hibrido": {
       "documentos": 24,
@@ -67,7 +67,7 @@
       "sobre_redaccion_caracteres": 184,
       "f1_por_aparicion": 0.8698
     },
-    "media_f1_por_valor": 0.9186,
-    "media_f1_por_aparicion": 0.8779
+    "media_f1_por_valor": 0.9142,
+    "media_f1_por_aparicion": 0.888
   }
 }

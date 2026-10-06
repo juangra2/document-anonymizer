@@ -59,13 +59,14 @@ con `scripts/recontar_resultados.py`):
 | media | 0.8281 | 0.8387 | |
 | **c1** (06-10-2026, exacta: zxing + CSV, sin el arreglo del bucle) | | | |
 | digital | 0.9344 | 0.9344 | 390 (2891 caracteres) |
-| escaneado * | 0.8295 | 0.9008 | 15 (78) |
+| escaneado * | 0.8598 | 0.8876 | 15 (78) |
 | hibrido | 0.8698 | 0.9206 | 19 (184) |
-| media | 0.8779 | 0.9186 | |
+| media | 0.8880 | 0.9142 | |
 
 \* 2 escaneados agotaron el tiempo por pagina con la maquina cargada y salieron
-enteros en negro: por valor cuentan como tapados (la pagina esta de verdad en
-negro); por aparicion, como perdidos.
+enteros en negro.  Se repitieron con la maquina libre (ya con el arreglo del
+bucle) y la fila lleva esa repeticion; con los dos en negro salia 0.9008 por
+valor, inflado: una pagina tachada entera tapa, pero no por haber detectado.
 
 Como leerlo: la mejora del pipeline es la diferencia entre filas de la misma
 columna; la de la contabilidad, la diferencia entre columnas de la misma fila.
