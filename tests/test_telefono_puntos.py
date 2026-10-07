@@ -50,3 +50,32 @@ def test_un_importe_con_separador_de_miles_no_es_un_telefono(importe):
                                  "(+34)612345678", "+34 612 345 678", "0034 612.345.678"])
 def test_el_prefijo_va_con_el_numero(tel):
     assert ("PHONE_NUMBER", tel) in _tipos(f"Llame al {tel} por la tarde")
+
+
+# --- nueve cifras tras "Expediente" o "Registro" no son un telefono -------------------
+
+@pytest.mark.parametrize("texto", [
+    "Expediente nº 2023/612345678",
+    "Exp. 612345678",
+    "Registro de entrada núm. 963456781 de 12/03/2024",
+    "Nº de registro: 912 345 678",
+    "Referencia: 712345678",
+])
+def test_un_numero_de_expediente_o_registro_no_es_un_telefono(texto):
+    assert not any(t == "PHONE_NUMBER" for t, _ in _tipos(texto))
+
+
+def test_un_telefono_despues_de_un_expediente_si_lo_es():
+    """La etiqueta de telefono entre medias manda."""
+    texto = "Expediente 2023/0042, Tel. 612 345 678"
+    assert ("PHONE_NUMBER", "612 345 678") in _tipos(texto)
+
+
+def test_un_telefono_en_otra_linea_si_lo_es():
+    texto = "Registro de entrada\n612 345 678"
+    assert ("PHONE_NUMBER", "612 345 678") in _tipos(texto)
+
+
+def test_la_palabra_expediente_en_prosa_no_se_lleva_el_telefono():
+    texto = "para cualquier aclaracion sobre el expediente, puede llamar al 612 345 678."
+    assert ("PHONE_NUMBER", "612 345 678") in _tipos(texto)

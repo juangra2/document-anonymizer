@@ -1147,6 +1147,33 @@ _CSV_LABEL_RE = re.compile(
 _CSV_VALUE_RE = re.compile(r"\b(?=[A-Z0-9]*\d[A-Z0-9]*\d)[A-Z0-9]{14,44}\b")
 _CSV_WINDOW = 80   # max chars between a CSV label end and its value start
 
+# Etiquetas de numeros de expediente o registro: lo que va detras, en la misma
+# linea y sin una etiqueta de telefono en medio, no es un telefono.
+_ETIQUETA_EXPEDIENTE_RE = re.compile(
+    r"(?i)\b(?:expedient(?:e)?|exp\.|registr(?:o|e)|reg\.|referencia|ref\.)"
+)
+_PALABRAS_DE_EXPEDIENTE = {"entrada", "salida", "eixida", "registro", "registre", "número",
+                           "numero", "núm", "num", "general", "del", "año", "any"}
+_EXPEDIENTE_VENTANA = 40
+
+
+def _numero_de_expediente(text: str, inicio: int) -> bool:
+    """Si el numero que empieza en `inicio` es de expediente/registro, no un telefono."""
+    # Pegado a un codigo: "2023/612345678", "EXP-612345678".
+    if inicio > 0 and text[inicio - 1] in "/-" and inicio > 1 and text[inicio - 2].isalnum():
+        return True
+    linea = text[max(0, inicio - _EXPEDIENTE_VENTANA):inicio].rsplit("\n", 1)[-1]
+    etiquetas = list(_ETIQUETA_EXPEDIENTE_RE.finditer(linea))
+    if not etiquetas:
+        return False
+    entre = linea[etiquetas[-1].end():]
+    # Entre la etiqueta y el numero solo puede ir lo que acompaña a un numero de
+    # expediente ("nº", "núm.", "de entrada", "2023/"), nunca prosa: en "sobre
+    # el expediente, puede llamar al 612…" el telefono es de verdad.
+    palabras = re.findall(r"[^\W\d_]{3,}", entre)
+    return all(p.lower() in _PALABRAS_DE_EXPEDIENTE for p in palabras)
+
+
 # DNI/NIE con la letra de control leida como cifra por el OCR (_detect_dni_letra_ocr).
 _DNI_LABEL_OCR_RE = re.compile(
     r"(?i)\b(?:D\.?\s?N\.?\s?I|N\.?\s?I\.?\s?[FE]|DNI|NIF|NIE"
@@ -1425,6 +1452,15 @@ class PiiAnalyzer:
         entities.extend(self._detect_money(text, context_text))
         entities.extend(self._detect_private_companies(text))
         entities.extend(self._detect_ner_entities(text, zone_type=zone_type))
+
+        # Nueve cifras tras "Expediente" o "Registro" son ese numero, no un
+        # telefono (banco de pruebas: los dos se tachaban como telefono).  Despues
+        # de TODOS los detectores, porque el reconocedor de Presidio tambien los
+        # emite.  Ver tests/test_telefono_puntos.py.
+        entities = [
+            e for e in entities
+            if not (e.entity_type == "PHONE_NUMBER" and _numero_de_expediente(text, e.start))
+        ]
 
         # Los tipos desactivados se quitan ANTES de resolver solapes.  La fusión
         # se queda con un único span por solape y descarta el resto; si un tipo
