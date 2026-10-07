@@ -60,3 +60,31 @@ def test_cada_defecto_dice_que_corregir_y_que_quitar():
 
     for d in DEFECTOS:
         assert d["generador"] and d["al_regenerar"], d["id"]
+
+
+# --- domicilio del empleador en los contratos (defecto domicilio_institucional) -----
+
+def test_el_domicilio_de_la_universidad_empleadora_no_cuenta():
+    gt = [{"text": "C477164495", "type": "ES_CIF", "page": 1},
+          {"text": "Cno. de la Paz, 81, 03002 Alicante", "type": "ADDRESS", "page": 1},
+          {"text": "Carretera de la Paz, 8, 30003 Murcia", "type": "ADDRESS", "page": 1}]
+    r = evaluate_document("contrato_laboral_0004", "contrato_laboral", "va", "scanned",
+                          "completed", 0, gt_entities=gt, detected_entities=[])
+    assert sorted(e.text for e in r.fn) == ["C477164495", "Carretera de la Paz, 8, 30003 Murcia"]
+
+
+def test_en_otro_tipo_de_documento_la_direccion_tras_un_cif_si_cuenta():
+    gt = [{"text": "B12345678", "type": "ES_CIF", "page": 1},
+          {"text": "Calle Mayor, 3, 46001 Valencia", "type": "ADDRESS", "page": 1}]
+    r = evaluate_document("contrato_prestacion_servicios_0001", "contrato_prestacion_servicios",
+                          "es", "digital", "completed", 0, gt_entities=gt, detected_entities=[])
+    assert len(r.fn) == 2
+
+
+def test_en_un_hibrido_cuenta_la_procedencia():
+    gt = [{"text": "C477164495", "type": "ES_CIF", "page": 1, "procede_de": "contrato_laboral_0032"},
+          {"text": "Cno. de la Paz, 81, 03002 Alicante", "type": "ADDRESS", "page": 1,
+           "procede_de": "contrato_laboral_0032"}]
+    r = evaluate_document("hibrido_pagina_mixta_0020", "mixto", "es", "hibrido",
+                          "completed", 0, gt_entities=gt, detected_entities=[])
+    assert [e.text for e in r.fn] == ["C477164495"]

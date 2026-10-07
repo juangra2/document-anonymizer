@@ -59,6 +59,20 @@ DEFECTOS = [
         "al_regenerar": "Nada que quitar: NO se excluye, cuenta como falso "
                         "negativo de QR_CODE en el escaneado.",
     },
+    {
+        "id": "domicilio_institucional",
+        "que_pasa": "En contrato_laboral el empleador es una universidad (get_org) y "
+                    "el generador etiqueta su domicilio social como ADDRESS.  Es el "
+                    "contacto de una institucion, no un dato personal: el filtro "
+                    "institucional lo deja a la vista en los dos caminos (en digital, "
+                    "en los 44 contratos).  Contarlo como falso negativo mide la "
+                    "etiqueta, no el sistema.",
+        "generador": "PENDIENTE: no etiquetar como ADDRESS el domicilio del "
+                     "empleador cuando es una institucion publica (contrato_laboral.py, "
+                     "la entidad employer['address']).",
+        "al_regenerar": "Quitar es_domicilio_empleador (este modulo) y su filtro en "
+                        "evaluate_document.",
+    },
 ]
 
 
@@ -93,3 +107,15 @@ QR_FANTASMA: frozenset[tuple[str, str]] = frozenset({
 def es_qr_fantasma(doc_id: str, entidad: dict) -> bool:
     return (entidad.get("type") == "QR_CODE"
             and (doc_id, entidad.get("procede_de")) in QR_FANTASMA)
+
+
+# --- domicilio_institucional ------------------------------------------------------
+def es_domicilio_empleador(doc_id: str, entidades: list[dict], indice: int) -> bool:
+    """El ADDRESS justo detras del ES_CIF en un contrato laboral: el domicilio de la
+    universidad empleadora.  Comprobado en las 48 etiquetas de contrato_laboral del
+    corpus (digital y escaneado): siempre va en ese orden."""
+    e = entidades[indice]
+    if e.get("type") != "ADDRESS" or indice == 0 or entidades[indice - 1].get("type") != "ES_CIF":
+        return False
+    origen = e.get("procede_de") or doc_id
+    return origen.startswith("contrato_laboral")

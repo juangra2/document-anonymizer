@@ -324,15 +324,15 @@ def evaluate_document(
     paginas_en_negro: set[int] | None = None,
 ) -> DocResult:
     """Evalua un documento.  `paginas_en_negro`: numeracion de usuario (1 = primera)."""
-    from evaluation.defectos_corpus import es_qr_fantasma
+    from evaluation.defectos_corpus import es_domicilio_empleador, es_qr_fantasma
 
     negras = set(paginas_en_negro or ())
     # Etiquetas de datos que no estan en el PDF (defecto pagina_siempre_1): ni
     # en la metrica global ni en el desglose por tipo.
     gt_records = [
         EntityRecord(text=e["text"], entity_type=e["type"], page=e.get("page"))
-        for e in gt_entities
-        if not es_qr_fantasma(doc_id, e)
+        for i, e in enumerate(gt_entities)
+        if not es_qr_fantasma(doc_id, e) and not es_domicilio_empleador(doc_id, gt_entities, i)
     ]
     det_records = [
         EntityRecord(
