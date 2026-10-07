@@ -457,10 +457,22 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
     ),
     (
         "PHONE_NUMBER",
-        # Spanish phones: +34 optional prefix, must start 6/7/8/9.
+        # Spanish phones: +34 optional prefix, must start 6/7/8/9.  El prefijo
+        # tambien como 0034 y (+34): antes quedaba fuera de la barra, a la vista.
         # Dot excluded from separators: IPs like 95.73.233.44 also start with 9x
-        # and would be incorrectly matched.
-        r"(?<!\d)(?:\+34[ \t\n\-]{0,3})?(?:6|7|8|9)(?:[ \t\n\-]{0,3}\d){8}(?!\d)",
+        # and would be incorrectly matched (los puntos van en el patron siguiente).
+        r"(?<![\d(])(?:(?:\+|00)34[ \t\n\-]{0,3}|\(\+34\)[ \t\n\-]{0,3})?"
+        r"(?:6|7|8|9)(?:[ \t\n\-]{0,3}\d){8}(?!\d)",
+        0.85,
+    ),
+    (
+        "PHONE_NUMBER",
+        # Con PUNTOS, solo agrupado 3-3-3 o 3-2-2-2: un primer grupo de tres
+        # cifras que empieza por 6-9 (> 255) no puede ser una IP.  Se descartan
+        # los importes con separador de miles ("612.345.678,00 €") y el DNI con
+        # puntos va agrupado 2-3-3.  Ver tests/test_telefono_puntos.py.
+        r"(?<![\d.,(])(?:(?:\+|00)34[ \t]?|\(\+34\)[ \t]?)?[6-9]\d{2}\.(?:\d{3}\.\d{3}|\d{2}\.\d{2}\.\d{2})"
+        r"(?![.,]?\d)(?![ \t]*(?:€|euros?\b|EUR\b))",
         0.85,
     ),
     (
