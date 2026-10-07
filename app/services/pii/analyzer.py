@@ -1111,7 +1111,10 @@ _VIA_TYPES = (
     r"(?:Calle|C/|Avenida|Avd?a?\.?|Av\.|Avinguda|Carrer|Plaza|Pla[çc]a|Pza\.?|"
     r"Pl\.|Paseo|Passeig|Pg\.?|Ronda|Rda\.?|Camino|Cam[ií]|Cno\.?|Carretera|"
     r"Ctra\.?|Traves[íi]a|Travessia|Trav\.?|Glorieta|Gran[ \t]+V[ií]a|V[ií]a|"
-    r"Pol[ií]gono|Pol\.|Urbanitzaci[oó]|Urbanizaci[oó]n|Urb\.|Barrio|Barri)"
+    r"Pol[ií]gono|Pol\.|Urbanitzaci[oó]|Urbanizaci[oó]n|Urb\.|Barrio|Barri|"
+    # Partida (via rural valenciana).  "Partida presupuestaria" no cuela: tras
+    # la via los patrones exigen un nombre de calle con mayuscula.
+    r"Partida|Ptda\.?)"
 )
 
 # A street type, then up to ~80 chars of street name + number/floor (no sentence
@@ -1119,7 +1122,8 @@ _VIA_TYPES = (
 # municipality token.  Anchored on a capitalised street name to avoid prose.
 _ADDRESS_GAZETTEER_RE = re.compile(
     r"(?P<addr>\b(?i:" + _VIA_TYPES + r")\.?[ \t]*"
-    r"(?i:de[ \t]+|del[ \t]+|de[ \t]+la[ \t]+|de[ \t]+les[ \t]+|d'|dels[ \t]+)?"
+    # "de l'" antes que "de": "Pg. de l'Albereda", "Passeig de l'Albereda".
+    r"(?i:de[ \t]+l'|de[ \t]+|del[ \t]+|de[ \t]+la[ \t]+|de[ \t]+les[ \t]+|d'|dels[ \t]+)?"
     r"[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][^\n:;]{0,80}?"
     # El codigo postal puede ir en la linea siguiente: una direccion repartida
     # en varias lineas ("Calle X, 12, 2º / 46005 Valencia") se escapaba entera.
