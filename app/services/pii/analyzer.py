@@ -1121,8 +1121,28 @@ _ADDRESS_GAZETTEER_RE = re.compile(
     r"(?P<addr>\b(?i:" + _VIA_TYPES + r")\.?[ \t]*"
     r"(?i:de[ \t]+|del[ \t]+|de[ \t]+la[ \t]+|de[ \t]+les[ \t]+|d'|dels[ \t]+)?"
     r"[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][^\n:;]{0,80}?"
+    # El codigo postal puede ir en la linea siguiente: una direccion repartida
+    # en varias lineas ("Calle X, 12, 2º / 46005 Valencia") se escapaba entera.
+    r"(?:\n[ \t]*)?"
     r"\b(?P<cp>(?:0[1-9]|[1-4]\d|5[0-2])\d{3})\b"
     r"(?:[ \t]+(?P<muni>[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][^\n,;:0-9]{1,38}))?"
+    r")"
+)
+
+# Direccion en PROSA, sin codigo postal: "reside en la calle Ruzafa número 12,
+# piso tercero".  Tipo de via (tambien en minuscula), nombre de calle con
+# mayuscula y la palabra "número" (o "núm.", "nº") con cifras; luego, si los hay,
+# piso, puerta o escalera.  Sin la palabra "número" no salta: separa la
+# direccion de "la calle estaba cortada" o de un año ("el Paseo de Gracia, 2023").
+_NOMBRE_CALLE = r"[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'·\-]*"
+_DIRECCION_PROSA_RE = re.compile(
+    r"\b(?P<addr>(?i:" + _VIA_TYPES + r")\.?[ \t]+"
+    r"(?:(?i:de[ \t]+la|de[ \t]+les|de[ \t]+l'|del|dels|de|d')[ \t]*)?"
+    + _NOMBRE_CALLE +
+    r"(?:[ \t]+(?:(?i:de|del|la|les|el|i|y|d')[ \t]+)?" + _NOMBRE_CALLE + r"){0,4}"
+    r",?[ \t]+(?i:n[úu]mero|n[úu]m\.?|n\.?[ºo°])[ \t]*\d{1,3}[A-Za-z]?\b"
+    r"(?:,?[ \t]+(?:(?i:piso|planta|puerta|porta|pta\.?|escalera|escala|esc\.?)[ \t]+[\wºª]+"
+    r"|\d{1,2}[ºª](?:[ \t]?[A-Z]\b)?))*"
     r")"
 )
 
@@ -1439,6 +1459,7 @@ class PiiAnalyzer:
         entities.extend(self._detect_case_table_rows(text))
         entities.extend(self._detect_role_table_rows(text))
         entities.extend(self._detect_address_gazetteer(text))
+        entities.extend(self._detect_direccion_en_prosa(text))
         entities.extend(self._detect_signature_block_names(text))
         entities.extend(self._detect_person_filenames(text))
         if settings.gazetteer_person:
@@ -2615,6 +2636,16 @@ class PiiAnalyzer:
                         PiiEntity("CSV", span[0], span[1], 0.9, source="deterministic_regex")
                     )
         return entities
+
+    @staticmethod
+    def _detect_direccion_en_prosa(text: str) -> list[PiiEntity]:
+        """Direccion dentro de una frase, sin codigo postal.  Ver _DIRECCION_PROSA_RE."""
+        if not settings.gazetteer_address:
+            return []
+        return [
+            PiiEntity("ADDRESS", m.start("addr"), m.end("addr"), 0.75, source="deterministic_regex")
+            for m in _DIRECCION_PROSA_RE.finditer(text)
+        ]
 
     @staticmethod
     def _detect_correo_estropeado(text: str) -> list[PiiEntity]:
