@@ -158,12 +158,12 @@ def casos() -> list[Caso]:
     out.append(Caso("", "ADDRESS", "repartida en tres lineas",
                     f"Calle del Doctor Sumsi, {n}, 2º\n46005 Valencia\n(Valencia)",
                     f"Calle del Doctor Sumsi, {n}, 2º 46005 Valencia"))
-    d = f"la calle Ruzafa número {next(num)}, piso tercero, de esta ciudad"
+    d = f"calle Ruzafa número {next(num)}, piso tercero"
     out.append(Caso("", "ADDRESS", "en prosa, castellano",
-                    f"El interesado reside en {d}, según consta en el padrón.", d))
-    d = f"el carrer de Cuba, número {next(num)}, porta 7, de València"
+                    f"El interesado reside en la {d}, de esta ciudad, según consta en el padrón.", d))
+    d = f"carrer de Cuba, número {next(num)}, porta 7"
     out.append(Caso("", "ADDRESS", "en prosa, valenciano",
-                    f"La persona interessada té el domicili en {d}, segons el padró.", d))
+                    f"La persona interessada té el domicili en el {d}, de València, segons el padró.", d))
     for et in ("Domicilio:", "Dirección:", "Adreça:", "Domicili:", "Dom.:"):
         d = f"Calle {next(calles)}, {next(num)}, 46006 Valencia"
         out.append(Caso("", "ADDRESS", f"campo etiquetado '{et}'", f"{et} {d}", d))
@@ -175,19 +175,52 @@ def casos() -> list[Caso]:
         ("Recorrió el Camino de Santiago en 2019.", "Camino de Santiago", "nombre propio con 'Camino'"),
         ("Avenida de la Constitución es una película de 1950.", "Avenida de la Constitución", "titulo"),
         ("Partida presupuestaria 2024/4410/22699", "Partida presupuestaria", "'Partida' presupuestaria"),
+        ("La calle Mayor está cortada por obras desde el lunes.", "calle Mayor", "'calle Mayor' en prosa"),
+        ("Recorrió el Camino de Santiago, etapa número 12.", "Camino de Santiago", "'Camino' + 'número'"),
+        ("El Paseo de Gracia, 2023, fue el lugar elegido.", "Paseo de Gracia", "via + año"),
+        ("Según la avenida número 4 del plan urbanístico", "avenida número 4", "'avenida número' sin nombre"),
+        ("Para el detalle, ver Pg. 12 del informe adjunto.", "Pg. 12", "'Pg.' de pagina"),
+        ("como se indica en la Pg. 46, 46002 ejemplares impresos", "Pg. 46", "'Pg.' de pagina + cifra"),
+        ("Partida 3 del presupuesto: 46100 euros", "Partida 3", "'Partida' + cifra"),
     ):
         out.append(Caso("", "FP_DIRECCION", fmt, texto, valor))
+
+    # --- carta: membrete y destinatario en la franja de CABECERA -----------------
+    # El membrete del ayuntamiento no se tacha; el destinatario si.
+    for tipo, fmt, valor in (
+        ("FP_TELEFONO", "carta: telefono del membrete", "96 170 05 00"),
+        ("FP_DIRECCION", "carta: direccion del membrete", "Plaça Major, 1, 46410 Sueca"),
+        ("ADDRESS", "carta: direccion del destinatario", "C/ Sant Josep, 14, 46410 Sueca"),
+        ("PHONE_NUMBER", "carta: telefono del destinatario", "655 214 873"),
+    ):
+        out.append(Caso("", tipo, fmt, "(en la carta de la primera pagina)", valor))
 
     for i, c in enumerate(out, 1):
         c.id = f"{'T' if 'TELEF' in c.tipo or c.tipo == 'PHONE_NUMBER' else 'D'}{i:03d}"
     return out
 
 
+# La carta de la primera pagina: todo en el 12 % superior (< 101 pt), que es donde
+# la zona de cabecera excluia antes el telefono y la direccion.
+_CARTA = ["Ajuntament de Sueca", "Plaça Major, 1, 46410 Sueca", "Tel. 96 170 05 00",
+          "Sra. Xelo Brufau Ivars", "C/ Sant Josep, 14, 46410 Sueca", "Tel. 655 214 873"]
+
+
 def fabricar_digital(lista: list[Caso], destino: Path) -> None:
     doc = fitz.open()
+    carta = doc.new_page(width=595, height=842)
+    y = 25
+    for linea in _CARTA:
+        carta.insert_text((50, y), linea, fontsize=8, fontname="helv"); y += 11
+    y = 300
+    for linea in ("Por la presente se le notifica la resolucion del expediente de",
+                  "referencia, que se adjunta para su conocimiento y efectos."):
+        carta.insert_text((50, y), linea, fontsize=10, fontname="helv"); y += 14
     pagina = None
     y = 0
     for c in lista:
+        if c.formato.startswith("carta:"):
+            continue
         lineas = [f"Caso {c.id}"] + c.texto.split("\n")
         alto = 15 * len(lineas) + 10
         # Los casos van entre las franjas de cabecera y pie (12 % arriba y abajo,

@@ -37,7 +37,7 @@ def _estado(caso: dict, entidades: list[tuple[str, str]]) -> str:
     if tipo in ("PHONE_NUMBER", "FP_TELEFONO"):
         buscado = "PHONE_NUMBER"
         if tipo == "FP_TELEFONO":
-            linea = _cifras(caso["texto"])
+            linea = _cifras(caso["texto"]) or _cifras(caso["valor"])
             hits = [t for ty, t in entidades if ty == buscado and _cifras(t) and _cifras(t) in linea
                     and _cifras(caso["valor"])[:3] in _cifras(t)]
             return "SI (falso positivo)" if hits else "no"
@@ -56,7 +56,7 @@ def _estado(caso: dict, entidades: list[tuple[str, str]]) -> str:
     from evaluation.lectura_salida import _aplanar
 
     if tipo == "FP_DIRECCION":
-        linea = _aplanar(caso["texto"])
+        linea = _aplanar(caso["valor"] if caso["texto"].startswith("(en la carta") else caso["texto"])
         hits = [t for ty, t in entidades if ty == "ADDRESS" and _aplanar(t) and _aplanar(t) in linea]
         return "SI (falso positivo)" if hits else "no"
     # Solo detecciones con el MISMO numero de portal: otra direccion de la misma
