@@ -161,9 +161,10 @@ def fuera_de_alcance(tipo: str, texto: str = "") -> bool:
     Por politica (OUT_OF_SCOPE_GT_TYPES) o por un defecto conocido del corpus
     (evaluation/defectos_corpus.py, la lista unica).
     """
-    from evaluation.defectos_corpus import telefono_del_generador
+    from evaluation.defectos_corpus import es_lugar_de_infraccion, telefono_del_generador
 
-    return tipo in OUT_OF_SCOPE_GT_TYPES or telefono_del_generador(tipo, texto)
+    return (tipo in OUT_OF_SCOPE_GT_TYPES or telefono_del_generador(tipo, texto)
+            or es_lugar_de_infraccion(tipo, texto))
 
 
 # ---------------------------------------------------------------------------

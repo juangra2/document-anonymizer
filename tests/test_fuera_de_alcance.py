@@ -88,3 +88,13 @@ def test_en_un_hibrido_cuenta_la_procedencia():
     r = evaluate_document("hibrido_pagina_mixta_0020", "mixto", "es", "hibrido",
                           "completed", 0, gt_entities=gt, detected_entities=[])
     assert [e.text for e in r.fn] == ["C477164495"]
+
+
+# --- lugar de la infraccion (defecto lugar_infraccion_sin_etiquetar) ----------------
+
+def test_el_lugar_de_la_infraccion_tachado_no_cuenta_como_falso_positivo():
+    r = evaluate_document("notificacion_sancionador_0001", "notificacion_sancionador", "es",
+                          "digital", "completed", 0, gt_entities=[],
+                          detected_entities=[{"text": "Carrer de Sant Vicent, núm. 78", "type": "ADDRESS"},
+                                             {"text": "Calle Inventada, 3", "type": "ADDRESS"}])
+    assert [e.text for e in r.fp] == ["Calle Inventada, 3"]

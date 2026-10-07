@@ -73,6 +73,18 @@ DEFECTOS = [
         "al_regenerar": "Quitar es_domicilio_empleador (este modulo) y su filtro en "
                         "evaluate_document.",
     },
+    {
+        "id": "lugar_infraccion_sin_etiquetar",
+        "que_pasa": "En notificacion_sancionador el 'Lugar' de la infraccion sale de "
+                    "una lista fija (_PLACES: 'Carrer de Sant Vicent, núm. 78'...) y no "
+                    "se etiqueta.  El sistema lo tacha —puede situar a la persona, y se "
+                    "prefiere tachar de mas— y la evaluacion lo contaba como falso "
+                    "positivo.",
+        "generador": "PENDIENTE: etiquetar infraction_place como ADDRESS en "
+                     "notificacion_sancionador.py.",
+        "al_regenerar": "Quitar LUGARES_DE_INFRACCION y es_lugar_de_infraccion (este "
+                        "modulo) y su uso en fuera_de_alcance.",
+    },
 ]
 
 
@@ -119,3 +131,23 @@ def es_domicilio_empleador(doc_id: str, entidades: list[dict], indice: int) -> b
         return False
     origen = e.get("procede_de") or doc_id
     return origen.startswith("contrato_laboral")
+
+
+# --- lugar_infraccion_sin_etiquetar --------------------------------------------------
+# La lista fija del generador (notificacion_sancionador.py, _PLACES).
+LUGARES_DE_INFRACCION = (
+    "Calle Mayor, frente al núm. 45",
+    "Avenida de la Constitución, altura núm. 12",
+    "Plaza del Ayuntamiento, zona de carga y descarga",
+    "Carrer de Sant Vicent, núm. 78",
+    "Ronda del Litoral, km. 3,4",
+    "Calle de Colón, intersección con Av. del Puerto",
+)
+
+
+def es_lugar_de_infraccion(tipo: str, texto: str) -> bool:
+    """Una direccion detectada que es (parte de) uno de los lugares de la lista."""
+    if tipo != "ADDRESS" or not texto:
+        return False
+    t = " ".join(texto.lower().split())
+    return any(t in lugar.lower() or lugar.lower() in t for lugar in LUGARES_DE_INFRACCION)
