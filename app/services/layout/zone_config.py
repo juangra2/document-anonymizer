@@ -97,12 +97,17 @@ _REDACT_ZONE = ZoneDetectorConfig(entity_types=None, apply_layout_analysis=False
 
 # Cabecera: identifiers and actor names are plausible; full layout analysis
 # is not useful here because headers are rarely form-like.
-# PHONE_NUMBER excluded: institutional phones (Ayuntamiento, hospital,
-# university) appear in document letterheads/headers and the GT corpus
-# does not annotate them as personal PII, generating ~180 FPs.
-# Personal phones virtually never appear in document headers.
+# PHONE_NUMBER / ADDRESS / POSTAL_CODE: antes se excluian para no tachar el
+# telefono de centralita del membrete, y un dato PERSONAL en la franja de
+# cabecera (el destinatario de una carta) no se tachaba nunca.  Ahora se buscan
+# y decide el filtro institucional (RedactionPlan.resolve_candidates), el mismo
+# en los dos caminos: aparta el contacto de la institucion y deja el resto.
+# Ver tests/test_contacto_en_cabecera.py.
+_CONTACTO = ["PHONE_NUMBER", "ADDRESS", "POSTAL_CODE"]
+
 _HEADER_CONFIG = ZoneDetectorConfig(
     entity_types=[
+        *_CONTACTO,
         "PERSON",
         "ES_DNI",
         "ES_NIE",
@@ -130,8 +135,9 @@ _FOOTER_CONFIG = ZoneDetectorConfig(
     # DATE_TIME / DATE_OF_BIRTH: por requisito del ayuntamiento se anonimiza
     # TODA fecha, sin excepcion — tambien la del bloque de firma electronica y
     # la del pie de pagina, que antes quedaban fuera de alcance.
+    # Contacto: igual que en la cabecera, decide el filtro institucional.
     entity_types=["CASE_NUMBER", "URL", "CERT_SERIAL", "REGISTRY_NUMBER", "CSV",
-                  "IBAN_CODE", "DATE_TIME", "DATE_OF_BIRTH"],
+                  "IBAN_CODE", "DATE_TIME", "DATE_OF_BIRTH", *_CONTACTO],
     apply_layout_analysis=False,
 )
 
