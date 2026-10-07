@@ -43,6 +43,15 @@ _FILL_RATIO: float = 0.85
 # newline that the line-anchored LABELED_FIELD_PATTERNS (^label: value$) rely on.
 _FIELD_START_RE = re.compile(r"^\s*[^\W\d][^:\r\n]{0,40}:")
 
+# Continuacion de una direccion repartida: la linea empieza por un tipo de via y
+# la siguiente por un codigo postal valido (provincia 01-52).
+_VIA_INICIO_RE = re.compile(
+    r"(?i)^\s*(?:C/|Calle|Carrer|Avda\.?|Av\.|Avenida|Avinguda|Pza\.?|Plaza|Pla[çc]a|Pg\.?|"
+    r"Paseo|Passeig|Ctra\.?|Carretera|Cam[ií]|Camino|Partida|Ptda\.?|Ronda|Traves[ií]a|"
+    r"Travessia|V[ií]a|Gran\s+V[ií]a|Urb\.|Urbanizaci[oó]n)(?!\w)"
+)
+_CP_INICIO_RE = re.compile(r"^\s*(?:0[1-9]|[1-4]\d|5[0-2])\d{3}\b")
+
 
 def normalize_inline_newlines(text: str) -> str:
     """Replace interior CR/LF with spaces (length-preserving).
@@ -144,20 +153,26 @@ def _should_merge(
     if gap_y > max_gap_y:
         return False
 
+    row_text = page_text.text[row_first.start:row_last.end]
+    prev_text = page_text.text[prev_first.start:prev_last.end]
+
     # Line-fill: only a row that overflowed the column wraps to the next line.
     # A short previous row (name, heading, signature label, table cell) ends a
     # logical line; merging would extend entity spans into the following text.
-    if prev_last.rect.x1 < min_fill_x:
+    # Excepcion: una linea de calle seguida de una que empieza por codigo postal
+    # es UNA direccion repartida ("Calle X, 12, 2º" / "46005 Valencia").  Con
+    # un parrafo largo en la pagina la columna es ancha, la linea de la calle no
+    # la llena, y sin esto la direccion no se veia entera.
+    continua_direccion = bool(_VIA_INICIO_RE.match(prev_text) and _CP_INICIO_RE.match(row_text))
+    if prev_last.rect.x1 < min_fill_x and not continua_direccion:
         return False
 
     # A row opening a new "Label:" field is a distinct logical line — merging it
     # would destroy the newline its ^label: value$ pattern anchors on.
-    row_text = page_text.text[row_first.start:row_last.end]
     if _FIELD_START_RE.match(row_text):
         return False
 
     # The previous row ending a sentence marks a hard break, not a wrap.
-    prev_text = page_text.text[prev_first.start:prev_last.end]
     if prev_text.rstrip().endswith("."):
         return False
 

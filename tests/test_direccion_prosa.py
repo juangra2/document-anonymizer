@@ -75,3 +75,30 @@ def test_pg_y_partida_sin_etiqueta(texto, esperado):
 ])
 def test_trampas_de_pg_y_partida(texto):
     assert not _direcciones(texto), _direcciones(texto)
+
+
+# --- direccion repartida en una pagina con lineas largas (formulario real) -----------
+# El reagrupado de lineas digital solo une una linea con la siguiente si la
+# primera "llena la columna" (se partio por falta de sitio).  Con un parrafo
+# largo en la pagina la columna es ancha, "Calle X, 12, 2º" no la llena y el
+# codigo postal de la linea siguiente quedaba en otra zona: la direccion no se
+# veia entera.  Reproducido con el banco de pruebas.
+
+def test_direccion_en_dos_lineas_en_una_pagina_con_lineas_largas(tmp_path):
+    import fitz
+
+    from app.services.pdf.redactor import redact_pdf_digital
+
+    entrada, salida = tmp_path / "f.pdf", tmp_path / "f_out.pdf"
+    doc = fitz.open()
+    p = doc.new_page(width=595, height=842)
+    lineas = ["El interesado presenta la presente solicitud en tiempo y forma ante este organismo publico.",
+              "Domicilio: Calle de Colón, 319",
+              "Calle del Doctor Sumsi, 326, 2º", "46005 Valencia", "(Valencia)",
+              "Correo: interesado@ejemplo.es"]
+    for i, linea in enumerate(lineas):
+        p.insert_text((50, 300 + 15 * i), linea, fontsize=10)
+    doc.save(entrada)
+    redact_pdf_digital(entrada, salida, "t", analyzer)
+    queda = " ".join(fitz.open(salida)[0].get_text().split())
+    assert "Doctor Sumsi" not in queda and "46005" not in queda
