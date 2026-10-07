@@ -1,73 +1,108 @@
 {
-  "nota": "Contabilidad por valor + paginas en negro + variantes con el limite pasado contadas como sobre-redaccion y no como falso positivo. La linea base se reconstruye desde los FN/FP guardados (scripts/recontar_resultados.py): su sobre-redaccion es una cota inferior. c1 guarda sus detecciones: recuento exacto. Defectos del corpus excluidos segun evaluation/defectos_corpus.py.",
+  "nota": "Contabilidad por valor + paginas en negro + variantes con el limite pasado contadas como sobre-redaccion y no como falso positivo. La linea base se reconstruye desde los FN/FP guardados (scripts/recontar_resultados.py): su sobre-redaccion es una cota inferior. c1 guarda sus detecciones: recuento exacto. Defectos del corpus excluidos segun evaluation/defectos_corpus.py. Recontado el 2026-10-07 con las exclusiones domicilio_institucional y lugar_infraccion_sin_etiquetar.",
   "linea_base_antes_del_arreglo": {
     "fuente": "evaluation/resultados_{c}.json (reconstruido)",
     "digital": {
       "documentos": 400,
-      "f1_por_valor": 0.923,
-      "precision": 0.9192,
-      "recall": 0.9268,
+      "f1_por_valor": 0.9262,
+      "precision": 0.9195,
+      "recall": 0.933,
       "tp_pagina_negra": 0,
       "sobre_redaccion": 69,
       "sobre_redaccion_caracteres": 702,
-      "f1_por_aparicion": 0.9256
+      "f1_por_aparicion": 0.9276
     },
     "escaneado": {
       "documentos": 28,
-      "f1_por_valor": 0.8773,
-      "precision": 0.8575,
-      "recall": 0.898,
+      "f1_por_valor": 0.8718,
+      "precision": 0.848,
+      "recall": 0.897,
       "tp_pagina_negra": 4,
       "sobre_redaccion": 0,
       "sobre_redaccion_caracteres": 0,
-      "f1_por_aparicion": 0.8535
+      "f1_por_aparicion": 0.8495
     },
     "hibrido": {
       "documentos": 24,
-      "f1_por_valor": 0.7158,
+      "f1_por_valor": 0.7179,
       "precision": 0.9444,
-      "recall": 0.5763,
+      "recall": 0.5789,
       "tp_pagina_negra": 0,
       "sobre_redaccion": 1,
       "sobre_redaccion_caracteres": 13,
-      "f1_por_aparicion": 0.7051
+      "f1_por_aparicion": 0.7065
     },
-    "media_f1_por_valor": 0.8387,
-    "media_f1_por_aparicion": 0.8281
+    "media_f1_por_valor": 0.8386,
+    "media_f1_por_aparicion": 0.8279
   },
   "c1_2026_10_06": {
     "fuente": "evaluation/resultados_c1_{c}.json (exacto). Con zxing y CSV, sin el arreglo del bucle. En escaneado, contrato_laboral_0002 y certificado_empadronamiento_0004 agotaron el tiempo con la maquina cargada y se repitieron con la maquina libre (resultados_c1b_repetidos.json, codigo con el arreglo del bucle).",
     "digital": {
       "documentos": 400,
-      "f1_por_valor": 0.9344,
-      "precision": 0.9162,
-      "recall": 0.9533,
+      "f1_por_valor": 0.9376,
+      "precision": 0.9165,
+      "recall": 0.9597,
       "tp_pagina_negra": 0,
       "sobre_redaccion": 390,
       "sobre_redaccion_caracteres": 2891,
-      "f1_por_aparicion": 0.9344
+      "f1_por_aparicion": 0.9363
     },
     "escaneado": {
       "documentos": 28,
-      "f1_por_valor": 0.8876,
-      "precision": 0.8548,
-      "recall": 0.9229,
+      "f1_por_valor": 0.8822,
+      "precision": 0.8456,
+      "recall": 0.9221,
       "tp_pagina_negra": 4,
       "sobre_redaccion": 15,
       "sobre_redaccion_caracteres": 78,
-      "f1_por_aparicion": 0.8598
+      "f1_por_aparicion": 0.8559
     },
     "hibrido": {
       "documentos": 24,
-      "f1_por_valor": 0.9206,
-      "precision": 0.9036,
-      "recall": 0.9384,
+      "f1_por_valor": 0.9197,
+      "precision": 0.9006,
+      "recall": 0.9396,
       "tp_pagina_negra": 34,
       "sobre_redaccion": 19,
       "sobre_redaccion_caracteres": 184,
-      "f1_por_aparicion": 0.8698
+      "f1_por_aparicion": 0.869
     },
-    "media_f1_por_valor": 0.9142,
-    "media_f1_por_aparicion": 0.888
+    "media_f1_por_valor": 0.9132,
+    "media_f1_por_aparicion": 0.8871
+  },
+  "c2_2026_10_07": {
+    "fuente": "evaluation/resultados_c2_{c}.json (exacto). Ademas de c1: bucle de MinerU, letra de control del DNI, IBAN y correo por su forma, filtro institucional en los dos caminos, contacto en cabecera y pie, telefonos con puntos y prefijo, expediente/registro, direcciones en prosa, en varias lineas, Pg. y Partida.",
+    "digital": {
+      "documentos": 400,
+      "f1_por_valor": 0.9366,
+      "precision": 0.9141,
+      "recall": 0.9602,
+      "tp_pagina_negra": 0,
+      "sobre_redaccion": 390,
+      "sobre_redaccion_caracteres": 2891,
+      "f1_por_aparicion": 0.9352
+    },
+    "escaneado": {
+      "documentos": 28,
+      "f1_por_valor": 0.9486,
+      "precision": 0.9474,
+      "recall": 0.9497,
+      "tp_pagina_negra": 4,
+      "sobre_redaccion": 15,
+      "sobre_redaccion_caracteres": 78,
+      "f1_por_aparicion": 0.9157
+    },
+    "hibrido": {
+      "documentos": 24,
+      "f1_por_valor": 0.9267,
+      "precision": 0.9142,
+      "recall": 0.9396,
+      "tp_pagina_negra": 33,
+      "sobre_redaccion": 19,
+      "sobre_redaccion_caracteres": 184,
+      "f1_por_aparicion": 0.8778
+    },
+    "media_f1_por_valor": 0.9373,
+    "media_f1_por_aparicion": 0.9096
   }
 }

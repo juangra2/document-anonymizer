@@ -53,20 +53,27 @@ con `scripts/recontar_resultados.py`):
 | | F1 por aparicion | F1 por valor | sobre-redaccion |
 |---|---|---|---|
 | **linea base** (antes del arreglo, reconstruida) | | | |
-| digital | 0.9256 | 0.9230 | >= 69 |
-| escaneado | 0.8535 | 0.8773 | — |
-| hibrido | 0.7051 | 0.7158 | >= 1 |
-| media | 0.8281 | 0.8387 | |
-| **c1** (06-10-2026, exacta: zxing + CSV, sin el arreglo del bucle) | | | |
-| digital | 0.9344 | 0.9344 | 390 (2891 caracteres) |
-| escaneado * | 0.8598 | 0.8876 | 15 (78) |
-| hibrido | 0.8698 | 0.9206 | 19 (184) |
-| media | 0.8880 | 0.9142 | |
+| digital | 0.9276 | 0.9262 | >= 69 |
+| escaneado | 0.8495 | 0.8718 | — |
+| hibrido | 0.7065 | 0.7179 | >= 1 |
+| media | 0.8279 | 0.8386 | |
+| **c1** (06-10-2026: zxing + CSV) | | | |
+| digital | 0.9363 | 0.9376 | 390 (2891 caracteres) |
+| escaneado * | 0.8559 | 0.8822 | 15 (78) |
+| hibrido | 0.8690 | 0.9197 | 19 (184) |
+| media | 0.8871 | 0.9132 | |
+| **c2** (07-10-2026: todo lo de c1 y ademas bucle de MinerU, DNI con la letra leida como cifra, IBAN y correo por su forma, filtro institucional en los dos caminos, contacto en cabecera y pie, telefonos con puntos y prefijo, expediente/registro, direcciones en prosa y en varias lineas, Pg. y Partida) | | | |
+| digital | 0.9352 | 0.9366 | 390 (2891) |
+| escaneado | 0.9157 | 0.9486 | 15 (78) |
+| hibrido | 0.8778 | 0.9267 | 19 (184) |
+| media | 0.9096 | 0.9373 | |
 
-\* 2 escaneados agotaron el tiempo por pagina con la maquina cargada y salieron
-enteros en negro.  Se repitieron con la maquina libre (ya con el arreglo del
-bucle) y la fila lleva esa repeticion; con los dos en negro salia 0.9008 por
-valor, inflado: una pagina tachada entera tapa, pero no por haber detectado.
+Todas las filas recontadas el 07-10-2026 con el evaluador actual (incluidas las
+exclusiones domicilio_institucional y lugar_infraccion_sin_etiquetar), asi que
+son comparables entre si.
+
+\* 2 escaneados de c1 agotaron el tiempo por pagina con la maquina cargada; la
+fila lleva su repeticion con la maquina libre.
 
 Como leerlo: la mejora del pipeline es la diferencia entre filas de la misma
 columna; la de la contabilidad, la diferencia entre columnas de la misma fila.
