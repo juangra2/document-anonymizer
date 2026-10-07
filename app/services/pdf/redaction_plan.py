@@ -44,6 +44,10 @@ class RedactionPlan:
     _entities: list[PiiEntity] = field(default_factory=list)
     _entity_keys: set[tuple[int, int, str]] = field(default_factory=set)
     untyped_structural: int = 0
+    # Entidades que esperan al filtro institucional: (entidad, rects, la misma
+    # entidad con posiciones en el texto de la PAGINA).
+    _candidatos: list[tuple[PiiEntity, list[fitz.Rect], PiiEntity]] = field(default_factory=list)
+    institucionales_suprimidas: int = 0
 
     def admits(self, entity_type: str | None, *, always: bool = False) -> bool:
         """Si un tachado de *entity_type* entra en el plan."""
@@ -92,6 +96,52 @@ class RedactionPlan:
             self._entity_keys.add(key)
             self._entities.append(entity)
         return True
+
+    def add_candidate(
+        self,
+        entity: PiiEntity,
+        rects: list[fitz.Rect] | None = None,
+        en_pagina: PiiEntity | None = None,
+    ) -> None:
+        """Da de alta una entidad de texto libre que pasa por el filtro institucional.
+
+        `en_pagina` es la misma entidad con sus posiciones en el texto de la
+        pagina entera (el filtro mira el membrete y lo que hay antes del dato);
+        si no se da, se usan las de `entity`.
+        """
+        self._candidatos.append((entity, list(rects or []), en_pagina or entity))
+
+    def resolve_candidates(
+        self,
+        page_text: str,
+        zoned_page,
+        contexto: list[PiiEntity] | None = None,
+        person_spans: list[tuple[int, int]] | None = None,
+    ) -> int:
+        """Aparta el contacto de la institucion emisora y da de alta el resto.
+
+        UN solo filtro para los dos caminos (digital y por OCR): el telefono, la
+        direccion y el codigo postal de quien emite el documento no son datos
+        personales, y tacharlos es sobre-redaccion.  `contexto` son entidades
+        que el filtro debe ver pero que no son candidatas (las de formulario).
+        Devuelve cuantas se apartaron.
+        """
+        from app.services.pii.institution_filter import filter_institutional
+
+        contexto = list(contexto or [])
+        suprimidas = filter_institutional(
+            page_text, zoned_page, contexto + [c[2] for c in self._candidatos],
+            person_spans=person_spans,
+        )
+        n = 0
+        for i, (entity, rects, _) in enumerate(self._candidatos):
+            if len(contexto) + i in suprimidas:
+                n += 1
+                continue
+            self.add_entity(entity, rects)
+        self._candidatos.clear()
+        self.institucionales_suprimidas += n
+        return n
 
     @property
     def rects(self) -> list[fitz.Rect]:

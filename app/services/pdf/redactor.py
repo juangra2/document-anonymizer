@@ -36,7 +36,6 @@ from app.services.pdf.partial import append_partial_notice
 from app.services.pii.code_policy import code_may_stay_visible
 from app.services.pii.label_types import structural_rects_released
 from app.services.pdf.redaction_plan import RedactionPlan
-from app.services.pii.institution_filter import filter_institutional
 from app.services.pii.models import PiiEntity
 from app.services.vision.code_detector import detect_redactable_codes, detect_visual_code_rects
 from app.services.vision.signature_region import detect_signature_rects
@@ -428,13 +427,10 @@ def _collect_redaction_rects(
     evidence = None
     if "PERSON" in analyzer.disabled_types:
         evidence = _person_evidence(zoned_page, page_text, analyzer, mode)
-    filter_input = form_entities + [entity for entity, _ in candidates]
-    suppressed = filter_institutional(page_text.text, zoned_page, filter_input, person_spans=evidence)
-    offset = len(form_entities)
-    for index, (entity, rects) in enumerate(candidates):
-        if offset + index in suppressed:
-            continue
-        plan.add_entity(entity, rects)
+    for entity, rects in candidates:
+        plan.add_candidate(entity, rects)
+    plan.resolve_candidates(page_text.text, zoned_page, contexto=form_entities,
+                            person_spans=evidence)
 
     return plan.rects, plan.entities, plan.untyped_structural
 

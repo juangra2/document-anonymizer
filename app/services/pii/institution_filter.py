@@ -102,9 +102,22 @@ PROXIMITY_ISSUER_RE = re.compile(
 # How many characters before a contact datum to look for an institution name.
 PROXIMITY_WINDOW = 120
 
+# Un tratamiento o una marca de destinatario entre la institucion y el dato:
+# empieza el bloque de una PERSONA (el destinatario de una carta va arriba, en la
+# franja del membrete).  Cuenta como persona aunque su nombre no se haya
+# detectado —en un escaneado el OCR puede estropearlo—: en la duda, se tacha.
+_TRATAMIENTO_RE = re.compile(
+    r"(?:\b(?:Sr|Sra|Srta|Dña|Dª|Excm[oa]|Il[·.]?lm[oa]|Ilm[oa])\.?\s+[A-ZÁÉÍÓÚÀÈÒÇÑ]"
+    r"|\b(?:D|Don|Doña|En|Na)\.?\s+[A-ZÁÉÍÓÚÀÈÒÇÑ][a-záéíóúàèòçñ]"
+    r"|\bA/A\b|\bAtt?\.\s"
+    r"|(?i:\bdestinatari[oa]?\b|\binteresad[oa]\b|\binteressad[ae]\b))"
+)
+
 # Letterhead is also approximated by the first N text lines of the page, to
 # catch issuer contact data that fell below the HEADER Y-band.
 _LETTERHEAD_LINES = 5
+# Una linea de mas caracteres ya es un parrafo, no un membrete.
+_LETTERHEAD_MAX_LINE = 100
 
 
 # ---------------------------------------------------------------------------
@@ -161,17 +174,22 @@ def letterhead_ranges(page_text: str, zoned_page: ZonedPage) -> list[tuple[int, 
             start = zone.page_text_offset
             candidates.append((start, start + len(zone.text)))
 
-    # First N lines of the page (covers letterheads below the HEADER Y-band).
+    # First N lines of the page (covers letterheads below the HEADER Y-band),
+    # hasta la primera linea LARGA: un membrete son lineas cortas, y en un
+    # escaneado MinerU devuelve un parrafo entero como una sola linea —sin este
+    # corte, el primer parrafo del cuerpo contaba como membrete—.
     end = 0
     line_count = 0
-    for i, ch in enumerate(page_text):
+    line_start = 0
+    for i, ch in enumerate(page_text + "\n"):
         if ch == "\n":
+            if i - line_start > _LETTERHEAD_MAX_LINE:
+                break
             line_count += 1
-            end = i
+            end = min(i, len(page_text))
+            line_start = i + 1
             if line_count >= _LETTERHEAD_LINES:
                 break
-    else:
-        end = len(page_text)
     if end > 0:
         candidates.append((0, end))
 
@@ -180,6 +198,20 @@ def letterhead_ranges(page_text: str, zoned_page: ZonedPage) -> list[tuple[int, 
         for r0, r1 in candidates
         if any(r0 <= s < r1 for s, _ in inst_spans)
     ]
+
+
+def _en_membrete(entity: PiiEntity, page_text: str, ranges: list[tuple[int, int]]) -> bool:
+    """El dato cae en el membrete y antes de el no empieza el bloque de una persona.
+
+    Las "primeras lineas" de la pagina pueden alcanzar al destinatario de una
+    carta o al primer parrafo; un tratamiento o una marca de interesado entre el
+    principio del membrete y el dato dice que ya no es la institucion.
+    """
+    for r0, r1 in ranges:
+        if _in_any_range(entity.start, entity.end, [(r0, r1)]) and not \
+                _TRATAMIENTO_RE.search(page_text, r0, entity.start):
+            return True
+    return False
 
 
 def _in_any_range(start: int, end: int, ranges: list[tuple[int, int]]) -> bool:
@@ -207,7 +239,7 @@ def institutional_allowlist(
     for e in entities:
         if e.entity_type not in ALLOWLIST_TYPES:
             continue
-        if _in_any_range(e.start, e.end, ranges):
+        if _en_membrete(e, page_text, ranges):
             value = e.text or page_text[e.start:e.end]
             allowlist[e.entity_type].add(normalize_value(e.entity_type, value))
 
@@ -255,9 +287,9 @@ def _is_institutional(
 
     # The datum itself sits in the letterhead — only suppressed for PHONE_NUMBER;
     # header addresses/postal codes are usually personal/work-centre data here.
-    if entity.entity_type in LETTERHEAD_SUPPRESS_TYPES and _in_any_range(
-        entity.start, entity.end, ranges
-    ):
+    # Salvo que entre el principio del membrete y el dato empiece el bloque de
+    # una persona (el destinatario): ver _TRATAMIENTO_RE.
+    if entity.entity_type in LETTERHEAD_SUPPRESS_TYPES and _en_membrete(entity, page_text, ranges):
         return True
 
     # An institution name appears just before the datum with no person between
@@ -269,8 +301,10 @@ def _is_institutional(
             nearest_inst_end is None or e > nearest_inst_end
         ):
             nearest_inst_end = e
-    if nearest_inst_end is not None and not _person_in_range(
-        nearest_inst_end, entity.start, person_spans
+    if (
+        nearest_inst_end is not None
+        and not _person_in_range(nearest_inst_end, entity.start, person_spans)
+        and not _TRATAMIENTO_RE.search(page_text, nearest_inst_end, entity.start)
     ):
         return True
 

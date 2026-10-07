@@ -765,6 +765,22 @@ def _collect_redaction_rects(
 
     # Contexto de pagina para el gate de importes (ver PiiAnalyzer.analyze).
     page_context = chr(10).join(z.text for z in zoned_page.zones if z.text)
+    # Donde empieza cada zona en ese texto: el filtro institucional mira el
+    # membrete y lo que hay antes de cada dato en la PAGINA, no en la zona.  El
+    # segmentador de OCR no lo fija (lo deja a 0).
+    desplazamiento = 0
+    for zone in zoned_page.zones:
+        if zone.text:
+            zone.page_text_offset = desplazamiento
+            desplazamiento += len(zone.text) + 1
+    contexto_formulario: list[PiiEntity] = []
+
+    def _en_pagina(entity: PiiEntity, zone) -> PiiEntity:
+        return PiiEntity(entity_type=entity.entity_type,
+                         start=zone.page_text_offset + entity.start,
+                         end=zone.page_text_offset + entity.end,
+                         score=entity.score, source=entity.source,
+                         text=zone.text[entity.start:entity.end])
 
     for zone in zoned_page.zones:
 
@@ -806,6 +822,7 @@ def _collect_redaction_rects(
                     context_text=page_context,
                 ):
                     if entity.entity_type in allowed:
+                        contexto_formulario.append(_en_pagina(entity, zone))
                         # Valor ya tapado por el rect estructural: se cuenta, no se pinta.
                         plan.add_entity(PiiEntity(
                             entity_type=entity.entity_type, start=entity.start, end=entity.end,
@@ -833,12 +850,15 @@ def _collect_redaction_rects(
             else:
                 entity_rects = _entity_rects_from_zone(entity, zone)
             if entity_rects:
-                plan.add_entity(PiiEntity(
+                plan.add_candidate(PiiEntity(
                     entity_type=entity.entity_type, start=entity.start, end=entity.end,
                     score=entity.score, source=entity.source,
                     text=zone.text[entity.start:entity.end],
-                ), entity_rects)
+                ), entity_rects, en_pagina=_en_pagina(entity, zone))
 
+    # El contacto de la institucion emisora no se tacha: el MISMO filtro que en
+    # el camino digital, en el punto unico de salida (RedactionPlan).
+    plan.resolve_candidates(page_context, zoned_page, contexto=contexto_formulario)
     return plan.rects, plan.entities
 
 
