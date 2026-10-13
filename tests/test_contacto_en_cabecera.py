@@ -74,3 +74,31 @@ def test_escaneado_un_telefono_personal_en_un_pie_se_tacha():
     t = _tachado([_zona(ZoneType.FOOTER, ["Persona de contacto: Vicent Peris Llopis, movil 655 123 456"],
                         2200)])
     assert "655 123 456" in t
+
+
+# --- CSV, IP, URL y documentos de identidad en cabecera y pie --------------------------
+# Lectura de barras de c2: en la franja superior de las paginas interiores van el
+# CSV, la IP de acceso y la URL de verificacion, y la cabecera no los admitia; en
+# el bloque de firmas del pie, el DNI del garante.
+
+def test_csv_ip_y_url_en_la_cabecera(tmp_path):
+    texto = _carta(tmp_path, ["CSV: MQRMUFXUIAM3RU6LENLC  IP: 95.30.29.213",
+                              "Verificacion: www.sefcarm.es/sede"])
+    assert "MQRMUFXUIAM3RU6LENLC" not in texto
+    assert "95.30.29.213" not in texto
+    assert "www.sefcarm.es/sede" not in texto
+
+
+def test_dni_y_pasaporte_en_el_pie(tmp_path):
+    texto = _carta(tmp_path, _MEMBRETE, ["Garante: Paula Martin Delgado  DNI: 69026956T",
+                                         "Pasaporte: PZ7025106"])
+    assert "69026956T" not in texto and "PZ7025106" not in texto
+
+
+def test_importes_de_nomina_en_el_pie_y_en_la_cabecera(tmp_path):
+    """nomina_0003: "TOTAL DEDUCCIONES 746,01" caia en la franja del pie y el
+    pie no admitia importes; el "LIQUIDO A PERCIBIR" de la pagina siguiente,
+    en la cabecera."""
+    texto = _carta(tmp_path, ["NOMINA DEL MES · LIQUIDO A PERCIBIR 4.113,99 €"],
+                   ["TOTAL DEDUCCIONES 746,01"])
+    assert "746,01" not in texto and "4.113,99" not in texto

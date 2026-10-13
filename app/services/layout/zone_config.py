@@ -121,6 +121,16 @@ _HEADER_CONFIG = ZoneDetectorConfig(
         # interior ("FORMA DE PAGO … IBAN: ES25-…") se clasifica como header
         # y sin este tipo el IBAN se perdía (regex de alta precisión: mod-97).
         "IBAN_CODE",
+        # En la franja superior de las paginas interiores van el CSV, la IP de
+        # acceso y la URL de verificacion (lectura de barras de c2), y el
+        # pasaporte junto al DNI y el NIE que ya se buscaban.
+        "CSV",
+        "IP_ADDRESS",
+        "URL",
+        "PASSPORT",
+        # Importes: el "LIQUIDO A PERCIBIR" de una nomina puede caer arriba de la
+        # pagina siguiente.  El detector de importes sigue exigiendo su etiqueta.
+        "MONEY",
     ],
     apply_layout_analysis=False,
 )
@@ -136,8 +146,14 @@ _FOOTER_CONFIG = ZoneDetectorConfig(
     # TODA fecha, sin excepcion — tambien la del bloque de firma electronica y
     # la del pie de pagina, que antes quedaban fuera de alcance.
     # Contacto: igual que en la cabecera, decide el filtro institucional.
+    # IP de acceso y documentos de identidad: el bloque de firmas cae en el pie
+    # y el DNI del garante quedaba a la vista (lectura de barras de c2).  Los
+    # nombres no: pendiente de decidir el criterio para cargos firmando.
     entity_types=["CASE_NUMBER", "URL", "CERT_SERIAL", "REGISTRY_NUMBER", "CSV",
-                  "IBAN_CODE", "DATE_TIME", "DATE_OF_BIRTH", *_CONTACTO],
+                  "IBAN_CODE", "DATE_TIME", "DATE_OF_BIRTH", *_CONTACTO,
+                  "IP_ADDRESS", "ES_DNI", "ES_NIE", "PASSPORT",
+                  # "TOTAL DEDUCCIONES 746,01" de una nomina caia en el pie.
+                  "MONEY"],
     apply_layout_analysis=False,
 )
 
