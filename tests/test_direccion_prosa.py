@@ -102,3 +102,11 @@ def test_direccion_en_dos_lineas_en_una_pagina_con_lineas_largas(tmp_path):
     redact_pdf_digital(entrada, salida, "t", analyzer)
     queda = " ".join(fitz.open(salida)[0].get_text().split())
     assert "Doctor Sumsi" not in queda and "46005" not in queda
+
+
+def test_direccion_con_el_salto_de_linea_a_mitad():
+    """contrato_prestacion_servicios_0007: el salto cae entre el numero y el
+    piso, no antes del codigo postal."""
+    texto = ("NASS: 41/3546801989, domiciliado/a en Ctra. de España, 60,\n"
+             "Entresuelo Centro, 08002 Barcelona, Tel.: 617 485 476")
+    assert any("España, 60" in d and "08002" in d for d in _direcciones(texto)), _direcciones(texto)

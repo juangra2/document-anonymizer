@@ -1134,9 +1134,11 @@ _ADDRESS_GAZETTEER_RE = re.compile(
     # "de l'" antes que "de": "Pg. de l'Albereda", "Passeig de l'Albereda".
     r"(?i:de[ \t]+l'|de[ \t]+|del[ \t]+|de[ \t]+la[ \t]+|de[ \t]+les[ \t]+|d'|dels[ \t]+)?"
     r"[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][^\n:;]{0,80}?"
-    # El codigo postal puede ir en la linea siguiente: una direccion repartida
-    # en varias lineas ("Calle X, 12, 2º / 46005 Valencia") se escapaba entera.
-    r"(?:\n[ \t]*)?"
+    # Un salto de linea dentro de la direccion: antes del codigo postal ("Calle
+    # X, 12, 2º / 46005 Valencia") o a mitad ("Ctra. de España, 60, / Entresuelo
+    # Centro, 08002 Barcelona").  Se escapaban enteras.  Sigue exigiendo un codigo
+    # postal valido al final.
+    r"(?:\n[ \t]*[^\n:;]{0,40}?)?"
     r"\b(?P<cp>(?:0[1-9]|[1-4]\d|5[0-2])\d{3})\b"
     r"(?:[ \t]+(?P<muni>[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][^\n,;:0-9]{1,38}))?"
     r")"
