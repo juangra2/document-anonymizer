@@ -46,6 +46,110 @@ from app.services.vision.signature_region import detect_signature_rects
 _QR_DETECT_DPI = 300
 
 
+# Barrido de todas las apariciones (tachar_todas_las_apariciones): longitud
+# minima de un valor para buscarlo, y de un trozo de direccion partida.
+_MIN_VALOR_BARRIDO = 5
+_MIN_TROZO_DIRECCION = 12
+
+
+def _trozos_de_direccion(valor: str) -> list[str]:
+    """El valor y sus trozos con contenido, por si una aparicion va partida en dos lineas.
+
+    "Calle de Cervantes, 96, 5º C, 28013 Madrid." -> tambien "Cervantes, 96, 5º C,
+    28013 Madrid." (quitando palabras del principio) y "Calle de Cervantes, 96, 5º
+    C," (quitando del final), mientras el trozo conserve al menos el 60 % del valor y
+    _MIN_TROZO_DIRECCION caracteres: un trozo corto ("Calle de") no dice nada y
+    cazaria cualquier otra direccion.
+    """
+    palabras = valor.split()
+    minimo = max(_MIN_TROZO_DIRECCION, int(len(valor) * 0.6))
+    trozos = [valor]
+    for i in range(1, len(palabras)):
+        for trozo in (" ".join(palabras[i:]), " ".join(palabras[:-i])):
+            if len(trozo) >= minimo and trozo not in trozos:
+                trozos.append(trozo)
+    return trozos
+
+
+_ETIQUETAS_TRAS_NOMBRE = {"dni", "nif", "nie", "doc", "doc.", "documento", "pasaporte",
+                          "passaport", "naf", "nass", "nss", "con", "y", "i", "en"}
+
+
+def _nombre_sin_cola(valor: str) -> str:
+    """Quita del final de un nombre lo que no es nombre: "David Álvarez Suárez DNI".
+
+    El analizador a veces alarga el nombre hasta la etiqueta siguiente (es la
+    sobre-redaccion que mide la evaluacion).  Para buscar las demas apariciones
+    del nombre hay que buscar el nombre, no "nombre + etiqueta", que no se repite.
+    """
+    palabras = valor.split()
+    while len(palabras) > 2:
+        ultima = palabras[-1]
+        if (ultima.lower().strip(":.,;/|") in _ETIQUETAS_TRAS_NOMBRE or not ultima[0].isupper()
+                or (ultima.isupper() and len(ultima) > 1) or not any(c.isalpha() for c in ultima)):
+            palabras.pop()
+        else:
+            break
+    return " ".join(palabras)
+
+
+# Por debajo de esta longitud un valor solo se busca como palabra entera:
+# search_for encuentra subcadenas, y "28013" estaria dentro de "2028013/2024".
+_MIN_SUBCADENA = 8
+
+
+def _buscar(page: fitz.Page, valor: str) -> list[fitz.Rect]:
+    if len(valor) >= _MIN_SUBCADENA:
+        return page.search_for(valor)
+    limpio = valor.strip(".,;:()")
+    return [fitz.Rect(w[:4]) for w in page.get_text("words")
+            if w[4].strip(".,;:()") == limpio]
+
+
+def tachar_todas_las_apariciones(doc: fitz.Document, entidades: list[PiiEntity],
+                                 analyzer: PiiAnalyzer) -> int:
+    """Tacha en TODO el documento cada aparicion de un valor ya detectado.
+
+    El dato se detecta en un sitio y vuelve a aparecer en otro donde no se
+    detecta: el nombre solo en el bloque de firma (en el pie), la direccion en la
+    otra columna partida en dos lineas, el importe de la nomina repetido en la
+    pagina 2.  El camino escaneado ya tachaba todas las apariciones; el digital
+    solo la detectada, y la lectura de barras de c2 lo encontro.  Solo valores que
+    el plan admitio (lo que el filtro institucional aparto no entra) y que no son
+    de un tipo desactivado.  Devuelve cuantos tachados añadio.
+    """
+    from app.services.pii.label_types import NON_REDACTABLE_LABEL_TYPES
+
+    valores: set[tuple[str, str]] = set()
+    for e in entidades:
+        if (e.entity_type in analyzer.disabled_types
+                or e.entity_type in NON_REDACTABLE_LABEL_TYPES or not e.text):
+            continue
+        v = " ".join(e.text.split())
+        if e.entity_type == "PERSON":
+            v = _nombre_sin_cola(v)
+            if len(v.split()) < 2:
+                continue          # un nombre suelto cazaria a cualquier otro
+        if len(v) >= _MIN_VALOR_BARRIDO and any(c.isalnum() for c in v):
+            valores.add((e.entity_type, v))
+    if not valores:
+        return 0
+
+    añadidos = 0
+    for page in doc:
+        rects: list[fitz.Rect] = []
+        for tipo, v in valores:
+            trozos = _trozos_de_direccion(v) if tipo == "ADDRESS" else [v]
+            for trozo in trozos:
+                rects.extend(_buscar(page, trozo))
+        for r in rects:
+            page.add_redact_annot(r, fill=(0, 0, 0))
+        if rects:
+            _apply_redactions_safe(page)
+            añadidos += len(rects)
+    return añadidos
+
+
 # Por debajo de este tamaño (en puntos) el texto no se lee: se quita de la salida.
 TAMANO_TEXTO_DIMINUTO = 2.0
 
@@ -178,6 +282,8 @@ def redact_pdf_digital(
                     page.add_redact_annot(rect, fill=(0, 0, 0))
 
                 _apply_redactions_safe(page)
+
+            redacted_count += tachar_todas_las_apariciones(doc, all_entities, analyzer)
 
         except cancellation.JobStopped:
             # PARAR: se entrega lo ya procesado.  Las páginas completas son las
