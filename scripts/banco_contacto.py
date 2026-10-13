@@ -107,6 +107,14 @@ def casos() -> list[Caso]:
     n = _agrupa(nuevo("6"), (3, 2, 2, 2), " ")
     out.append(Caso("", "PHONE_NUMBER", "campo de formulario", f"Teléfono de contacto: ............ {n}", n))
 
+    # etiqueta en una linea y el valor en la siguiente (lectura de barras de c2)
+    n = _agrupa(nuevo("6"), (3, 3, 3), " ")
+    out.append(Caso("", "PHONE_NUMBER", "etiqueta 'Tfno.:' y numero en la linea siguiente",
+                    f"Tfno.:\n+34 {n}", f"+34 {n}"))
+    n = nuevo("6")
+    out.append(Caso("", "PHONE_NUMBER", "nomina: telefono tras el centro de trabajo",
+                    f"Centro de trabajo\nUniversitat Mediterrània d'Elx\nTfno.:\n{n}", n))
+
     # --- trampas de telefono: NO son telefonos --------------------------------
     for texto, valor, fmt in (
         ("Expediente nº 2023/612345678", "612345678", "expediente con 9 cifras"),
@@ -167,6 +175,15 @@ def casos() -> list[Caso]:
     for et in ("Domicilio:", "Dirección:", "Adreça:", "Domicili:", "Dom.:"):
         d = f"Calle {next(calles)}, {next(num)}, 46006 Valencia"
         out.append(Caso("", "ADDRESS", f"campo etiquetado '{et}'", f"{et} {d}", d))
+
+    # etiqueta en una linea y el valor en la siguiente (lectura de barras de c2)
+    d = f"Paseo de {next(calles)}, {next(num)}, 2º B, 18001 Granada"
+    out.append(Caso("", "ADDRESS", "etiqueta 'Domicilio fiscal:' y valor en la linea siguiente",
+                    f"Domicilio fiscal:\n{d}", d))
+    d = f"Calle de {next(calles)}, {next(num)}, 4º A, 03003 Alicante"
+    out.append(Caso("", "ADDRESS", "nomina: domicilio tras el centro de trabajo",
+                    f"Centro de trabajo\nUniversitat Mediterrània d'Elx\nAntigüedad\n12 de febrer de 2015\n"
+                    f"Domicilio fiscal:\n{d}", d))
 
     # --- trampas de direccion: NO son direcciones -------------------------------
     for texto, valor, fmt in (
