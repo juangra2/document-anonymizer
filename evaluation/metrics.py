@@ -93,6 +93,10 @@ class DocResult:
     #: con esto cualquier recuento posterior sale exacto, no reconstruido.
     detectados: list[EntityRecord] = field(default_factory=list)
     paginas_en_negro: list[int] = field(default_factory=list)
+    #: Lo que hizo la red de seguridad en el documento (imagenes tachadas, zonas
+    #: repasadas, lo que sigue legible y de que tipo, si pidio revision manual):
+    #: para cruzarlo con las fugas de la lectura de barras.
+    red: dict = field(default_factory=dict)
 
     @property
     def tp(self) -> int:

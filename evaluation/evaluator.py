@@ -203,7 +203,7 @@ def evaluate_single(
         )
         return result
 
-    return evaluate_document(
+    resultado = evaluate_document(
         doc_id=doc_id,
         doc_type=gt_doc.get("document_type", "unknown"),
         language=gt_doc.get("language", "unknown"),
@@ -216,6 +216,15 @@ def evaluate_single(
         iou_threshold=iou_threshold,
         paginas_en_negro=set(report.get("_paginas_en_negro", [])),
     )
+    ocr = report.get("ocr") or {}
+    resultado.red = {
+        "imagenes_tachadas": ocr.get("safety_net_images_redacted", 0),
+        "zonas_repasadas": ocr.get("safety_net_zones_repainted", 0),
+        "siguen_legibles": ocr.get("safety_net_still_readable", 0),
+        "residuos_por_tipo": report.get("residual_entities_by_type") or {},
+        "revision_manual": bool(report.get("manual_review_required")),
+    }
+    return resultado
 
 
 # ---------------------------------------------------------------------------

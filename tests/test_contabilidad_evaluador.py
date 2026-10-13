@@ -134,3 +134,26 @@ def test_un_falso_positivo_de_verdad_sigue_contando():
 def test_una_variante_corta_no_es_sobre_redaccion():
     r = _ev([_g("Luis Molina Medina")], [_d("Luis Molina Medina"), _d("Luis Molina")])
     assert len(r.fp) == 0 and r.sobre_redaccion == 0
+
+
+# --- los contadores de la red, por documento -----------------------------------------
+# Para decidir sobre el aviso de "siguen legibles tras la red" hacia falta cruzar
+# que documentos lo daban con las fugas de la lectura de barras, y el evaluador
+# no lo guardaba.
+
+def test_el_evaluador_guarda_lo_que_hizo_la_red(monkeypatch, tmp_path):
+    import dataclasses
+
+    import evaluation.evaluator as ev
+
+    informe = {"status": "completed_with_warnings", "document_type": "pdf_scanned",
+               "detected_entities": [], "manual_review_required": False,
+               "residual_entities_by_type": {"PERSON": 2},
+               "ocr": {"safety_net_images_redacted": 1, "safety_net_zones_repainted": 3,
+                       "safety_net_still_readable": 2}}
+    monkeypatch.setattr(ev, "call_api", lambda *a, **k: (informe, None))
+    gt = {"d": {"document_id": "d", "entities": []}}
+    r = ev.evaluate_single(tmp_path / "d.pdf", gt)
+    assert r.red == {"imagenes_tachadas": 1, "zonas_repasadas": 3, "siguen_legibles": 2,
+                     "residuos_por_tipo": {"PERSON": 2}, "revision_manual": False}
+    assert ev._doc_result_desde_json(dataclasses.asdict(r)).red == r.red
