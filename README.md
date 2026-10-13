@@ -429,71 +429,51 @@ genera la evaluación (JSON, HTML, logs) está ignorado por git.
 
 ## Métricas actuales
 
-Corrida de referencia del **15 de septiembre de 2026**, con el código del commit `b0a7ac1`, sobre el
-corpus sintético descrito en [Evaluación](#evaluación). Los resultados completos están en
-`evaluation/reference/results_main.json` y `results_ext.json`; una corrida nueva se compara con
-`python -m evaluation.comparar_eval`.
+Medición **c2** del 7 de octubre de 2026 sobre el corpus sintético, por camino: digital (400
+documentos), escaneado (28) e híbrido (24). Las cifras de cada medición, junto con la línea base y
+la medición anterior, están en `evaluation/linea_base/transicion_contabilidad.json`, y cómo se
+leen, en `evaluation/linea_base/LEEME.md`.
 
-Una entidad cuenta como acierto si el texto detectado coincide exactamente o se solapa al menos un
-50 % con el anotado. `LOCATION`, `PROFESSIONAL_LICENSE` y `ROLE_TABLE_ROW` quedan fuera de la
-métrica global.
+**Cómo se cuenta.** Por **valor**: cada dato distinto de un documento cuenta una vez («¿se detectó
+este valor?»), porque la geometría tacha todas sus apariciones. Un dato que solo vive en páginas
+que salen enteras en negro cuenta como detectado. Una detección que es el mismo dato con el
+límite pasado («Luis Molina Medina NIF /») no es falso positivo, pero la barra de más se cuenta
+como **sobre-redacción** y se publica al lado. Se guarda también la cuenta antigua, por aparición.
+Quedan fuera los tipos que no se anonimizan (`LOCATION`…) y los defectos conocidos del corpus,
+listados en `evaluation/defectos_corpus.py`.
 
-### Corpus principal (400 documentos)
+| Camino | F1 por valor | Precisión | Recall | F1 por aparición | Sobre-redacción |
+|---|---|---|---|---|---|
+| Digital | **0,937** | 0,914 | 0,960 | 0,935 | 390 barras |
+| Escaneado | **0,949** | 0,947 | 0,950 | 0,916 | 15 |
+| Híbrido | **0,927** | 0,914 | 0,940 | 0,878 | 19 |
+| Media | **0,937** | | | 0,910 | |
 
-| Precisión | Recall | F1 | Aciertos | Falsos negativos | Falsos positivos | Errores de API |
-|---|---|---|---|---|---|---|
-| 0.920 | 0.929 | **0.924** | 9981 | 768 | 873 | 0 |
+Línea base, antes del arreglo del camino híbrido: media por valor 0,839 (digital 0,926,
+escaneado 0,872, híbrido 0,718).
 
-| Tipo | Precisión | Recall | F1 | Anotadas |
-|---|---|---|---|---|
-| `CASE_NUMBER` | 1.000 | 0.998 | 0.999 | 1108 |
-| `IBAN_CODE` | 0.990 | 0.997 | 0.993 | 297 |
-| `ES_DNI` | 0.991 | 0.987 | 0.989 | 765 |
-| `EMAIL_ADDRESS` | 0.990 | 0.987 | 0.988 | 387 |
-| `ES_NSS` | 0.987 | 0.987 | 0.987 | 374 |
-| `DATE_TIME` | 0.953 | 0.999 | 0.975 | 1609 |
-| `ES_NIE` | 0.979 | 0.963 | 0.971 | 246 |
-| `ES_CIF` | 1.000 | 0.941 | 0.970 | 119 |
-| `URL` | 1.000 | 0.918 | 0.957 | 391 |
-| `DATE_OF_BIRTH` | 0.976 | 0.927 | 0.951 | 400 |
-| `PASSPORT` | 0.923 | 0.947 | 0.935 | 114 |
-| `QR_CODE` | 1.000 | 0.877 | 0.934 | 333 |
-| `IP_ADDRESS` | 1.000 | 0.865 | 0.928 | 141 |
-| `POSTAL_CODE` | 0.941 | 0.874 | 0.906 | 657 |
-| `LICENSE_PLATE` | 0.918 | 0.889 | 0.903 | 63 |
-| `MONEY` | 0.905 | 0.838 | 0.870 | 500 |
-| `ADDRESS` | 0.881 | 0.845 | 0.863 | 659 |
-| `PERSON` | 0.779 | 0.962 | 0.861 | 1936 |
-| `PHONE_NUMBER` | 0.846 | 0.822 | 0.834 | 428 |
-| `ORGANIZATION` | 1.000 | 0.409 | 0.581 | 22 |
-| `CSV` | 1.000 | 0.175 | 0.298 | 200 |
+**Lectura de barras.** Las métricas comparan listas de entidades; la lectura de barras abre el
+PDF entregado y busca cada dato etiquetado (`evaluation/lectura_salida.py`). En c2, sin ninguna
+fuga nueva respecto a la medición anterior:
 
-### Extensión (90 documentos)
+| Camino | Datos tapados | Fugas |
+|---|---|---|
+| Escaneado (28) | 99,0 % | 3 |
+| Híbrido (24) | 96,8 % | 16 |
+| Digital (muestra de 100, uno de cada cuatro) | 93,9 % | 95 |
 
-Presupuestos de obra, copias de DNI y autoliquidaciones, limpios, escaneados y escaneados girados.
+Las fugas del digital eran sobre todo datos ya detectados que seguían a la vista en otra
+aparición (bloque de firmas, la otra columna, la página siguiente), etiqueta y valor en líneas
+distintas y franjas de cabecera y pie que no admitían ciertos tipos. Con esos arreglos, la misma
+muestra queda en **98,6 % tapado y 22 fugas**, sin ningún dato que pase de tapado a legible: 11
+son el domicilio de la universidad empleadora (defecto del corpus) y la mayoría del resto,
+nombres de cargos firmando en el pie, pendientes de criterio. Falta la medición completa de los
+tres caminos con estos arreglos.
 
-| Precisión | Recall | F1 | Aciertos | Falsos negativos | Falsos positivos | Errores de API |
-|---|---|---|---|---|---|---|
-| 0.915 | 0.792 | **0.849** | 636 | 167 | 59 | 0 |
-
-| Tipo | Precisión | Recall | F1 | Anotadas |
-|---|---|---|---|---|
-| `DATE_TIME` | 1.000 | 1.000 | 1.000 | 90 |
-| `IBAN_CODE` | 1.000 | 1.000 | 1.000 | 32 |
-| `MONEY` | 1.000 | 1.000 | 1.000 | 128 |
-| `ES_NIE` | 1.000 | 1.000 | 1.000 | 5 |
-| `DATE_OF_BIRTH` | 1.000 | 1.000 | 1.000 | 18 |
-| `PHONE_NUMBER` | 1.000 | 0.906 | 0.951 | 32 |
-| `ES_DNI` | 1.000 | 0.804 | 0.891 | 56 |
-| `ORGANIZATION` | 1.000 | 0.750 | 0.857 | 40 |
-| `ADDRESS` | 0.837 | 0.837 | 0.837 | 43 |
-| `PERSON` | 0.750 | 0.867 | 0.804 | 180 |
-| `CASE_NUMBER` | 1.000 | 0.385 | 0.556 | 104 |
-| `POSTAL_CODE` | 1.000 | 0.360 | 0.529 | 75 |
-
-Las autoliquidaciones se tachan enteras, y las copias de DNI enteras o por la tarjeta completa. En
-esos documentos, un falso negativo del informe no deja el dato visible: solo significa que no se ha
-contado.
+**Banco de pruebas de teléfonos y direcciones** (`scripts/banco_contacto.py`): 107 formatos reales
+detectados y tapados en versión digital y escaneada, y ninguna de las 21 trampas (expedientes,
+importes, códigos postales, «la calle estaba cortada», «ver Pg. 12»…) tomada por teléfono o
+dirección.
 
 ---
 
@@ -505,9 +485,12 @@ contado.
   `CREDIT_CARD`, `MEDICAL_ID`, `POLICY_NUMBER`, `REGISTRY_NUMBER`, `ROLE_TABLE_ROW` y `USER_ID` no
   tienen ninguna anotación en ninguno de los dos corpus: se detectan, pero su calidad no está medida.
   La extensión, además, no anota correo, CIF, NSS, IP, matrícula, pasaporte, QR ni URL.
-- **Tipos con recall bajo.** `CSV` (0,18) y `ORGANIZATION` (0,41) en el corpus principal;
-  `CASE_NUMBER` (0,39) y `POSTAL_CODE` (0,36) en la extensión. Ver
-  [Métricas actuales](#métricas-actuales).
+- **Nombres en el pie.** La franja del pie no busca nombres: un nombre que solo aparece en el
+  bloque de firmas queda a la vista (cargos firmando y, en algún caso, un particular como un
+  garante). Pendiente de decidir el criterio para cargos.
+- **Membrete en el escaneado.** El teléfono de la centralita puede salir tachado aunque el filtro
+  institucional lo aparta; pendiente de averiguar por qué. Y un código postal compartido por el
+  destinatario y la institución se tacha en las dos apariciones.
 - **Filtrado de `PERSON` por gazetteer, incompleto.** El gazetteer del INE refuerza nombres dudosos
   y descarta topónimos, pero no se aplica como filtro completo: parte de los falsos positivos de
   `PERSON` (frases institucionales, nombres de persona dentro de una dirección) siguen pasando.
