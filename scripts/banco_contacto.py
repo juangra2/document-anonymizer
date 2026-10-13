@@ -112,8 +112,12 @@ def casos() -> list[Caso]:
     out.append(Caso("", "PHONE_NUMBER", "etiqueta 'Tfno.:' y numero en la linea siguiente",
                     f"Tfno.:\n+34 {n}", f"+34 {n}"))
     n = nuevo("6")
+    # Como en la nomina real: el domicilio fiscal del trabajador va entre la
+    # universidad y su telefono.  Sin nada que diga de quien es, un telefono
+    # justo debajo del nombre de la universidad es, con razon, el de la universidad.
     out.append(Caso("", "PHONE_NUMBER", "nomina: telefono tras el centro de trabajo",
-                    f"Centro de trabajo\nUniversitat Mediterrània d'Elx\nTfno.:\n{n}", n))
+                    f"Centro de trabajo\nUniversitat Mediterrània d'Elx\nDomicilio fiscal:\n"
+                    f"Calle Mayor, 5, 1º A, 18001 Granada\nTfno.:\n{n}", n))
 
     # --- trampas de telefono: NO son telefonos --------------------------------
     for texto, valor, fmt in (
