@@ -99,11 +99,22 @@ _MIN_SUBCADENA = 8
 
 
 def _buscar(page: fitz.Page, valor: str) -> list[fitz.Rect]:
+    """Rects de las apariciones de `valor`.  Un valor corto solo cuenta si es una
+    pieza entera de su palabra: "41001" en "postal:41001" si, en "2028013/2024" no
+    ("28013" seria solo parte de "2028013")."""
     if len(valor) >= _MIN_SUBCADENA:
         return page.search_for(valor)
     limpio = valor.strip(".,;:()")
-    return [fitz.Rect(w[:4]) for w in page.get_text("words")
-            if w[4].strip(".,;:()") == limpio]
+    palabras = page.get_text("words")
+    rects = []
+    for r in page.search_for(limpio):
+        for w in palabras:
+            if fitz.Rect(w[:4]).intersects(r):
+                piezas = re.split(r"[^0-9A-Za-zÀ-ÿ]+", w[4])
+                if limpio in piezas:
+                    rects.append(r)
+                break
+    return rects
 
 
 def tachar_todas_las_apariciones(doc: fitz.Document, entidades: list[PiiEntity],

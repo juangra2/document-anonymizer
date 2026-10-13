@@ -58,3 +58,21 @@ def test_un_valor_corto_solo_se_tacha_como_palabra_entera(tmp_path):
     texto = " ".join(doc[0].get_text().split())
     assert "Codigo postal de Madrid" in texto or "28013 de" not in texto
     assert "2028013/2024" in texto
+
+
+def test_un_valor_corto_pegado_a_su_etiqueta_si_se_tacha():
+    """solicitud_generica_0016: "Código postal:41001" (la extraccion pega
+    etiqueta y valor).  "41001" es una pieza entera de la palabra, no parte de
+    otro numero."""
+    from app.services.pdf.redactor import tachar_todas_las_apariciones
+    from app.services.pii.models import PiiEntity
+
+    doc = fitz.open()
+    p = doc.new_page(width=595, height=842)
+    p.insert_text((58, 300), "Código postal:41001 Municipio:Sevilla", fontsize=10)
+    p.insert_text((58, 320), "Expediente 2028013/2024 en tramite", fontsize=10)
+    tachar_todas_las_apariciones(doc, [PiiEntity("POSTAL_CODE", 0, 5, 0.9, text="41001"),
+                                       PiiEntity("POSTAL_CODE", 0, 5, 0.9, text="28013")], analyzer)
+    texto = " ".join(doc[0].get_text().split())
+    assert "41001" not in texto
+    assert "2028013/2024" in texto
