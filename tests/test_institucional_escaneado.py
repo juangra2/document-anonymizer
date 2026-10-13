@@ -93,3 +93,32 @@ def test_un_parrafo_no_es_membrete_aunque_sea_de_las_primeras_lineas():
         "Le comunicamos que su solicitud ha sido admitida a tramite y que, para "
         "cualquier aclaracion sobre el expediente, puede llamar al 612 345 678."], 100)])
     assert "612 345 678" in t
+
+
+# --- una etiqueta de dato personal entre la institucion y el dato -------------------
+# Caso real (nomina_0007): "Centro de trabajo: Universitat Mediterrània d'Elx /
+# Antigüedad / 12 de febrer de 2015 / Domicilio fiscal: Paseo del Sol, 75, 2º B,
+# 18001 Granada / Tfno.: +34 796 202 675".  Sin ninguna persona detectada en
+# medio, el filtro tomaba el domicilio y el telefono del trabajador por los de la
+# universidad y los dejaba a la vista.  La etiqueta dice de quien es el dato.
+
+def _suprimidos(texto, valores):
+    ents = []
+    for tipo, v in valores:
+        i = texto.index(v)
+        ents.append(PiiEntity(tipo, i, i + len(v), 0.8, text=v))
+    zp = ZonedPage(page_index=0, width=595, height=842, zones=[])
+    return {ents[i].text for i in filter_institutional(texto, zp, ents)}
+
+
+def test_el_domicilio_fiscal_del_trabajador_no_es_de_la_universidad():
+    texto = ("Centro de trabajo\nUniversitat Mediterrània d'Elx\nAntigüedad\n12 de febrer de 2015\n"
+             "Domicilio fiscal:\nPaseo del Sol, 75, 2º B, 18001 Granada\nTfno.:\n+34 796 202 675")
+    assert _suprimidos(texto, [("ADDRESS", "Paseo del Sol, 75, 2º B, 18001 Granada"),
+                               ("PHONE_NUMBER", "+34 796 202 675")]) == set()
+
+
+def test_el_domicilio_social_de_la_institucion_si():
+    texto = "Universitat Mediterrània d'Elx\nDomicilio social: Avinguda de la Mediterrània, 100, 03202 Elx"
+    assert _suprimidos(texto, [("ADDRESS", "Avinguda de la Mediterrània, 100, 03202 Elx")]) == {
+        "Avinguda de la Mediterrània, 100, 03202 Elx"}

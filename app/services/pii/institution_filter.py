@@ -110,7 +110,14 @@ _TRATAMIENTO_RE = re.compile(
     r"(?:\b(?:Sr|Sra|Srta|Dña|Dª|Excm[oa]|Il[·.]?lm[oa]|Ilm[oa])\.?\s+[A-ZÁÉÍÓÚÀÈÒÇÑ]"
     r"|\b(?:D|Don|Doña|En|Na)\.?\s+[A-ZÁÉÍÓÚÀÈÒÇÑ][a-záéíóúàèòçñ]"
     r"|\bA/A\b|\bAtt?\.\s"
-    r"|(?i:\bdestinatari[oa]?\b|\binteresad[oa]\b|\binteressad[ae]\b))"
+    r"|(?i:\bdestinatari[oa]?\b|\binteresad[oa]\b|\binteressad[ae]\b)"
+    # Etiquetas de dato PERSONAL: dicen de quien es lo que viene detras aunque
+    # no se haya detectado ninguna persona (nomina_0007: "Centro de trabajo:
+    # Universitat… / Domicilio fiscal: Paseo del Sol…" se tomaba por la
+    # direccion de la universidad).  "Domicilio social" NO: es el de una entidad.
+    r"|(?i:\bdomicili(?:o|)(?![^\S\r\n]+social)(?:[^\S\r\n]+(?:fiscal|habitual|particular))?[^\S\r\n]*:"
+    r"|\bresid[eè]ncia\b|\badre[çc]a\b|\bnombre[^\S\r\n]+y[^\S\r\n]+apellidos\b"
+    r"|\bnom[^\S\r\n]+i[^\S\r\n]+cognoms\b|\bpersona[^\S\r\n]+(?:trabajadora|treballadora)\b))"
 )
 
 # Letterhead is also approximated by the first N text lines of the page, to
