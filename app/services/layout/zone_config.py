@@ -146,12 +146,14 @@ _FOOTER_CONFIG = ZoneDetectorConfig(
     # TODA fecha, sin excepcion — tambien la del bloque de firma electronica y
     # la del pie de pagina, que antes quedaban fuera de alcance.
     # Contacto: igual que en la cabecera, decide el filtro institucional.
-    # IP de acceso y documentos de identidad: el bloque de firmas cae en el pie
-    # y el DNI del garante quedaba a la vista (lectura de barras de c2).  Los
-    # nombres no: pendiente de decidir el criterio para cargos firmando.
+    # IP de acceso, documentos de identidad y NOMBRES: el bloque de firmas cae
+    # en el pie, y el DNI y el nombre de la garante de un contrato quedaban a la
+    # vista (lectura de barras de c2).  Los cargos que firman tambien se tachan,
+    # como en el cuerpo; si algun dia se dejan visibles, sera con una regla que
+    # distinga cargo de particular, no por la posicion en la pagina.
     entity_types=["CASE_NUMBER", "URL", "CERT_SERIAL", "REGISTRY_NUMBER", "CSV",
                   "IBAN_CODE", "DATE_TIME", "DATE_OF_BIRTH", *_CONTACTO,
-                  "IP_ADDRESS", "ES_DNI", "ES_NIE", "PASSPORT",
+                  "IP_ADDRESS", "ES_DNI", "ES_NIE", "PASSPORT", "PERSON",
                   # "TOTAL DEDUCCIONES 746,01" de una nomina caia en el pie.
                   "MONEY"],
     apply_layout_analysis=False,

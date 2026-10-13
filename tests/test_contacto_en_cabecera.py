@@ -102,3 +102,15 @@ def test_importes_de_nomina_en_el_pie_y_en_la_cabecera(tmp_path):
     texto = _carta(tmp_path, ["NOMINA DEL MES · LIQUIDO A PERCIBIR 4.113,99 €"],
                    ["TOTAL DEDUCCIONES 746,01"])
     assert "746,01" not in texto and "4.113,99" not in texto
+
+
+# --- nombres en el pie --------------------------------------------------------------
+# contrato_laboral_0027: la garante solo aparece en el bloque de firmas, que cae
+# en la franja del pie, y el pie no buscaba nombres: quedaba a la vista.  Los
+# cargos que firman tambien se tachan, como en el cuerpo, mientras no se decida
+# otro criterio (que distinguiria cargo de particular, no la posicion).
+
+def test_un_nombre_que_solo_esta_en_el_pie_se_tacha(tmp_path):
+    """Como en el documento real: el cargo en una linea y el nombre debajo."""
+    texto = _carta(tmp_path, _MEMBRETE, ["Garante", "Paula Martín Delgado"])
+    assert "Paula Martín Delgado" not in texto
