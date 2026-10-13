@@ -85,6 +85,20 @@ DEFECTOS = [
         "al_regenerar": "Quitar LUGARES_DE_INFRACCION y es_lugar_de_infraccion (este "
                         "modulo) y su uso en fuera_de_alcance.",
     },
+    {
+        "id": "correo_de_empresa_sin_etiquetar",
+        "que_pasa": "En contrato_prestacion_servicios el correo de la empresa "
+                    "contratista no se etiqueta, y lleva tildes en el dominio "
+                    "('contacto@formació.com', 'admin@ingeniería.es').  El sistema lo "
+                    "tacha —igual que los correos de empresa sin tilde, que ya se "
+                    "tachaban— y la evaluacion lo cuenta como falso positivo (7 en el "
+                    "digital de c2).  Un dominio con tilde, ademas, es raro en "
+                    "documentos reales.",
+        "generador": "PENDIENTE: etiquetar el correo de la empresa como EMAIL_ADDRESS y "
+                     "generar dominios sin tildes (contrato_prestacion_servicios.py).",
+        "al_regenerar": "Nada que quitar: no hay exclusion; los falsos positivos "
+                        "desaparecen solos al etiquetarlos.",
+    },
 ]
 
 
