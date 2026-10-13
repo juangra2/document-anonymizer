@@ -122,3 +122,22 @@ def test_el_domicilio_social_de_la_institucion_si():
     texto = "Universitat Mediterrània d'Elx\nDomicilio social: Avinguda de la Mediterrània, 100, 03202 Elx"
     assert _suprimidos(texto, [("ADDRESS", "Avinguda de la Mediterrània, 100, 03202 Elx")]) == {
         "Avinguda de la Mediterrània, 100, 03202 Elx"}
+
+
+# --- el codigo postal de una direccion institucional ya apartada ----------------------
+# El filtro apartaba la direccion de la institucion, pero el codigo postal de
+# dentro va como entidad aparte y se quedaba: se tachaba solo el CP del membrete.
+
+def test_el_codigo_postal_de_una_direccion_institucional_tambien_se_aparta():
+    """solicitud_generica_0003: la direccion cae dentro de la ventana de cercania
+    al nombre de la institucion, pero su codigo postal, 30 caracteres despues, no."""
+    texto = ("Ayuntamiento de Cartagena Sur con la finalidad de gestionar su solicitud. Puede "
+             "ejercer sus\nderechos dirigiéndose a Calle del Consistorio, 14, 30201 Cartagena")
+    assert _suprimidos(texto, [("ADDRESS", "Calle del Consistorio, 14, 30201 Cartagena"),
+                               ("POSTAL_CODE", "30201")]) == {
+        "Calle del Consistorio, 14, 30201 Cartagena", "30201"}
+
+
+def test_el_codigo_postal_de_una_direccion_personal_no():
+    texto = "Ajuntament de Sueca\nSra. Xelo Brufau Ivars, C/ Mayor, 3, 46410 Sueca"
+    assert _suprimidos(texto, [("ADDRESS", "C/ Mayor, 3, 46410 Sueca"), ("POSTAL_CODE", "46410")]) == set()

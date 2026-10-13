@@ -352,6 +352,17 @@ def filter_institutional(
             continue
         if _is_institutional(e, page_text, inst_spans, ranges, allowlist, person_spans):
             suppress.add(i)
+
+    # El codigo postal de una direccion ya apartada como institucional va con
+    # ella: si no, se tachaba solo el CP del membrete ("Calle del Consistorio,
+    # 14, 30201 Cartagena" a la vista y "30201" tachado), porque el CP empieza
+    # mas lejos del nombre de la institucion y se salia de la ventana.
+    direcciones = [(entities[i].start, entities[i].end) for i in suppress
+                   if entities[i].entity_type == "ADDRESS"]
+    for i, e in enumerate(entities):
+        if e.entity_type == "POSTAL_CODE" and any(s <= e.start and e.end <= f
+                                                  for s, f in direcciones):
+            suppress.add(i)
     return suppress
 
 
