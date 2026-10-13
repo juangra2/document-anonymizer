@@ -698,6 +698,15 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         r"(?i)pasaporte[^\S\r\n]*:[^\S\r\n]*(?P<value>[A-Z]{2,5}\d{6,9})",
         0.95,
     ),
+    (
+        "PASSPORT",
+        # Etiqueta pegada al numero o sin dos puntos, en castellano y en
+        # valenciano: "PassaportPZ6203136", "PasaportePZ7025106" (asi sale el
+        # texto extraido de muchas tablas).  El numero tiene que ir en
+        # mayusculas (guardia de _detect_direct_regex).
+        r"(?i)pas+aport(?:e)?[^\S\r\n]*:?[^\S\r\n]*(?P<value>[A-Z]{2,3}\d{6,9})(?!\d)",
+        0.95,
+    ),
     # CREDIT_CARD removed from DIRECT_REGEX_PATTERNS: the (\d{4}[ \t-]){3}\d{4}
     # pattern matches IBAN fragments (e.g. "0128 4441 8867 9113" from ES92 0128…).
     # When IBAN is not detected in a zone, the CC regex leaks through, causing FPs.
