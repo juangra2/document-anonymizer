@@ -46,6 +46,37 @@ from app.services.vision.signature_region import detect_signature_rects
 _QR_DETECT_DPI = 300
 
 
+# Por debajo de este tamaño (en puntos) el texto no se lee: se quita de la salida.
+TAMANO_TEXTO_DIMINUTO = 2.0
+
+
+def quitar_texto_diminuto(doc: fitz.Document) -> int:
+    """Quita de todas las paginas el texto de menos de TAMANO_TEXTO_DIMINUTO puntos.
+
+    Sin pintar nada: a ese tamaño el texto no se lee, asi que quitarlo no cambia
+    lo que se ve, y deja de poder copiarse.  El caso que lo motiva: el contenido
+    del QR en blanco de 1 punto ("Nombre | DNI"), que sobrevivia al tachado.
+    scrub(hidden_text=True) solo quita el texto marcado como invisible.
+    Devuelve cuantos fragmentos se quitaron.
+    """
+    quitados = 0
+    for page in doc:
+        rects = [
+            fitz.Rect(s["bbox"])
+            for b in page.get_text("dict")["blocks"]
+            for l in b.get("lines", [])
+            for s in l["spans"]
+            if s["text"].strip() and s["size"] < TAMANO_TEXTO_DIMINUTO
+        ]
+        for r in rects:
+            page.add_redact_annot(r, fill=None)
+        if rects:
+            page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE,
+                                  graphics=fitz.PDF_REDACT_LINE_ART_NONE)
+            quitados += len(rects)
+    return quitados
+
+
 def redact_pdf_digital(
     input_path: Path,
     output_path: Path,
@@ -186,6 +217,8 @@ def redact_pdf_digital(
                 f"kept unredacted: {sorted(plan_pages_skipped)}. "
                 "Manual review required."
             )
+
+        quitar_texto_diminuto(doc)
 
         try:
             doc.scrub(
