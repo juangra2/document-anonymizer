@@ -116,3 +116,31 @@ def test_con_segunda_pasada_no_hay_aviso():
 
     assert settings.ocr_second_pass_verification is True
     assert warn_if_safety_net_off() is False
+
+
+# --- el aviso de "siguen legibles tras la red" -------------------------------------
+# Saltaba sobre todo por falsos positivos de la segunda pasada (medido: 11 avisos,
+# ninguno con una fuga real en la lectura de barras).  Un aviso que pide revision
+# manual y casi nunca acierta acaba ignorado.  Solo lo dan los tipos fiables; lo
+# demas se sigue tapando igual y se sigue contando, pero no pide revision.
+
+def test_un_nombre_que_sigue_legible_no_pide_revision():
+    from app.services.pdf.scanned_redactor import aviso_de_residuos
+
+    aviso, revision = aviso_de_residuos([_residuo("PERSON", 0, 0, 1, 1)[0],
+                                         _residuo("ADDRESS", 0, 0, 1, 1)[0]])
+    assert aviso is None and revision is False
+
+
+def test_un_dni_que_sigue_legible_si():
+    from app.services.pdf.scanned_redactor import aviso_de_residuos
+
+    aviso, revision = aviso_de_residuos([_residuo("PERSON", 0, 0, 1, 1)[0],
+                                         _residuo("ES_DNI", 0, 0, 1, 1)[0]])
+    assert aviso and "Manual review" in aviso and revision is True
+
+
+def test_los_tipos_del_aviso():
+    from app.services.pdf.scanned_redactor import TIPOS_AVISO_RED
+
+    assert TIPOS_AVISO_RED == {"ES_DNI", "ES_NIE", "IBAN_CODE", "ES_CIF"}

@@ -620,12 +620,9 @@ def redact_pdf_scanned(
             f"({red_documento['imagenes_tachadas']} pasted image(s) redacted in full, "
             f"{red_documento['zonas_repasadas']} zone(s) repainted)."
         )
-    if residual_count > 0:
-        # Siguen viendose TRAS la red: el aviso es mas alto que antes.
-        warnings.append(
-            "Residual PII-like entities STILL readable after the safety net "
-            "repainted them. Manual review required."
-        )
+    aviso_residuos, revision_por_residuos = aviso_de_residuos(all_residual_entities)
+    if aviso_residuos:
+        warnings.append(aviso_residuos)
     if rotated_pages:
         detail = ", ".join(
             f"{idx + 1}: {angle}°" for idx, angle in sorted(rotated_pages.items())
@@ -697,7 +694,7 @@ def redact_pdf_scanned(
         residual_entities=residual_count,
         residual_entities_by_type=residual_by_type,
         manual_review_required=(
-            bool(low_confidence_pages) or residual_count > 0 or bool(skipped_pages)
+            bool(low_confidence_pages) or revision_por_residuos or bool(skipped_pages)
             or bool(full_redaction_pages) or bool(poor_ocr_pages)
         ),
         warnings=warnings,
@@ -1528,6 +1525,25 @@ def _zona_de_lo_no_leido(tokens_mineru: list, tokens_easy: list) -> "PageZone | 
 #: Tipos que bastan solos para tachar una imagen pegada entera.  Se validan con
 #: digito de control (DNI, NIE, IBAN, CIF) o son el dato que mas importa (PERSON).
 TIPOS_FIABLES_RED = frozenset({"ES_DNI", "ES_NIE", "IBAN_CODE", "ES_CIF", "PERSON"})
+
+# Lo que, si SIGUE legible tras la red, pide revision manual.  Sin PERSON: la
+# segunda pasada da muchos falsos positivos de nombre, y el aviso saltaba casi
+# siempre sin motivo (medido: 11 avisos, ninguno con fuga real en la lectura de
+# barras).  Un aviso que casi nunca acierta acaba ignorado.  Los demas residuos
+# se tapan igual y se siguen contando en el informe; solo no piden revision.
+TIPOS_AVISO_RED = frozenset({"ES_DNI", "ES_NIE", "IBAN_CODE", "ES_CIF"})
+
+
+def aviso_de_residuos(residuos: list[PiiEntity]) -> tuple[str | None, bool]:
+    """(aviso, pide revision manual) segun lo que sigue legible tras la red."""
+    fiables = sorted({e.entity_type for e in residuos if e.entity_type in TIPOS_AVISO_RED})
+    if not fiables:
+        return None, False
+    return (
+        f"Residual {', '.join(fiables)} STILL readable after the safety net "
+        "repainted it. Manual review required.",
+        True,
+    )
 
 #: Recuento de lo que hace la red, para ver en un numero si actua y como.
 RED_SEGURIDAD: dict[str, int] = {
