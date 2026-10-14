@@ -160,3 +160,31 @@ def test_la_etiqueta_justo_encima_del_valor_sale_entera(tmp_path):
         assert etiqueta in texto, f"etiqueta mordida: {etiqueta}"
     for valor in ("69026956T", "MARTIN DELGADO", "C071-2-55821"):
         assert valor not in texto, f"sigue a la vista: {valor}"
+
+
+# --- texto de OCR: las etiquetas seguidas y los valores despues --------------------
+# En la pasada OCR del formulario real (la pagina va al OCR por el escudo de
+# fondo) el texto no sigue el orden de la capa digital: las etiquetas pueden ir
+# seguidas y los valores despues.  Se tachaban lineas de etiqueta enteras, el
+# codigo del curso y el "11/2007" de la ley del pie.
+
+def test_una_etiqueta_no_es_el_valor_de_la_etiqueta_de_encima():
+    texto = ("PROVINCIA NAIXEMENT / PROVINCIA NACIMIENTO\n"
+             "MUNICIPI NAIXEMENT / MUNICIPIO NACIMIENTO\n"
+             "OBSERVACIONS / OBSERVACIONES\n"
+             "D. NAIXEMENT / F. NACIMIENTO\n")
+    for etiqueta in ("MUNICIPI NAIXEMENT", "OBSERVACIONS", "D. NAIXEMENT"):
+        assert "PLACE_OF_BIRTH" not in _tipos(texto, etiqueta), etiqueta
+
+
+def test_el_registro_no_pesca_un_numero_lejano_ni_una_fecha():
+    texto = ("Núm. registre:\nNº registro:\nData de\npresentació:\n"
+             "CURS ACADÈMIC/TITULACIÓ\n02262 - Máster Universitario\n"
+             "els articles 24 i següents de la Llei 11/2007, les sol·licituds\n")
+    assert "REGISTRY_NUMBER" not in _tipos(texto, "02262")
+    assert "REGISTRY_NUMBER" not in _tipos(texto, "11/2007")
+
+
+def test_el_registro_salta_solo_etiquetas_hasta_su_valor():
+    texto = "Núm. registre:\nNº registro:\nUV-SEU-0000000731905\n"
+    assert "REGISTRY_NUMBER" in _tipos(texto, "UV-SEU-0000000731905")

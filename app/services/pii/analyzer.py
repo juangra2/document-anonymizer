@@ -1207,7 +1207,32 @@ _REGISTRO_LABEL_RE = re.compile(
 _REGISTRO_VALUE_RE = re.compile(
     r"(?<![\w-])[A-Z0-9]+(?:-[\r\n]*[A-Z0-9]+|[/.][A-Z0-9]+)*(?![\w-])"
 )
-_REGISTRO_LINEAS = 3     # el valor empieza, como mucho, tantas lineas despues
+_REGISTRO_LINEAS = 3     # lineas de etiqueta que se saltan hasta el valor
+# Una fecha ("11/2007", "12/03/2024") no es un numero de registro.
+_FECHA_RE = re.compile(r"^\d{1,2}/(?:\d{1,2}/)?\d{2,4}$")
+
+# Rotulos de formulario que no son valor de nada: en el texto del OCR las
+# etiquetas pueden ir seguidas y los valores despues, y la linea que sigue a
+# una etiqueta es entonces otra etiqueta.
+_ROTULO_RE = re.compile(
+    r"(?i)\b(?:observaci|descripci|titulaci|curs[oa]?\b|tasa\b|taxa\b|import|"
+    r"fecha\b|data\b|dades\b|datos\b|referenc|destin|ep[ií]graf|nombre\b|nom\b|"
+    r"cognoms|apellidos|nif\b|nie\b|dni\b)"
+)
+
+
+def _parece_etiqueta(linea: str) -> bool:
+    """La linea es un rotulo de formulario, no un valor."""
+    from app.services.pii.label_types import label_entity_type
+
+    limpia = linea.strip()
+    return (
+        limpia.endswith(":")
+        or bool(_LUGAR_NACIMIENTO_LABEL_RE.search(limpia))
+        or bool(_REGISTRO_LABEL_RE.search(limpia))
+        or bool(_ROTULO_RE.search(limpia))
+        or label_entity_type(limpia) is not None
+    )
 
 # LUGAR DE NACIMIENTO: solo con su etiqueta.  Fuera de ella un lugar no se tacha.
 _LUGAR_NACIMIENTO_LABEL_RE = re.compile(
@@ -2721,21 +2746,43 @@ class PiiAnalyzer:
         """Numero de registro o de recibo tras su etiqueta (ver _REGISTRO_LABEL_RE)."""
         entities: list[PiiEntity] = []
         seen: set[tuple[int, int]] = set()
-        for lm in _REGISTRO_LABEL_RE.finditer(text):
-            # Hasta _REGISTRO_LINEAS lineas despues de la etiqueta.
-            limite = lm.end()
-            for _ in range(_REGISTRO_LINEAS):
-                siguiente = text.find("\n", limite + 1)
-                limite = len(text) if siguiente == -1 else siguiente
-            for vm in _REGISTRO_VALUE_RE.finditer(text, lm.end(), limite):
+        def valor_en(ini: int, fin: int):
+            for vm in _REGISTRO_VALUE_RE.finditer(text, ini, fin):
                 if sum(c.isdigit() for c in vm.group()) < 3:
                     continue           # "UV" suelto, "RECIBO", la otra etiqueta
-                span = (vm.start(), vm.end())
-                if span not in seen:
-                    seen.add(span)
-                    entities.append(PiiEntity("REGISTRY_NUMBER", *span, 0.9,
-                                              source="form_label", text=vm.group()))
-                break
+                if _FECHA_RE.match(vm.group()):
+                    continue
+                return vm
+            return None
+
+        for lm in _REGISTRO_LABEL_RE.finditer(text):
+            # En la linea de la etiqueta, detras de ella; si no, en la primera
+            # linea que no sea otra etiqueta ("Núm. registre:" / "Nº registro:"
+            # / valor).  Un guion de fin de linea une el valor con la siguiente.
+            fin_linea = text.find("\n", lm.end())
+            fin_linea = len(text) if fin_linea == -1 else fin_linea
+            if text[lm.end():fin_linea].rstrip().endswith("-"):
+                # Valor partido en el guion ("UV-" / "SEU-0000000446721").
+                siguiente = text.find("\n", fin_linea + 1)
+                fin_linea = len(text) if siguiente == -1 else siguiente
+            vm = valor_en(lm.end(), fin_linea)
+            ini = fin_linea + 1
+            for _ in range(_REGISTRO_LINEAS):
+                if vm is not None or ini >= len(text):
+                    break
+                fin = text.find("\n", ini)
+                fin = len(text) if fin == -1 else fin
+                vm = valor_en(ini, fin)
+                if vm is None and not _parece_etiqueta(text[ini:fin]):
+                    break              # una linea que no es etiqueta y no trae el valor
+                ini = fin + 1
+            if vm is None:
+                continue
+            span = (vm.start(), vm.end())
+            if span not in seen:
+                seen.add(span)
+                entities.append(PiiEntity("REGISTRY_NUMBER", *span, 0.9,
+                                          source="form_label", text=vm.group()))
         return entities
 
     @staticmethod
@@ -2770,8 +2817,10 @@ class PiiAnalyzer:
                 sig = text.find("\n", ini)
                 sig = len(text) if sig == -1 else sig
                 valor = text[ini:sig]
-                if not valor.strip() or ":" in valor or len(valor.strip()) > 60:
-                    continue
+                if (not valor.strip() or ":" in valor or len(valor.strip()) > 60
+                        or _parece_etiqueta(valor)
+                        or sum(c.isdigit() for c in valor) >= 3):
+                    continue           # otra etiqueta, o una fecha: no es el lugar
                 ini += len(valor) - len(valor.lstrip())
                 fin = ini + len(valor.strip())
             if fin > ini:
