@@ -47,6 +47,13 @@ def test_un_dni_fuera_de_los_flujos_se_detecta(tmp_path):
     assert check_binary(ruta, analyzer).entities_found
 
 
+def test_los_anchos_de_una_fuente_no_son_telefonos(tmp_path):
+    """Plano real: 111 "telefonos" en /Widths y /W ("667 722 611")."""
+    ruta = _pdf(tmp_path, b"5 0 obj\n<< /Type /Font /FirstChar 32 /Widths [278 667 722 611 556 278]"
+                b" /W [1 [667 722 611] 10 20 556] >>\nendobj")
+    assert check_binary(ruta, analyzer).entities_found == []
+
+
 def test_el_id_del_trailer_no_es_un_telefono(tmp_path):
     ruta = _pdf(tmp_path, b"trailer\n<</Size 6/Root 1 0 R/ID[<8A0DF9E730113959CAA401072D98B2F5>"
                 b"<C3BC6D7D51C387C3A7C284C3B7C29970>]>>")

@@ -280,14 +280,19 @@ _MIN_PRINTABLE_RATIO = 0.80
 # Cadena hexadecimal de PDF, "<8A0D...>", sin confundirla con un diccionario "<<".
 _HEX_PDF_RE = re.compile(r"(?<!<)<[0-9A-Fa-f\s]+>(?!>)")
 _INICIO_FLUJO_RE = re.compile(r"(?<!end)stream\r?\n")
+# Array solo de numeros ("/Widths [278 667 722 611]", "/W [1 [667 722]]"): tres
+# anchos seguidos tienen forma de telefono.  Un dato va en una cadena, no suelto.
+_ARRAY_NUMERICO_RE = re.compile(r"\[[\d.\s\-\[\]]+\]")
 
 
 def _apartar_codificado(texto: str) -> str:
     """Sustituye por espacios (mismas posiciones) lo que son bytes codificados:
     las cadenas hexadecimales (el /ID del trailer: 64 cifras aleatorias que a
-    veces forman un "telefono") y el contenido de los flujos con /Filter (ruido
-    comprimido; su texto lo leen ya las capas textual y de OCR)."""
+    veces forman un "telefono"), los arrays solo de numeros (anchos de fuente)
+    y el contenido de los flujos con /Filter (ruido comprimido; su texto lo leen
+    ya las capas textual y de OCR)."""
     texto = _HEX_PDF_RE.sub(lambda m: " " * len(m.group(0)), texto)
+    texto = _ARRAY_NUMERICO_RE.sub(lambda m: " " * len(m.group(0)), texto)
     trozos = []
     pos = 0
     for m in _INICIO_FLUJO_RE.finditer(texto):
