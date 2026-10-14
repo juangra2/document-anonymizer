@@ -723,6 +723,11 @@ function acciones(documento, parcial) {
       boton(T.acciones.parar, "", async () => {
         try {
           await api.pararTrabajo(documento.id);
+          // El servidor ha aceptado la orden: se dice ya, sin esperar a la
+          // siguiente consulta.  Si la página en curso termina antes, la
+          // pantalla saltaba de «Procesando» a «Parcial» sin decir nada.
+          documento.trabajo = { ...documento.trabajo, stopping: true };
+          pintarTodo();
         } catch (error) {
           mostrarAviso(frase(error.codigo, { idTrabajo: documento.id }));
         }
