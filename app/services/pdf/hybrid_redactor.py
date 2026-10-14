@@ -121,6 +121,7 @@ def redact_pdf_hybrid_secure(
             digital.manual_review_required or escaneado.manual_review_required
         ),
         "warnings": avisos,
+        "coded_warnings": list(digital.coded_warnings) + list(escaneado.coded_warnings),
         "redaction_strategy": "hybrid_secure_pdf_redaction",
         "detected_entities": (
             list(digital.detected_entities) + list(escaneado.detected_entities)

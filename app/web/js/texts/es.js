@@ -9,6 +9,20 @@
  * ha pasado y QUÉ puede hacer la persona. `[soporte]` se sustituye por el
  * contacto real cuando el ayuntamiento nos lo dé.
  */
+
+/** "la página 3", "las páginas 2 y 5", "las páginas 1, 4 y 7". */
+function lasPaginas(paginas) {
+  if (!paginas || !paginas.length) return "el documento";
+  if (paginas.length === 1) return `la página ${paginas[0]}`;
+  return `las páginas ${paginas.slice(0, -1).join(", ")} y ${paginas[paginas.length - 1]}`;
+}
+
+/** "algún dato (DNI o IBAN)": los tipos ya llegan con su nombre del catálogo. */
+function losDatos(nombres) {
+  if (!nombres || !nombres.length) return "algún dato";
+  return `algún dato (${nombres.join(" o ")})`;
+}
+
 export const TEXTOS = {
   app: {
     titulo: "Anonimizador de documentos",
@@ -136,6 +150,26 @@ export const TEXTOS = {
     eliminarTexto:
       "Se detiene el proceso y se borra todo lo relacionado con él del " +
       "servidor. No se podrá recuperar ni descargar.",
+  },
+
+  /**
+   * Avisos del informe con código estable (`coded_warnings`).  La clave es el
+   * código; lo que esta versión de la página no conozca no se muestra (sigue
+   * en el informe técnico, en inglés).
+   */
+  avisosInforme: {
+    plan_titleblock_only_verified: ({ paginas }) =>
+      `En ${lasPaginas(paginas)}, que es un plano, solo se ha comprobado el cajetín: ` +
+      `es lo único que se anonimiza en un plano.`,
+    pages_not_verified: ({ paginas }) =>
+      `La comprobación final no ha podido revisar ${lasPaginas(paginas)}. ` +
+      `Revísalo antes de usarlo.`,
+    safety_net_acted: ({ paginas }) =>
+      `La comprobación final aún leía datos en ${lasPaginas(paginas)} y se han tapado. ` +
+      `Conviene echarle un vistazo.`,
+    safety_net_still_readable: ({ paginas, tipos }) =>
+      `Puede que siga legible ${losDatos(tipos)} en ${lasPaginas(paginas)}. ` +
+      `Revísalo antes de usarlo.`,
   },
 
   avisos: {

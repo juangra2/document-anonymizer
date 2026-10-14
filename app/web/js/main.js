@@ -631,6 +631,15 @@ function filaDocumento(documento) {
     nota.textContent = T.paso3.paginaLenta(documento.trabajo?.progress?.pages_done);
     meta.appendChild(nota);
   }
+  for (const aviso of resultado?.coded_warnings || []) {
+    const texto = fraseDeAviso(aviso);
+    if (!texto) continue;
+    const nota = document.createElement("span");
+    nota.className = "note";
+    nota.dataset.codigo = aviso.code;
+    nota.textContent = texto;
+    meta.appendChild(nota);
+  }
   if (resultado?.manual_review_required && !parcial) {
     const nota = document.createElement("span");
     nota.className = "note";
@@ -640,6 +649,17 @@ function filaDocumento(documento) {
   fila.appendChild(meta);
   fila.appendChild(acciones(documento, parcial));
   return fila;
+}
+
+/** Frase en castellano de un aviso con código, o null si no se conoce el código. */
+function fraseDeAviso(aviso) {
+  const plantilla = T.avisosInforme?.[aviso.code];
+  if (!plantilla) return null;
+  const nombres = new Map(estado.catalogo.map((t) => [t.id, t.label]));
+  return plantilla({
+    paginas: aviso.pages || [],
+    tipos: (aviso.types || []).map((tipo) => nombres.get(tipo) || tipo),
+  });
 }
 
 function acciones(documento, parcial) {

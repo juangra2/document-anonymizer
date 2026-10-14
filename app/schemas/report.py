@@ -13,6 +13,11 @@ class DetectedEntityInfo(BaseModel):
 # Codigos estables de los avisos con codigo (`ProcessingReport.coded_warnings`).
 PLAN_TITLEBLOCK_ONLY_VERIFIED = "plan_titleblock_only_verified"
 PAGES_NOT_VERIFIED = "pages_not_verified"
+SAFETY_NET_ACTED = "safety_net_acted"
+SAFETY_NET_STILL_READABLE = "safety_net_still_readable"
+#: Todos: cada uno necesita su frase en la pantalla (lo comprueba test_web.py).
+CODED_WARNING_CODES = (PLAN_TITLEBLOCK_ONLY_VERIFIED, PAGES_NOT_VERIFIED,
+                       SAFETY_NET_ACTED, SAFETY_NET_STILL_READABLE)
 
 
 class CodedWarning(BaseModel):
@@ -21,12 +26,19 @@ class CodedWarning(BaseModel):
 
     code: str = Field(
         description="`plan_titleblock_only_verified` (en las paginas de plano solo se "
-                    "verifico el cajetin) o `pages_not_verified` (paginas que la "
-                    "verificacion final no pudo comprobar; requiere revision manual).",
+                    "verifico el cajetin), `pages_not_verified` (paginas que la "
+                    "verificacion final no pudo comprobar; requiere revision manual), "
+                    "`safety_net_acted` (la comprobacion tras tachar aun leia datos y "
+                    "se taparon) o `safety_net_still_readable` (datos que siguen "
+                    "legibles tras la red; requiere revision manual).",
         examples=[PLAN_TITLEBLOCK_ONLY_VERIFIED],
     )
     pages: list[int] = Field(default_factory=list,
                              description="Numeracion de usuario: la primera es la 1.")
+    types: list[str] = Field(default_factory=list,
+                             description="Tipos de dato implicados, si el aviso los tiene.")
+    counts: dict[str, int] = Field(default_factory=dict,
+                                   description="Recuentos del aviso (p. ej. `images`, `zones`).")
 
 
 class PageRedactedInFull(BaseModel):

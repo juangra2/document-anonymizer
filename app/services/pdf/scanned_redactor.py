@@ -27,6 +27,9 @@ from PIL import Image, ImageDraw
 
 from app.core.config import settings
 from app.schemas.report import (
+    SAFETY_NET_ACTED,
+    SAFETY_NET_STILL_READABLE,
+    CodedWarning,
     DetectedEntityInfo,
     OcrInfo,
     PageRedactedInFull,
@@ -152,6 +155,9 @@ def redact_pdf_scanned(
     # Lo que la red de seguridad hace en este documento.
     red_documento = {"imagenes_tachadas": 0, "zonas_repasadas": 0,
                      "persisten": 0, "paginas": 0}
+    # En que paginas (desde 0): donde actuo, y donde algo siguio legible.
+    paginas_red: list[int] = []
+    paginas_persisten: list[int] = []
     rotated_pages: dict[int, int] = {}
     cropped_pages: list[int] = []
     crop_fallbacks: dict[int, str] = {}
@@ -547,6 +553,9 @@ def redact_pdf_scanned(
                     red_pagina = result.get("red") or {}
                     if red_pagina.get("imagenes") or red_pagina.get("zonas"):
                         red_documento["paginas"] += 1
+                        paginas_red.append(page_index)
+                    if any(e.entity_type in TIPOS_AVISO_RED for e in result["residuals"]):
+                        paginas_persisten.append(page_index)
                         RED_SEGURIDAD["paginas"] += 1
                     for clave_red, clave_doc in (("imagenes", "imagenes_tachadas"),
                                                  ("zonas", "zonas_repasadas"),
@@ -611,18 +620,10 @@ def redact_pdf_scanned(
 
     if low_confidence_pages:
         warnings.append("Low OCR confidence detected in one or more pages.")
-    if red_documento["imagenes_tachadas"] or red_documento["zonas_repasadas"]:
-        # La red ha actuado: se dice, porque significa que la primera pasada
-        # dejo algo a la vista y quien revise el documento tiene que saberlo.
-        warnings.append(
-            f"Safety net: the post-redaction check still read personal data on "
-            f"{red_documento['paginas']} page(s) and covered it "
-            f"({red_documento['imagenes_tachadas']} pasted image(s) redacted in full, "
-            f"{red_documento['zonas_repasadas']} zone(s) repainted)."
-        )
-    aviso_residuos, revision_por_residuos = aviso_de_residuos(all_residual_entities)
-    if aviso_residuos:
-        warnings.append(aviso_residuos)
+    frases_red, coded_warnings, revision_por_residuos = avisos_de_red(
+        red_documento, paginas_red, paginas_persisten, all_residual_entities,
+    )
+    warnings.extend(frases_red)
     if rotated_pages:
         detail = ", ".join(
             f"{idx + 1}: {angle}°" for idx, angle in sorted(rotated_pages.items())
@@ -698,6 +699,7 @@ def redact_pdf_scanned(
             or bool(full_redaction_pages) or bool(poor_ocr_pages)
         ),
         warnings=warnings,
+        coded_warnings=coded_warnings,
         pages_redacted_in_full=[
             PageRedactedInFull(page=idx + 1, reason=why)
             for idx, why in sorted(unreadable_pages.items())
@@ -1544,6 +1546,41 @@ def aviso_de_residuos(residuos: list[PiiEntity]) -> tuple[str | None, bool]:
         "repainted it. Manual review required.",
         True,
     )
+
+def avisos_de_red(
+    red: dict[str, int],
+    paginas_red: list[int],
+    paginas_persisten: list[int],
+    residuos: list[PiiEntity],
+) -> tuple[list[str], list[CodedWarning], bool]:
+    """(frases, avisos con codigo, pide revision manual) de lo que hizo la red.
+
+    Las paginas entran desde 0 y salen desde 1, como en el resto de avisos."""
+    frases: list[str] = []
+    codigos: list[CodedWarning] = []
+    if red["imagenes_tachadas"] or red["zonas_repasadas"]:
+        # La red ha actuado: se dice, porque significa que la primera pasada
+        # dejo algo a la vista y quien revise el documento tiene que saberlo.
+        frases.append(
+            f"Safety net: the post-redaction check still read personal data on "
+            f"{red['paginas']} page(s) and covered it "
+            f"({red['imagenes_tachadas']} pasted image(s) redacted in full, "
+            f"{red['zonas_repasadas']} zone(s) repainted)."
+        )
+        codigos.append(CodedWarning(
+            code=SAFETY_NET_ACTED, pages=sorted(i + 1 for i in set(paginas_red)),
+            counts={"images": red["imagenes_tachadas"], "zones": red["zonas_repasadas"]},
+        ))
+    aviso, revisar = aviso_de_residuos(residuos)
+    if aviso:
+        frases.append(aviso)
+        codigos.append(CodedWarning(
+            code=SAFETY_NET_STILL_READABLE,
+            pages=sorted(i + 1 for i in set(paginas_persisten)),
+            types=sorted({e.entity_type for e in residuos if e.entity_type in TIPOS_AVISO_RED}),
+        ))
+    return frases, codigos, revisar
+
 
 #: Recuento de lo que hace la red, para ver en un numero si actua y como.
 RED_SEGURIDAD: dict[str, int] = {

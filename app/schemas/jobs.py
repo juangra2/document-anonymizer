@@ -10,6 +10,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.report import CodedWarning
+
 
 class JobProgress(BaseModel):
     """Avance por páginas.  La interfaz muestra «página N de M», no un giro."""
@@ -67,6 +69,11 @@ class JobResultSummary(BaseModel):
     entities_redacted: int = 0
     manual_review_required: bool = False
     warnings: list[str] = Field(default_factory=list)
+    coded_warnings: list[CodedWarning] = Field(
+        default_factory=list,
+        description="Avisos con codigo estable: la pantalla los traduce a partir del "
+                    "codigo, no de la frase en ingles de `warnings`.",
+    )
     entity_types_disabled: list[str] = Field(default_factory=list)
     processing_ms: int | None = None
 

@@ -114,3 +114,13 @@ def test_no_absolute_urls_so_a_path_prefix_keeps_working():
     api_js = _texto_de("js/api.js")
     assert 'pedir("/' not in api_js, "una ruta absoluta rompe el prefijo del proxy"
     assert "jobs/${" in api_js or 'pedir("jobs' in api_js
+
+
+def test_every_coded_warning_of_the_report_has_a_phrase():
+    """Los avisos con codigo los traduce la pantalla: un codigo nuevo en el
+    servidor sin su frase no se veria nunca."""
+    from app.schemas.report import CODED_WARNING_CODES
+
+    textos = _texto_de("js/texts/es.js")
+    for codigo in CODED_WARNING_CODES:
+        assert f"{codigo}:" in textos, f"sin frase para el aviso {codigo}"
