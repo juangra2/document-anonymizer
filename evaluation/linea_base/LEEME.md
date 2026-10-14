@@ -67,6 +67,11 @@ con `scripts/recontar_resultados.py`):
 | escaneado | 0.9157 | 0.9486 | 15 (78) |
 | hibrido | 0.8778 | 0.9267 | 19 (184) |
 | media | 0.9096 | 0.9373 | |
+| **c3** (14-10-2026: c2 y ademas barrido de todas las apariciones en el digital, texto de menos de 2 puntos fuera, cabecera y pie con mas tipos y con nombres, etiquetas de dato personal en el filtro institucional, pasaporte pegado, salto de linea a mitad de direccion) | | | |
+| digital | 0.9470 | 0.9499 | 403 (2988) |
+| escaneado | 0.9157 | 0.9486 | 15 (78) |
+| hibrido | 0.8885 | 0.9330 | 20 (197) |
+| media | 0.9171 | 0.9438 | |
 
 Todas las filas recontadas el 07-10-2026 con el evaluador actual (incluidas las
 exclusiones domicilio_institucional y lugar_infraccion_sin_etiquetar), asi que
