@@ -277,6 +277,33 @@ _BINARY_MIN_SCORE = 0.85
 _MIN_PRINTABLE_RATIO = 0.80
 
 
+# Cadena hexadecimal de PDF, "<8A0D...>", sin confundirla con un diccionario "<<".
+_HEX_PDF_RE = re.compile(r"(?<!<)<[0-9A-Fa-f\s]+>(?!>)")
+_INICIO_FLUJO_RE = re.compile(r"(?<!end)stream\r?\n")
+
+
+def _apartar_codificado(texto: str) -> str:
+    """Sustituye por espacios (mismas posiciones) lo que son bytes codificados:
+    las cadenas hexadecimales (el /ID del trailer: 64 cifras aleatorias que a
+    veces forman un "telefono") y el contenido de los flujos con /Filter (ruido
+    comprimido; su texto lo leen ya las capas textual y de OCR)."""
+    texto = _HEX_PDF_RE.sub(lambda m: " " * len(m.group(0)), texto)
+    trozos = []
+    pos = 0
+    for m in _INICIO_FLUJO_RE.finditer(texto):
+        if m.start() < pos:
+            continue
+        diccionario = texto[texto.rfind("obj", 0, m.start()) + 1:m.start()]
+        fin = texto.find("endstream", m.end())
+        if fin < 0 or "/Filter" not in diccionario:
+            continue
+        trozos.append(texto[pos:m.end()])
+        trozos.append(" " * (fin - m.end()))
+        pos = fin
+    trozos.append(texto[pos:])
+    return "".join(trozos)
+
+
 def check_binary(
     pdf_path: Path,
     analyzer: PiiAnalyzer,
@@ -291,7 +318,7 @@ def check_binary(
 
     raw = pdf_path.read_bytes()
     # latin-1 decodes every byte without errors; patterns work on ASCII subset
-    text = raw.decode("latin-1", errors="replace")
+    text = _apartar_codificado(raw.decode("latin-1", errors="replace"))
 
     entities: list[PiiEntity] = []
 
@@ -306,11 +333,6 @@ def check_binary(
             context = text[ctx_start:ctx_end]
             printable = sum(1 for c in context if c.isprintable() or c in "\r\n\t")
             if printable / max(1, len(context)) < _MIN_PRINTABLE_RATIO:
-                continue
-
-            # Reject match inside an active compressed stream
-            pre = text[max(0, match.start() - 250) : match.start()]
-            if "stream" in pre and "endstream" not in pre:
                 continue
 
             entities.append(PiiEntity(
