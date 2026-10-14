@@ -84,3 +84,5 @@ class DocumentVerificationResult:
     layers_run: list[str]
     # Lo que no se pudo verificar: (pagina desde 0 o None, capa, motivo).
     unverified: list[tuple[int | None, str, str]] = field(default_factory=list)
+    # Paginas de plano (desde 0) en las que solo se verifico el cajetin.
+    plan_pages: list[int] = field(default_factory=list)

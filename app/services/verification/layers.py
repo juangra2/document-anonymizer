@@ -77,8 +77,10 @@ def check_textual(
     page_index: int,
     analyzer: PiiAnalyzer,
     mode: str,
+    clip: fitz.Rect | None = None,
 ) -> LayerResult:
-    """Run PII analysis on selectable text extracted from one page."""
+    """Run PII analysis on selectable text extracted from one page (or only
+    from `clip`, in page.rect coordinates: the title block of a plan page)."""
     started = perf_counter()
 
     doc = fitz.open(pdf_path)
@@ -86,7 +88,8 @@ def check_textual(
         page = doc[page_index]
         # sort=True rellena con espacios los huecos entre fragmentos: en un
         # plano, 69.000 caracteres reales se convertian en 20 millones.
-        text = _ESPACIOS_RE.sub(" ", page.get_text("text", sort=True))
+        recorte = clip * page.derotation_matrix if clip is not None else None
+        text = _ESPACIOS_RE.sub(" ", page.get_text("text", sort=True, clip=recorte))
     finally:
         doc.close()
 
@@ -113,8 +116,9 @@ def check_ocr(
     analyzer: PiiAnalyzer,
     mode: str,
     dpi: int = 200,
+    clip: fitz.Rect | None = None,
 ) -> LayerResult:
-    """Render the page, run OCR, then PII-analyse each zone's text."""
+    """Render the page (or only `clip`), run OCR, then PII-analyse each zone's text."""
     from app.services.layout.zone_config import get_detector_config
     from app.services.layout.models import ZoneType
 
@@ -125,7 +129,7 @@ def check_ocr(
     try:
         page = doc[page_index]
         zoom = dpi / 72
-        pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+        pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False, clip=clip)
         image_bytes = pix.tobytes("png")
     finally:
         doc.close()
@@ -140,7 +144,7 @@ def check_ocr(
 
     if ocr_page.avg_confidence is not None and ocr_page.avg_confidence < 0.60:
         warnings.append(
-            f"Low OCR confidence on page {page_index} "
+            f"Low OCR confidence on page {page_index + 1} "
             f"({ocr_page.avg_confidence:.2f}); OCR layer result may be unreliable."
         )
 

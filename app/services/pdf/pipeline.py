@@ -233,6 +233,13 @@ def _avisos_de_verificacion(report: ProcessingReport, result: DocumentVerificati
         for w in lr.warnings:
             _add_unique_warning(report, f"[{lr.layer.value}] {w}")
 
+    if result.plan_pages:
+        _add_unique_warning(
+            report,
+            "Construction-plan pages: only the title block was verified: "
+            f"{[i + 1 for i in result.plan_pages]}.",
+        )
+
     # Lo que no se pudo verificar se dice: saltarlo en silencio daba por buena
     # una pagina que nadie habia mirado.
     if result.unverified:

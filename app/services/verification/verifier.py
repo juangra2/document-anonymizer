@@ -20,6 +20,8 @@ from app.services.layout.segmenters import OcrPageSegmenter
 from app.services import cancellation
 from app.services.ocr.base import OcrEngine
 from app.services.pii.analyzer import PiiAnalyzer
+from app.services.pdf.plan_pages import is_plan_page
+from app.services.vision.titleblock import detect_titleblock
 from app.services.verification.layers import (
     check_binary,
     check_metadata,
@@ -70,6 +72,11 @@ class DocumentVerifier:
 
         doc = fitz.open(pdf_path)
         page_count = doc.page_count
+        # Paginas de plano: solo se verifica el cajetin, igual que solo el
+        # cajetin se trata.  El cuerpo del dibujo da ruido (rotulos como
+        # nombres, cotas como pasaportes, coordenadas como telefonos).  None =
+        # plano sin cajetin: no se verifica y se dice.
+        cajetines = {i: detect_titleblock(p) for i, p in enumerate(doc) if is_plan_page(p)}
         doc.close()
 
         # --- Per-page layers (Textual, OCR) ---
@@ -77,6 +84,7 @@ class DocumentVerifier:
         # (pagina desde 0 o None si es del documento, capa, motivo): lo que no
         # se pudo comprobar va al informe, no solo al registro.
         unverified: list[tuple[int | None, str, str]] = []
+        plan_pages = sorted(i for i, clip in cajetines.items() if clip is not None)
 
         for page_index in range(page_count):
             # La comprobación final vuelve a leer el documento con OCR: sin esto
@@ -84,22 +92,28 @@ class DocumentVerifier:
             # entero antes de soltar la GPU.
             cancellation.check()
             page_layer_results: list[LayerResult] = []
+            clip = cajetines.get(page_index)
 
-            if VerificationLayer.TEXTUAL in layers_cfg:
+            if page_index in cajetines and clip is None:
+                for capa in (VerificationLayer.TEXTUAL, VerificationLayer.OCR):
+                    if capa in layers_cfg:
+                        unverified.append((page_index, capa.value,
+                                           "plan page without a detectable title block"))
+            elif VerificationLayer.TEXTUAL in layers_cfg:
                 try:
-                    r = check_textual(pdf_path, page_index, self._analyzer, mode)
+                    r = check_textual(pdf_path, page_index, self._analyzer, mode, clip=clip)
                     page_layer_results.append(r)
                 except Exception as exc:
                     logger.warning("Textual layer error page %d: %s", page_index + 1, exc)
                     unverified.append((page_index, VerificationLayer.TEXTUAL.value, _motivo(exc)))
 
-            if VerificationLayer.OCR in layers_cfg:
+            if VerificationLayer.OCR in layers_cfg and not (page_index in cajetines and clip is None):
                 try:
                     r = check_ocr(
                         pdf_path, page_index,
                         self._ocr_engine, self._segmenter,
                         self._analyzer, mode,
-                        dpi=settings.ocr_pdf_render_dpi,
+                        dpi=settings.ocr_pdf_render_dpi, clip=clip,
                     )
                     page_layer_results.append(r)
                 except Exception as exc:
@@ -168,6 +182,7 @@ class DocumentVerifier:
             entities_by_layer=entities_by_layer,
             layers_run=layers_run,
             unverified=unverified,
+            plan_pages=plan_pages,
         )
 
         logger.info(
