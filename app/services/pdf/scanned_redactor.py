@@ -1635,6 +1635,8 @@ def _imagenes_pegadas_px(page: fitz.Page, zoom: float) -> list[fitz.Rect]:
     Solo paginas con capa de texto: en una pagina escaneada la unica imagen es
     la pagina, y tacharla por un residuo seria tachar el documento.  Y solo
     imagenes que cubren al menos `ocr_imagen_minima`: un logo no es una copia.
+    Tampoco un FONDO (el escudo de un formulario, con los campos escritos
+    encima): ver _es_fondo.
     """
     try:
         if len(page.get_text("text").strip()) < settings.min_digital_text_chars:
@@ -1643,16 +1645,51 @@ def _imagenes_pegadas_px(page: fitz.Page, zoom: float) -> list[fitz.Rect]:
         if area <= 0:
             return []
         rects = []
+        dibujo = None
         for imagen in page.get_images(full=True):
             for r in page.get_image_rects(imagen[0]):
                 visible = r & page.rect
                 if visible.is_empty or visible.get_area() / area < settings.ocr_imagen_minima:
+                    continue
+                if dibujo is None:
+                    dibujo = (page.get_bboxlog(), page.get_texttrace())
+                if _es_fondo(visible, *dibujo):
                     continue
                 rects.append(fitz.Rect(visible.x0 * zoom, visible.y0 * zoom,
                                        visible.x1 * zoom, visible.y1 * zoom))
         return rects
     except Exception:
         return []
+
+
+# Trozos de texto visible encima de una imagen a partir de los cuales es un fondo.
+_TEXTO_ENCIMA_DE_UN_FONDO = 5
+
+
+def _es_fondo(rect: fitz.Rect, bboxlog: list, trazas: list) -> bool:
+    """True si sobre la imagen de `rect` va escrito texto VISIBLE de la pagina.
+
+    Documento real: el escudo de una universidad de fondo (57,7 % de la pagina)
+    con el formulario escrito encima.  La red lo tomaba por una copia pegada y
+    lo tachaba entero.  Una copia pegada trae sus datos en los pixeles; un fondo
+    lleva el texto de la pagina dibujado despues, encima.  El texto invisible de
+    una capa OCR no cuenta: una copia escaneada con su capa OCR sigue siendo una
+    copia.  El orden de dibujo (seqno) es la posicion en get_bboxlog."""
+    orden = [i for i, (tipo, caja) in enumerate(bboxlog)
+             if tipo == "fill-image" and (fitz.Rect(caja) & rect).get_area() >= 0.9 * rect.get_area()]
+    if not orden:
+        return False
+    imagen_en = min(orden)
+    encima = 0
+    for t in trazas:
+        if t["type"] == 3 or t["opacity"] == 0 or t["seqno"] <= imagen_en:
+            continue
+        caja = fitz.Rect(t["bbox"])
+        if rect.contains(fitz.Point((caja.x0 + caja.x1) / 2, (caja.y0 + caja.y1) / 2)):
+            encima += 1
+            if encima >= _TEXTO_ENCIMA_DE_UN_FONDO:
+                return True
+    return False
 
 
 def _aplicar_red(
