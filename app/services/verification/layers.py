@@ -17,6 +17,7 @@ Layer summary
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
 from time import perf_counter
@@ -45,6 +46,32 @@ if TYPE_CHECKING:
 # Layer 1 — Textual
 # ---------------------------------------------------------------------------
 
+_ESPACIOS_RE = re.compile(r"[ \t]{2,}")
+
+# spaCy rechaza mas de un millon de caracteres; se analiza por debajo, en trozos.
+_MAX_TEXTO_ANALISIS = 500_000
+
+
+def analizar_por_trozos(analyzer: PiiAnalyzer, texto: str, mode: str,
+                        maximo: int = _MAX_TEXTO_ANALISIS) -> list[PiiEntity]:
+    """analyzer.analyze en trozos de como mucho `maximo` caracteres, cortados en
+    un salto de linea, con las posiciones devueltas sobre el texto entero."""
+    if len(texto) <= maximo:
+        return analyzer.analyze(texto, mode=mode)
+    entidades: list[PiiEntity] = []
+    inicio = 0
+    while inicio < len(texto):
+        fin = min(len(texto), inicio + maximo)
+        if fin < len(texto):
+            corte = texto.rfind("\n", inicio, fin)
+            if corte > inicio:
+                fin = corte + 1
+        for e in analyzer.analyze(texto[inicio:fin], mode=mode):
+            entidades.append(replace(e, start=e.start + inicio, end=e.end + inicio))
+        inicio = fin
+    return entidades
+
+
 def check_textual(
     pdf_path: Path,
     page_index: int,
@@ -57,11 +84,13 @@ def check_textual(
     doc = fitz.open(pdf_path)
     try:
         page = doc[page_index]
-        text = page.get_text("text", sort=True)
+        # sort=True rellena con espacios los huecos entre fragmentos: en un
+        # plano, 69.000 caracteres reales se convertian en 20 millones.
+        text = _ESPACIOS_RE.sub(" ", page.get_text("text", sort=True))
     finally:
         doc.close()
 
-    entities = analyzer.analyze(text, mode=mode) if text.strip() else []
+    entities = analizar_por_trozos(analyzer, text, mode) if text.strip() else []
     entities = [e for e in entities if e.entity_type in _REDACTABLE_TYPES]
 
     return LayerResult(

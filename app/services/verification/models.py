@@ -82,3 +82,5 @@ class DocumentVerificationResult:
     total_residual_entities: int
     entities_by_layer: dict[str, int]
     layers_run: list[str]
+    # Lo que no se pudo verificar: (pagina desde 0 o None, capa, motivo).
+    unverified: list[tuple[int | None, str, str]] = field(default_factory=list)

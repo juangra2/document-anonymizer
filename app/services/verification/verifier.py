@@ -74,6 +74,9 @@ class DocumentVerifier:
 
         # --- Per-page layers (Textual, OCR) ---
         page_results: list[PageVerificationResult] = []
+        # (pagina desde 0 o None si es del documento, capa, motivo): lo que no
+        # se pudo comprobar va al informe, no solo al registro.
+        unverified: list[tuple[int | None, str, str]] = []
 
         for page_index in range(page_count):
             # La comprobación final vuelve a leer el documento con OCR: sin esto
@@ -87,7 +90,8 @@ class DocumentVerifier:
                     r = check_textual(pdf_path, page_index, self._analyzer, mode)
                     page_layer_results.append(r)
                 except Exception as exc:
-                    logger.warning("Textual layer error page %d: %s", page_index, exc)
+                    logger.warning("Textual layer error page %d: %s", page_index + 1, exc)
+                    unverified.append((page_index, VerificationLayer.TEXTUAL.value, _motivo(exc)))
 
             if VerificationLayer.OCR in layers_cfg:
                 try:
@@ -99,7 +103,8 @@ class DocumentVerifier:
                     )
                     page_layer_results.append(r)
                 except Exception as exc:
-                    logger.warning("OCR layer error page %d: %s", page_index, exc)
+                    logger.warning("OCR layer error page %d: %s", page_index + 1, exc)
+                    unverified.append((page_index, VerificationLayer.OCR.value, _motivo(exc)))
 
             aggregate = compute_page_risk(page_layer_results)
             requires_review = aggregate >= settings.verify_risk_threshold_review
@@ -119,12 +124,14 @@ class DocumentVerifier:
                 doc_layer_results.append(check_metadata(pdf_path, self._analyzer))
             except Exception as exc:
                 logger.warning("Metadata layer error: %s", exc)
+                unverified.append((None, VerificationLayer.METADATA.value, _motivo(exc)))
 
         if VerificationLayer.BINARY in layers_cfg:
             try:
                 doc_layer_results.append(check_binary(pdf_path, self._analyzer))
             except Exception as exc:
                 logger.warning("Binary layer error: %s", exc)
+                unverified.append((None, VerificationLayer.BINARY.value, _motivo(exc)))
 
         # --- Aggregate ---
         page_risks = [pr.aggregate_risk_score for pr in page_results]
@@ -160,6 +167,7 @@ class DocumentVerifier:
             total_residual_entities=total,
             entities_by_layer=entities_by_layer,
             layers_run=layers_run,
+            unverified=unverified,
         )
 
         logger.info(
@@ -189,3 +197,8 @@ class DocumentVerifier:
             layers.discard(VerificationLayer.OCR)
 
         return layers
+
+
+def _motivo(exc: Exception) -> str:
+    """Motivo corto del fallo, sin el texto analizado."""
+    return f"{type(exc).__name__}: {str(exc).splitlines()[0][:120]}" if str(exc) else type(exc).__name__

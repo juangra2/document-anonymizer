@@ -673,7 +673,7 @@ def redact_pdf_scanned(
     if skipped_pages:
         warnings.append(
             "Pages skipped (image-dominant or OCR timeout) and not fully redacted: "
-            f"{sorted(skipped_pages)}. Manual review required."
+            f"{[i + 1 for i in sorted(skipped_pages)]}. Manual review required."
         )
 
     confidence_avg = (

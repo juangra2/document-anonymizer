@@ -407,12 +407,12 @@ def redact_pdf_digital(
         if plan_pages_done:
             warnings.append(
                 "Construction-plan pages: only the title block was analysed "
-                f"and redacted: {sorted(plan_pages_done)}."
+                f"and redacted: {[i + 1 for i in sorted(plan_pages_done)]}."
             )
         if plan_pages_skipped:
             warnings.append(
                 "Construction-plan pages without a detectable title block, "
-                f"kept unredacted: {sorted(plan_pages_skipped)}. "
+                f"kept unredacted: {[i + 1 for i in sorted(plan_pages_skipped)]}. "
                 "Manual review required."
             )
 

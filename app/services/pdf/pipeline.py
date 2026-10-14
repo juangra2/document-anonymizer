@@ -191,41 +191,68 @@ class PdfAnonymizationPipeline:
             passed=result.passed,
         )
 
-        # Update residual counts from verification results
-        if result.total_residual_entities > 0:
-            report.residual_entities = max(
-                report.residual_entities, result.total_residual_entities
-            )
-            for layer, count in result.entities_by_layer.items():
-                key = f"residual_{layer}"
-                report.residual_entities_by_type[key] = (
-                    report.residual_entities_by_type.get(key, 0) + count
-                )
+        _avisos_de_verificacion(report, result)
 
-        if result.critical_pages:
-            _add_unique_warning(
-                report,
-                f"Residual PII detected in pages {result.critical_pages} "
-                f"(risk={result.overall_risk_score:.2f}, level={result.risk_level}). "
-                "Manual review required.",
-            )
-            report.status = "completed_with_warnings"
-            report.manual_review_required = True
 
-        if not result.passed:
-            _add_unique_warning(
-                report,
-                f"Verification risk score {result.overall_risk_score:.2f} exceeds "
-                f"reject threshold {settings.verify_risk_threshold_reject}. "
-                "Redaction may be incomplete.",
+def _avisos_de_verificacion(report: ProcessingReport, result: DocumentVerificationResult) -> None:
+    """Lleva al informe lo que dice el verificador.  Las paginas, desde 1, como
+    en los avisos del procesado; critical_pages sigue guardando el indice."""
+    # Update residual counts from verification results
+    if result.total_residual_entities > 0:
+        report.residual_entities = max(
+            report.residual_entities, result.total_residual_entities
+        )
+        for layer, count in result.entities_by_layer.items():
+            key = f"residual_{layer}"
+            report.residual_entities_by_type[key] = (
+                report.residual_entities_by_type.get(key, 0) + count
             )
-            report.status = "completed_with_warnings"
-            report.manual_review_required = True
 
-        # Document-level warnings (metadata, binary)
-        for lr in result.document_layer_results:
-            for w in lr.warnings:
-                _add_unique_warning(report, f"[{lr.layer.value}] {w}")
+    if result.critical_pages:
+        _add_unique_warning(
+            report,
+            f"Residual PII detected in pages {[i + 1 for i in result.critical_pages]} "
+            f"(risk={result.overall_risk_score:.2f}, level={result.risk_level}). "
+            "Manual review required.",
+        )
+        report.status = "completed_with_warnings"
+        report.manual_review_required = True
+
+    if not result.passed:
+        _add_unique_warning(
+            report,
+            f"Verification risk score {result.overall_risk_score:.2f} exceeds "
+            f"reject threshold {settings.verify_risk_threshold_reject}. "
+            "Redaction may be incomplete.",
+        )
+        report.status = "completed_with_warnings"
+        report.manual_review_required = True
+
+    # Document-level warnings (metadata, binary)
+    for lr in result.document_layer_results:
+        for w in lr.warnings:
+            _add_unique_warning(report, f"[{lr.layer.value}] {w}")
+
+    # Lo que no se pudo verificar se dice: saltarlo en silencio daba por buena
+    # una pagina que nadie habia mirado.
+    if result.unverified:
+        por_capa: dict[str, list[int]] = {}
+        del_documento: list[str] = []
+        for pagina, capa, _motivo in result.unverified:
+            if pagina is None:
+                del_documento.append(capa)
+            else:
+                por_capa.setdefault(capa, []).append(pagina + 1)
+        detalle = "; ".join(f"{capa}: pages {sorted(p)}" for capa, p in sorted(por_capa.items()))
+        if del_documento:
+            detalle = "; ".join(filter(None, [detalle, f"document: {sorted(del_documento)}"]))
+        _add_unique_warning(
+            report,
+            f"Verification could not run on part of the document and it was "
+            f"not verified ({detalle}). Manual review required.",
+        )
+        report.status = "completed_with_warnings"
+        report.manual_review_required = True
 
 
 def _reparto(input_path: Path) -> tuple[set[int], int, int]:
