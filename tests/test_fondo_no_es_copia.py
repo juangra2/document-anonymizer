@@ -60,6 +60,22 @@ def test_una_copia_pegada_sin_texto_encima_lo_sigue_siendo():
     assert len(_imagenes_pegadas_px(page, 2.0)) == 1
 
 
+def test_una_copia_con_un_sello_de_texto_encima_sigue_siendo_copia():
+    """En los expedientes la fotocopia del DNI suele llevar un sello visible
+    encima ("ES COPIA", "Compulsado", el de registro de entrada).  Un sello son
+    unas pocas lineas juntas; un fondo de formulario, campos por toda la imagen."""
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    page.insert_textbox(fitz.Rect(40, 40, 555, 200),
+                        "Se adjunta copia del documento de identidad del interesado. " * 5, fontsize=10)
+    copia = fitz.Rect(100, 300, 450, 520)
+    _imagen(page, copia)
+    for k, linea in enumerate(["ES COPIA", "COMPULSADO", "REGISTRO DE ENTRADA",
+                               "N. 2024/012345", "12/03/2024 10:41", "Ajuntament de Valencia"]):
+        page.insert_text((300, 440 + 11 * k), linea, fontsize=8)
+    assert len(_imagenes_pegadas_px(page, 2.0)) == 1
+
+
 def test_el_texto_invisible_de_una_capa_ocr_no_hace_fondo():
     """Una copia escaneada con capa OCR invisible encima sigue siendo una copia."""
     page = _formulario(texto_invisible=True)
