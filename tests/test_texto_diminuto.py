@@ -8,9 +8,10 @@ y scrub(hidden_text=True) solo quita el texto marcado como invisible, no el de 1
 punto.  El verificador si lo veia —riesgo alto, revision manual— y el documento
 se entregaba igual.
 
-Se quita todo texto de menos de 2 puntos de la salida, sin pintar nada: a ese
-tamaño no se lee, asi que quitarlo no cambia lo que se ve.  El texto blanco de
-tamaño normal NO se toca: puede ir sobre un fondo de color.
+Se quita de la salida, sin pintar nada, el texto de menos de 2 puntos que no se
+ve: en blanco, invisible o tapado por una imagen (el diminuto que se ve, como las
+cotas de un plano, se queda; ver test_texto_diminuto_planos.py).  El texto blanco
+de tamaño normal NO se toca: puede ir sobre un fondo de color.
 """
 import fitz
 

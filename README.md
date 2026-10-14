@@ -467,7 +467,8 @@ en cada pasada y 1 es ese mismo domicilio.
 
 Lo que cerró las fugas del digital: tachar todas las apariciones de un dato detectado (bloque de
 firmas, la otra columna, la página siguiente); quitar de la salida el texto de menos de 2 puntos
-(el contenido del QR en blanco, con nombre y DNI, se podía copiar); buscar en cabecera y pie los
+que no se ve —en blanco, invisible o tapado por una imagen— (el contenido del QR en blanco, con
+nombre y DNI, se podía copiar; las cotas de un plano, diminutas pero visibles, se quedan); buscar en cabecera y pie los
 tipos que no admitían; y que el filtro institucional no tome por institucional un dato con
 etiqueta de dato personal («Domicilio fiscal:»).
 
