@@ -74,6 +74,10 @@ class JobResultSummary(BaseModel):
         description="Avisos con codigo estable: la pantalla los traduce a partir del "
                     "codigo, no de la frase en ingles de `warnings`.",
     )
+    manual_review_reasons: list[str] = Field(
+        default_factory=list,
+        description="Codigos de por que se pide revision manual.",
+    )
     entity_types_disabled: list[str] = Field(default_factory=list)
     processing_ms: int | None = None
 

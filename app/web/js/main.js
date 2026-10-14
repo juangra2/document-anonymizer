@@ -640,7 +640,7 @@ function filaDocumento(documento) {
     nota.textContent = texto;
     meta.appendChild(nota);
   }
-  if (resultado?.manual_review_required && !parcial) {
+  if (resultado?.manual_review_required && !parcial && revisionSinExplicar(resultado)) {
     const nota = document.createElement("span");
     nota.className = "note";
     nota.textContent = T.documento.revisar;
@@ -649,6 +649,21 @@ function filaDocumento(documento) {
   fila.appendChild(meta);
   fila.appendChild(acciones(documento, parcial));
   return fila;
+}
+
+/**
+ * La nota genérica de revisión sobra solo si TODOS los motivos de la revisión
+ * tienen ya su aviso con código en pantalla.  Sin motivos conocidos (un
+ * servidor anterior), o con alguno sin aviso, se sigue mostrando.
+ */
+function revisionSinExplicar(resultado) {
+  const motivos = resultado.manual_review_reasons || [];
+  const explicados = new Set(
+    (resultado.coded_warnings || [])
+      .filter((aviso) => fraseDeAviso(aviso))
+      .map((aviso) => aviso.code),
+  );
+  return motivos.length === 0 || motivos.some((motivo) => !explicados.has(motivo));
 }
 
 /** Frase en castellano de un aviso con código, o null si no se conoce el código. */

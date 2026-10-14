@@ -22,7 +22,13 @@ import fitz
 from PIL import Image
 
 from app.core.config import settings
-from app.schemas.report import DetectedEntityInfo, ProcessingLimits, ProcessingReport
+from app.schemas.report import (
+    REVIEW_FULL_REDACTION_PAGES,
+    REVIEW_PLAN_WITHOUT_TITLEBLOCK,
+    DetectedEntityInfo,
+    ProcessingLimits,
+    ProcessingReport,
+)
 from app.services.layout.models import PageZone, ZoneType
 from app.services.layout.segmenters import DigitalPageSegmenter
 from app.services.layout.zone_config import ALL_PII_TYPES, get_detector_config
@@ -473,6 +479,10 @@ def redact_pdf_digital(
         structural_redactions_untyped=layout_rect_count,
         residual_entities=0,
         manual_review_required=bool(plan_pages_skipped) or bool(full_redaction_pages),
+        manual_review_reasons=(
+            [REVIEW_PLAN_WITHOUT_TITLEBLOCK] * bool(plan_pages_skipped)
+            + [REVIEW_FULL_REDACTION_PAGES] * bool(full_redaction_pages)
+        ),
         warnings=warnings,
         redaction_mode=mode,
         limits=ProcessingLimits(

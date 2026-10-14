@@ -5,6 +5,8 @@ from time import perf_counter
 from app.core.config import settings
 from app.schemas.report import (
     PAGES_NOT_VERIFIED,
+    REVIEW_RESIDUAL_PII,
+    REVIEW_VERIFICATION_RISK_HIGH,
     PLAN_TITLEBLOCK_ONLY_VERIFIED,
     CodedWarning,
     ProcessingReport,
@@ -222,7 +224,7 @@ def _avisos_de_verificacion(report: ProcessingReport, result: DocumentVerificati
             "Manual review required.",
         )
         report.status = "completed_with_warnings"
-        report.manual_review_required = True
+        _pedir_revision(report, REVIEW_RESIDUAL_PII)
 
     if not result.passed:
         _add_unique_warning(
@@ -232,7 +234,7 @@ def _avisos_de_verificacion(report: ProcessingReport, result: DocumentVerificati
             "Redaction may be incomplete.",
         )
         report.status = "completed_with_warnings"
-        report.manual_review_required = True
+        _pedir_revision(report, REVIEW_VERIFICATION_RISK_HIGH)
 
     # Document-level warnings (metadata, binary)
     for lr in result.document_layer_results:
@@ -269,7 +271,13 @@ def _avisos_de_verificacion(report: ProcessingReport, result: DocumentVerificati
         paginas = sorted({p for ps in por_capa.values() for p in ps})
         report.coded_warnings.append(CodedWarning(code=PAGES_NOT_VERIFIED, pages=paginas))
         report.status = "completed_with_warnings"
-        report.manual_review_required = True
+        _pedir_revision(report, PAGES_NOT_VERIFIED)
+
+
+def _pedir_revision(report: ProcessingReport, motivo: str) -> None:
+    report.manual_review_required = True
+    if motivo not in report.manual_review_reasons:
+        report.manual_review_reasons.append(motivo)
 
 
 def _reparto(input_path: Path) -> tuple[set[int], int, int]:

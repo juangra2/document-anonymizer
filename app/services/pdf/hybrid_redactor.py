@@ -122,6 +122,9 @@ def redact_pdf_hybrid_secure(
         ),
         "warnings": avisos,
         "coded_warnings": list(digital.coded_warnings) + list(escaneado.coded_warnings),
+        "manual_review_reasons": list(dict.fromkeys(
+            list(digital.manual_review_reasons) + list(escaneado.manual_review_reasons)
+        )),
         "redaction_strategy": "hybrid_secure_pdf_redaction",
         "detected_entities": (
             list(digital.detected_entities) + list(escaneado.detected_entities)

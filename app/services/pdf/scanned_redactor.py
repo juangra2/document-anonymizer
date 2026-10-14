@@ -27,6 +27,9 @@ from PIL import Image, ImageDraw
 
 from app.core.config import settings
 from app.schemas.report import (
+    REVIEW_FULL_REDACTION_PAGES,
+    REVIEW_LOW_OCR_CONFIDENCE,
+    REVIEW_PAGES_SKIPPED,
     SAFETY_NET_ACTED,
     SAFETY_NET_STILL_READABLE,
     CodedWarning,
@@ -697,6 +700,12 @@ def redact_pdf_scanned(
         manual_review_required=(
             bool(low_confidence_pages) or revision_por_residuos or bool(skipped_pages)
             or bool(full_redaction_pages) or bool(poor_ocr_pages)
+        ),
+        manual_review_reasons=(
+            [REVIEW_LOW_OCR_CONFIDENCE] * bool(low_confidence_pages or poor_ocr_pages)
+            + [SAFETY_NET_STILL_READABLE] * bool(revision_por_residuos)
+            + [REVIEW_PAGES_SKIPPED] * bool(skipped_pages)
+            + [REVIEW_FULL_REDACTION_PAGES] * bool(full_redaction_pages)
         ),
         warnings=warnings,
         coded_warnings=coded_warnings,

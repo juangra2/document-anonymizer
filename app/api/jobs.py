@@ -68,6 +68,7 @@ def _to_response(job: Job) -> JobResponse:
             manual_review_required=job.report.manual_review_required,
             warnings=job.report.warnings,
             coded_warnings=job.report.coded_warnings,
+            manual_review_reasons=job.report.manual_review_reasons,
             entity_types_disabled=job.report.entity_types_disabled,
             processing_ms=job.report.processing_ms,
         )

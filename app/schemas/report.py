@@ -15,6 +15,17 @@ PLAN_TITLEBLOCK_ONLY_VERIFIED = "plan_titleblock_only_verified"
 PAGES_NOT_VERIFIED = "pages_not_verified"
 SAFETY_NET_ACTED = "safety_net_acted"
 SAFETY_NET_STILL_READABLE = "safety_net_still_readable"
+# Motivos de revision manual (`ProcessingReport.manual_review_reasons`).  Los
+# que coinciden con un codigo de aviso (pages_not_verified,
+# safety_net_still_readable) los explica ese aviso; el resto, la nota generica.
+REVIEW_RESIDUAL_PII = "residual_pii"
+REVIEW_VERIFICATION_RISK_HIGH = "verification_risk_high"
+REVIEW_PLAN_WITHOUT_TITLEBLOCK = "plan_without_titleblock"
+REVIEW_FULL_REDACTION_PAGES = "full_redaction_pages"
+REVIEW_LOW_OCR_CONFIDENCE = "low_ocr_confidence"
+REVIEW_PAGES_SKIPPED = "pages_skipped"
+REVIEW_NO_TEXT_DETECTED = "no_text_detected"
+
 #: Todos: cada uno necesita su frase en la pantalla (lo comprueba test_web.py).
 CODED_WARNING_CODES = (PLAN_TITLEBLOCK_ONLY_VERIFIED, PAGES_NOT_VERIFIED,
                        SAFETY_NET_ACTED, SAFETY_NET_STILL_READABLE)
@@ -174,6 +185,12 @@ class ProcessingReport(BaseModel):
     coded_warnings: list[CodedWarning] = Field(
         default_factory=list,
         description="Avisos con codigo estable, ademas de su frase en `warnings`.",
+    )
+    manual_review_reasons: list[str] = Field(
+        default_factory=list,
+        description="Por que se pide revision manual, con codigos estables. Si todos "
+                    "tienen su aviso en `coded_warnings`, la pantalla no necesita la "
+                    "nota generica.",
     )
     pages_redacted_in_full: list[PageRedactedInFull] = Field(
         default_factory=list,

@@ -8,7 +8,13 @@ import fitz
 from PIL import Image, ImageDraw
 
 from app.core.config import settings
-from app.schemas.report import OcrInfo, ProcessingLimits, ProcessingReport
+from app.schemas.report import (
+    REVIEW_LOW_OCR_CONFIDENCE,
+    REVIEW_NO_TEXT_DETECTED,
+    OcrInfo,
+    ProcessingLimits,
+    ProcessingReport,
+)
 from app.services.layout.segmenters import OcrPageSegmenter
 from app.services.ocr.factory import get_ocr_engine
 from app.services.pdf.scanned_redactor import _collect_redaction_rects
@@ -72,14 +78,15 @@ class ImageAnonymizationPipeline:
 
         confidence_avg = ocr_page.avg_confidence
         warnings: list[str] = []
-        manual_review_required = False
+        motivos: list[str] = []
 
         if confidence_avg is None:
             warnings.append("OCR did not detect any text.")
-            manual_review_required = True
+            motivos.append(REVIEW_NO_TEXT_DETECTED)
         elif confidence_avg < 0.75:
             warnings.append("Low OCR confidence. Manual review recommended.")
-            manual_review_required = True
+            motivos.append(REVIEW_LOW_OCR_CONFIDENCE)
+        manual_review_required = bool(motivos)
 
         report = ProcessingReport(
             job_id=job_id,
@@ -93,6 +100,7 @@ class ImageAnonymizationPipeline:
             residual_entities=0,
             residual_entities_by_type={},
             manual_review_required=manual_review_required,
+            manual_review_reasons=motivos,
             warnings=warnings,
             redaction_mode=mode,
             limits=ProcessingLimits(
