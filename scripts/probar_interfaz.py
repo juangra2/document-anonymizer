@@ -54,6 +54,27 @@ def pdf_con_contrasena(destino: Path) -> Path:
     return destino
 
 
+def pdf_plano(destino: Path) -> Path:
+    """Plano A1 sintetico con cajetin: el informe lleva el aviso con codigo
+    plan_titleblock_only_verified."""
+    ancho, alto = 2384, 1684
+    doc = fitz.open()
+    page = doc.new_page(width=ancho, height=alto)
+    for i in range(2500):
+        x = 40 + (i * 7) % (ancho - 120)
+        y = 40 + (i * 13) % (alto - 120)
+        page.draw_line((x, y), (x + 30, y + 5))
+    x0, y0 = ancho - 340, alto - 500
+    for i in range(7):
+        page.draw_line((x0, y0 + 70 * i), (ancho - 20, y0 + 70 * i))
+    page.draw_rect(fitz.Rect(x0, y0, ancho - 20, alto - 20))
+    for k, lab in enumerate([f"PROMOTOR: {NOMBRE.upper()}", "ESCALA: 1/500",
+                             "FECHA: 01/2026", "PLANO: 03"]):
+        page.insert_text((x0 + 10, y0 + 30 + 55 * k), lab, fontsize=13)
+    doc.save(destino)
+    return destino
+
+
 def no_es_pdf(destino: Path) -> Path:
     destino.write_text("Esto es un documento de Word, no un PDF.", encoding="utf-8")
     return destino
@@ -299,13 +320,32 @@ def flujo_sin_conexion(p, pagina, tmp: Path) -> None:
     pagina.context.set_offline(False)
 
 
+def flujo_avisos_del_informe(p, pagina, tmp: Path) -> None:
+    print("\n7) Los avisos del informe, en castellano")
+    abrir(pagina)
+    pagina.set_input_files("#ficheros", str(pdf_plano(tmp / "plano.pdf")))
+    pagina.click("#anonimizar")
+    ok = esperar_texto(pagina, ".doc .st", "Terminado", ms=300000)
+    p.comprobar(ok, "el plano termina")
+    nota = pagina.locator('.doc .note[data-codigo="plan_titleblock_only_verified"]')
+    p.comprobar(nota.count() == 1, "el aviso del plano aparece, por su codigo")
+    p.comprobar(
+        nota.count() == 1 and "solo se ha comprobado el cajetín" in nota.inner_text()
+        and "página 1" in nota.inner_text(),
+        "en castellano y con la pagina contada desde 1",
+    )
+    p.comprobar("title block" not in pagina.locator(".doc").first.inner_text(),
+                "la frase en ingles del informe no se cuela en la pantalla")
+    p.captura(pagina, "11-aviso-plano")
+
+
 def flujo_servicio_caido(p, pagina) -> None:
     """Solo si el servicio arrancado no esta listo (modelos ausentes)."""
     salud = httpx.get(f"{BASE}/health", timeout=10).json()
     if salud.get("ready"):
-        print("\n7) Servicio caido: se omite (este servicio SI esta listo)")
+        print("\n8) Servicio caido: se omite (este servicio SI esta listo)")
         return
-    print("\n7) El servicio no esta listo")
+    print("\n8) El servicio no esta listo")
     pagina.goto(BASE)
     p.comprobar(pagina.locator("#salud.down").count() == 1, "el indicador se pone en rojo")
     p.comprobar(pagina.locator("#avisoServicio:not(.hidden)").count() == 1,
@@ -333,6 +373,7 @@ def main() -> int:
         "recuperar": flujo_recuperar,
         "errores": flujo_errores,
         "sin-conexion": flujo_sin_conexion,
+        "avisos": flujo_avisos_del_informe,
     }
 
     with sync_playwright() as pw:
