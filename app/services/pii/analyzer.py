@@ -992,6 +992,9 @@ _MONEY_RE = re.compile(
     r"\d{1,3}(?:\.\d{3})*,\d{2}"                     # 1.234,56 / 234,56
     r"|\d{1,3}(?:\.\d{3})+"                          # 2.500
     r"|\d+(?=[^\S\r\n]*(?:€|EUR\b|euros?\b))"        # 300 €
+    # 212.07 €: punto decimal, solo con el euro detras (sin el, el punto puede
+    # ser un separador de miles o cualquier otra cosa).
+    r"|\d{1,3}(?:,\d{3})*\.\d{2}(?=[^\S\r\n]*(?:€|EUR\b|euros?\b))"
     r")"
     # Ni cifra ni coma detrás, ni otro grupo con punto: sin esto "10.217.195"
     # casaba dentro de la IP "10.217.195.85".
@@ -1011,7 +1014,9 @@ _MONEY_LABEL_RE = re.compile(
     r"base[^\S\r\n]+(?:imponible|cotizaci[oó]n|irpf)|"
     r"complemento|plus|horas[^\S\r\n]+extraordinarias|antig[uü]edad|"
     r"irpf|retenci[oó]n|anticipo|neto|bruto|paga|pensiones|sindical|"
-    r"productividad|nocturnidad|penosidad|disponibilidad|guardia)\b"
+    r"productividad|nocturnidad|penosidad|disponibilidad|guardia|"
+    # Datos de pago de un formulario ("DADES PAGAMENT / DATOS PAGO", recibo).
+    r"pago|pagament|pagat|pagado|ingreso|ingr[eé]s|recibo|rebut)\b"
 )
 
 # (b) Marcadores de zona financiera.
@@ -1080,6 +1085,8 @@ _PUBLIC_UNIT_RE = re.compile(
 SOURCE_PRIORITY = {
     "labeled_field": 5,
     "no_colon_labeled_field": 4,
+    # Valor tras su etiqueta de formulario (registro, recibo, lugar de nacimiento).
+    "form_label": 4,
     "case_table_row": 4,
     "role_table_row": 3,
     # Detectores deterministas propios: ganan al NER, que suele devolver un
@@ -1173,7 +1180,11 @@ _MUNI_TOKEN_RE = re.compile(r"\S+")
 _CSV_LABEL_RE = re.compile(
     r"(?i)(?:\bC\.?[^\S\r\n]?S\.?[^\S\r\n]?V\.?|"
     r"c[oó]digo[^\S\r\n]+seguro[^\S\r\n]+de[^\S\r\n]+verificaci[oó]n?|"
-    r"codi[^\S\r\n]+segur[^\S\r\n]+de[^\S\r\n]+verificaci[oó])"
+    r"codi[^\S\r\n]+segur[^\S\r\n]+de[^\S\r\n]+verificaci[oó]|"
+    # "Cód. Verificación" / "Cod. Verificació" / "Código de verificación"
+    # (formulario de una universidad; en el pie, "Cód." y "Verificación" en
+    # lineas distintas).
+    r"\bc[oó]d(?:igo|i)?\.?\s+(?:de\s+)?verificaci[oó]n?\b)"
 )
 # A CSV is a long alphanumeric run with at least two digits (rules out plain
 # words).  Se exigian 8 cifras y un CSV de letras y cifras mezcladas
@@ -1181,6 +1192,29 @@ _CSV_LABEL_RE = re.compile(
 # descarta el falso positivo es la etiqueta a menos de _CSV_WINDOW caracteres.
 _CSV_VALUE_RE = re.compile(r"\b(?=[A-Z0-9]*\d[A-Z0-9]*\d)[A-Z0-9]{14,44}\b")
 _CSV_WINDOW = 80   # max chars between a CSV label end and its value start
+
+# NUMERO DE REGISTRO / DE RECIBO de un formulario ("Núm. registre / Nº
+# registro", "Núm. rebut / Nº recibo"): el valor va detras, en la misma linea o
+# en las siguientes, y puede partirse en un guion de fin de linea
+# ("UV-" / "SEU-0000000446721").  Exige "Nº"/"Núm."/"Número": la palabra
+# "registro" suelta es prosa ("el Registro Electrónico").
+_REGISTRO_LABEL_RE = re.compile(
+    r"(?i)\bn(?:[uú]m(?:ero)?\.?|[º°]\.?|o\.)[^\S\r\n]*(?:de[^\S\r\n]+)?"
+    r"(?:registre|registro|rebut|recibo)\b"
+)
+# Valor: letras mayusculas y cifras, con guiones (tambien de fin de linea),
+# barras o puntos; al menos tres cifras.
+_REGISTRO_VALUE_RE = re.compile(
+    r"(?<![\w-])[A-Z0-9]+(?:-[\r\n]*[A-Z0-9]+|[/.][A-Z0-9]+)*(?![\w-])"
+)
+_REGISTRO_LINEAS = 3     # el valor empieza, como mucho, tantas lineas despues
+
+# LUGAR DE NACIMIENTO: solo con su etiqueta.  Fuera de ella un lugar no se tacha.
+_LUGAR_NACIMIENTO_LABEL_RE = re.compile(
+    r"(?i)\b(?:lugar|lloc|provincia|prov[ií]ncia|municipio|municipi|localidad|"
+    r"localitat|poblaci[oó]n?|ciudad|ciutat|pa[ií]s)[^\S\r\n]+(?:de[^\S\r\n]+)?"
+    r"(?:nacimiento|naixement)\b"
+)
 
 # Etiquetas de numeros de expediente o registro: lo que va detras, en la misma
 # linea y sin una etiqueta de telefono en medio, no es un telefono.
@@ -1453,12 +1487,14 @@ class PiiAnalyzer:
         Args:
             text:      The text to analyse.
             mode:      Always "strict" (kept in the signature for API shape).
-            context_text: Texto de la PAGINA completa, si se conoce.  Solo lo usa
-                       el gate de importes: el segmentador deja cada fila de
-                       tabla en su propia zona ("Salario base 2.309,00"), donde
-                       no cabe decidir si el importe es de una nomina o de un
-                       presupuesto de obra.  Sin el, "Base imponible 845,20" es
-                       indistinguible en ambos documentos.
+            context_text: Texto de la PAGINA completa, si se conoce.  Lo usan
+                       el gate de importes (el segmentador deja cada fila de
+                       tabla en su propia zona, "Salario base 2.309,00", donde
+                       no cabe decidir si es una nomina o un presupuesto de
+                       obra) y los detectores que dependen de una etiqueta
+                       (CSV, registro, lugar de nacimiento): en una cabecera
+                       cada linea es una zona, y la etiqueta y su valor caen
+                       en zonas distintas.
             zone_type: Layout zone this text comes from ("body", "header",
                        "footer", "form", "table", …).  When provided, enables
                        zone-aware NER filtering to reduce false positives in
@@ -1484,7 +1520,7 @@ class PiiAnalyzer:
         entities.extend(self._detect_ocr_iban(text))
         entities.extend(self._detect_dni_letra_ocr(text))
         entities.extend(self._detect_correo_estropeado(text))
-        entities.extend(self._detect_csv(text))
+        entities.extend(self._con_etiqueta_en_la_pagina(text, context_text))
         entities.extend(self._detect_money(text, context_text))
         entities.extend(self._detect_private_companies(text))
         entities.extend(self._detect_ner_entities(text, zone_type=zone_type))
@@ -2650,6 +2686,97 @@ class PiiAnalyzer:
                     entities.append(
                         PiiEntity("CSV", span[0], span[1], 0.9, source="deterministic_regex")
                     )
+        return entities
+
+    @classmethod
+    def _con_etiqueta_en_la_pagina(cls, text: str, context_text: str | None) -> list[PiiEntity]:
+        """CSV, numero de registro y lugar de nacimiento: dependen de una etiqueta
+        que puede estar en otra zona (formulario real: en la cabecera cada linea
+        es una zona).  Se buscan en la pagina y se devuelven los que caen dentro
+        de `text`, en sus posiciones; si `text` aparece varias veces en la
+        pagina, en cada una."""
+        def detectar(t: str) -> list[PiiEntity]:
+            return (cls._detect_csv(t) + cls._detect_numero_de_registro(t)
+                    + cls._detect_lugar_de_nacimiento(t))
+
+        if not context_text or context_text == text or text not in context_text:
+            return detectar(text)
+        en_pagina = detectar(context_text)
+        if not en_pagina:
+            return []
+        salida: list[PiiEntity] = []
+        desde = context_text.find(text)
+        while desde != -1:
+            hasta = desde + len(text)
+            for e in en_pagina:
+                ini, fin = max(e.start, desde), min(e.end, hasta)
+                if fin > ini:              # el valor partido entre dos zonas: su trozo
+                    salida.append(PiiEntity(e.entity_type, ini - desde, fin - desde, e.score,
+                                            source=e.source, text=text[ini - desde:fin - desde]))
+            desde = context_text.find(text, desde + 1)
+        return salida
+
+    @staticmethod
+    def _detect_numero_de_registro(text: str) -> list[PiiEntity]:
+        """Numero de registro o de recibo tras su etiqueta (ver _REGISTRO_LABEL_RE)."""
+        entities: list[PiiEntity] = []
+        seen: set[tuple[int, int]] = set()
+        for lm in _REGISTRO_LABEL_RE.finditer(text):
+            # Hasta _REGISTRO_LINEAS lineas despues de la etiqueta.
+            limite = lm.end()
+            for _ in range(_REGISTRO_LINEAS):
+                siguiente = text.find("\n", limite + 1)
+                limite = len(text) if siguiente == -1 else siguiente
+            for vm in _REGISTRO_VALUE_RE.finditer(text, lm.end(), limite):
+                if sum(c.isdigit() for c in vm.group()) < 3:
+                    continue           # "UV" suelto, "RECIBO", la otra etiqueta
+                span = (vm.start(), vm.end())
+                if span not in seen:
+                    seen.add(span)
+                    entities.append(PiiEntity("REGISTRY_NUMBER", *span, 0.9,
+                                              source="form_label", text=vm.group()))
+                break
+        return entities
+
+    @staticmethod
+    def _detect_lugar_de_nacimiento(text: str) -> list[PiiEntity]:
+        """Lugar, provincia o municipio de nacimiento tras su etiqueta.
+
+        El valor va en la misma linea, tras la etiqueta ("Lugar de nacimiento:
+        Cuenca"), o en la linea siguiente cuando la de la etiqueta no tiene mas
+        que etiquetas ("PROVINCIA NAIXEMENT / PROVINCIA NACIMIENTO" / valor).
+        """
+        entities: list[PiiEntity] = []
+        seen: set[int] = set()
+        for lm in _LUGAR_NACIMIENTO_LABEL_RE.finditer(text):
+            ini_linea = text.rfind("\n", 0, lm.start()) + 1
+            if ini_linea in seen:
+                continue           # etiqueta bilingue: una sola vez por linea
+            seen.add(ini_linea)
+            fin_linea = text.find("\n", lm.end())
+            fin_linea = len(text) if fin_linea == -1 else fin_linea
+            linea = text[ini_linea:fin_linea]
+            # Lo que queda de la linea sin las etiquetas ni los separadores.
+            ultima = max(m.end() for m in _LUGAR_NACIMIENTO_LABEL_RE.finditer(linea))
+            resto = linea[ultima:]
+            hueco = len(resto) - len(resto.lstrip(" \t:/-"))
+            if resto.strip(" \t:/-"):
+                ini = ini_linea + ultima + hueco
+                fin = ini_linea + len(linea.rstrip())
+            else:
+                ini = fin_linea + 1
+                if ini >= len(text):
+                    continue
+                sig = text.find("\n", ini)
+                sig = len(text) if sig == -1 else sig
+                valor = text[ini:sig]
+                if not valor.strip() or ":" in valor or len(valor.strip()) > 60:
+                    continue
+                ini += len(valor) - len(valor.lstrip())
+                fin = ini + len(valor.strip())
+            if fin > ini:
+                entities.append(PiiEntity("PLACE_OF_BIRTH", ini, fin, 0.9,
+                                          source="form_label", text=text[ini:fin]))
         return entities
 
     @staticmethod

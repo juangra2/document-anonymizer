@@ -48,6 +48,8 @@ ALL_PII_TYPES: list[str] = [
     "POSTAL_CODE",
     "URL",
     "DATE_OF_BIRTH",
+    # Lugar de nacimiento: solo con su etiqueta (provincia, municipio, lugar).
+    "PLACE_OF_BIRTH",
     "DATE_TIME",
     "CASE_TABLE_ROW",
     "ROLE_TABLE_ROW",
@@ -125,6 +127,9 @@ _HEADER_CONFIG = ZoneDetectorConfig(
         # acceso y la URL de verificacion (lectura de barras de c2), y el
         # pasaporte junto al DNI y el NIE que ya se buscaban.
         "CSV",
+        # Numero de registro de entrada de un formulario ("Núm. registre / Nº
+        # registro"), arriba a la derecha.  Exige su etiqueta.
+        "REGISTRY_NUMBER",
         "IP_ADDRESS",
         "URL",
         "PASSPORT",

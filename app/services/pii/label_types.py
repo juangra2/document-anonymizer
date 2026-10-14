@@ -26,6 +26,8 @@ _RULES: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
     (etype, re.compile(pattern))
     for etype, pattern in (
         ("PROFESSIONAL_LICENSE", r"colegiad|col ?legiat"),
+        ("PLACE_OF_BIRTH", r"(?:lugar|lloc|provincia|municipi|localidad|localitat|poblacio|"
+                           r"ciudad|ciutat|pais) (?:de )?(?:nacimiento|naixement)"),
         ("DATE_OF_BIRTH", r"nacimiento|naixement|\bf\s?n\b"),
         ("IBAN_CODE", r"\biban\b|\bcuenta\b|\bcompte\b|\bc/c\b|\bccc\b"),
         ("CADASTRAL_REFERENCE", r"catastral|cadastral"),

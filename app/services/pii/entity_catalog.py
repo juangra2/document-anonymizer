@@ -68,6 +68,10 @@ _CATALOG: tuple[EntityTypeInfo, ...] = (
                    "Números de tarjeta de crédito o débito."),
     EntityTypeInfo("DATE_OF_BIRTH", "Fecha de nacimiento",
                    "Fecha de nacimiento de una persona."),
+    EntityTypeInfo("PLACE_OF_BIRTH", "Lugar de nacimiento",
+                   "Provincia, municipio o lugar de nacimiento, solo en un campo "
+                   "etiquetado como tal. Fuera de esa etiqueta los lugares no se "
+                   "tachan."),
     EntityTypeInfo("DATE_TIME", "Fecha",
                    "Cualquier fecha del documento, incluidas las de registro y "
                    "firma."),

@@ -14,8 +14,8 @@ export const GRUPOS = [
   {
     id: "personales",
     nombre: "Datos personales",
-    resumen: "Nombre, DNI, NIE, Seguridad Social, pasaporte, sanidad",
-    tipos: ["PERSON", "ES_DNI", "ES_NIE", "ES_NSS", "PASSPORT", "MEDICAL_ID"],
+    resumen: "Nombre, DNI, NIE, Seguridad Social, pasaporte, sanidad, lugar de nacimiento",
+    tipos: ["PERSON", "ES_DNI", "ES_NIE", "ES_NSS", "PASSPORT", "MEDICAL_ID", "PLACE_OF_BIRTH"],
   },
   {
     id: "bancarios",
