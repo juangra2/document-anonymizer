@@ -150,7 +150,10 @@ las entidades que cuenta el informe salen de la misma lista.
 - **Planos de obra** (`pdf/plan_pages.py`, `vision/titleblock.py`): las páginas A2 o mayores con
   mucho dibujo y sin párrafos se detectan **antes de rasterizar**, solo con metadatos. Se localiza
   el cajetín y se analiza únicamente ese recorte. Si no se encuentra cajetín, la página se deja
-  intacta y se marca para revisión manual.
+  intacta y se marca para revisión manual. El verificador final también mira solo el cajetín
+  (el cuerpo del dibujo da ruido: rótulos como nombres, cotas como pasaportes, coordenadas como
+  teléfonos), y el informe lo dice; un plano sin cajetín sale como página no verificada. Las
+  cotas diminutas no se tocan: de la salida solo se quita el texto diminuto que no se ve.
 - **Páginas dominadas por una imagen** (planos o fotos escaneados de más de 25 MP): no se hace OCR
   de texto; solo se tachan los códigos visuales. Se marcan para revisión.
 - **Escaneos girados** (`ocr/orientation.py`): si el OCR de la página sale como ruido, se prueban
