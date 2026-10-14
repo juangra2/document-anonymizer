@@ -54,7 +54,7 @@ from app.services.pii.gazetteer import normalize as _norm_token
 from app.services.pii.models import PiiEntity
 from app.services.vision.card_region import card_regions
 from app.services.vision.code_detector import detect_redactable_codes, detect_visual_code_rects
-from app.services.vision.scanned_marks import detect_stamp_rects
+from app.services.vision.scanned_marks import detect_stamp_rects, parece_firma
 
 logger = logging.getLogger(__name__)
 
@@ -1638,6 +1638,10 @@ def _aplicar_red(
                    for r in rs)
         ]
         if not dentro:
+            continue
+        # Una firma pegada no se tacha entera (requisito: la rubrica se
+        # conserva).  Sus residuos se repasan solo en su zona, mas abajo.
+        if parece_firma(imagen, marco):
             continue
         fiable = any(e.entity_type in TIPOS_FIABLES_RED for e, _ in dentro)
         if fiable or len(dentro) >= 2:

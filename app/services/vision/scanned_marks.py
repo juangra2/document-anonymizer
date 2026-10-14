@@ -126,6 +126,30 @@ def _ink_bbox(
     return rect
 
 
+# Tinta maxima (fraccion del recuadro) de una firma: unos trazos sobre blanco.
+# Una copia de DNI o una foto llevan mucho mas.
+_MAX_TINTA_FIRMA = 0.12
+
+
+def parece_firma(image: Image.Image, rect: fitz.Rect) -> bool:
+    """True si el recuadro de `image` tiene aspecto de firma pegada: poca tinta
+    en pocos trazos.  Un escrito da muchos componentes; una foto o un DNI, mucha
+    tinta.  Lo usa la red de seguridad para no tachar entera una rubrica."""
+    x0, y0 = max(0, int(rect.x0)), max(0, int(rect.y0))
+    x1, y1 = min(image.width, int(rect.x1)), min(image.height, int(rect.y1))
+    if x1 - x0 < 12 or y1 - y0 < 8:
+        return False
+    gris = cv2.cvtColor(_to_bgr(image.crop((x0, y0, x1, y1))), cv2.COLOR_BGR2GRAY)
+    if int(gris.max()) - int(gris.min()) < 40:
+        return False                                     # recuadro liso: no hay trazos
+    thr = cv2.threshold(gris, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+    if np.count_nonzero(thr) / thr.size > _MAX_TINTA_FIRMA:
+        return False
+    num, _, stats, _ = cv2.connectedComponentsWithStats(thr, connectivity=8)
+    trazos = sum(1 for i in range(1, num) if stats[i][4] >= 25)
+    return 1 <= trazos <= _MAX_SIGNATURE_COMPONENTS
+
+
 # ---------------------------------------------------------------------------
 # Stamps / seals
 # ---------------------------------------------------------------------------
