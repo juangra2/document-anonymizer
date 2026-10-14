@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from contextlib import contextmanager
 from io import BytesIO
 from pathlib import Path
 
@@ -278,6 +279,24 @@ def quitar_texto_diminuto(doc: fitz.Document, excluir: set[int] = frozenset()) -
     return quitados
 
 
+@contextmanager
+def cajas_de_letra_ajustadas():
+    """Cajas de caracter del alto de la letra, no del alto completo de la fuente.
+
+    Al tachar, PyMuPDF borra todo caracter cuya caja TOQUE la barra.  Con el alto
+    completo (ascendente y descendente), en un formulario con la etiqueta pequena
+    justo encima del valor la barra del valor se llevaba el pie de la etiqueta
+    ("BSERVACIONES", "ECIBO").  Ajustadas, la barra cubre el valor y nada mas.
+    Es un ajuste global de PyMuPDF: se restaura al salir.
+    """
+    antes = fitz.TOOLS.set_small_glyph_heights()
+    fitz.TOOLS.set_small_glyph_heights(True)
+    try:
+        yield
+    finally:
+        fitz.TOOLS.set_small_glyph_heights(antes)
+
+
 def redact_pdf_digital(
     input_path: Path,
     output_path: Path,
@@ -285,6 +304,19 @@ def redact_pdf_digital(
     analyzer: PiiAnalyzer,
     mode: str = "strict",
     collect_entities: bool = False,
+) -> ProcessingReport:
+    with cajas_de_letra_ajustadas():
+        return _redact_pdf_digital(input_path, output_path, job_id, analyzer,
+                                   mode, collect_entities)
+
+
+def _redact_pdf_digital(
+    input_path: Path,
+    output_path: Path,
+    job_id: str,
+    analyzer: PiiAnalyzer,
+    mode: str,
+    collect_entities: bool,
 ) -> ProcessingReport:
     inspection = inspect_pdf_for_phase1(input_path)
     segmenter = DigitalPageSegmenter()

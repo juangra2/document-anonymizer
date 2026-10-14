@@ -131,3 +131,32 @@ def test_el_formulario_sale_con_los_valores_tachados_y_las_etiquetas_a_la_vista(
     for etiqueta in ("Cód. Verificación", "Nº registro", "PROVINCIA NACIMIENTO",
                      "MUNICIPIO NACIMIENTO", "Nº RECIBO", "IMPORTE", "DATOS PAGO"):
         assert etiqueta in texto, f"se tacho la etiqueta: {etiqueta}"
+
+
+# --- 5. la etiqueta encima del valor no se muerde ----------------------------------
+
+def test_la_etiqueta_justo_encima_del_valor_sale_entera(tmp_path):
+    """Al tachar, PyMuPDF borra todo caracter cuya caja TOQUE la barra, y la caja
+    usa el alto completo de la fuente.  Con la etiqueta pequena justo encima del
+    valor (formulario real), la barra del valor se llevaba el pie de la etiqueta:
+    "BSERVACIONES", "LLIDOS", "ECIBO"."""
+    from app.services.pdf.redactor import redact_pdf_digital
+
+    entrada, salida = tmp_path / "in.pdf", tmp_path / "out.pdf"
+    doc = fitz.open()
+    p = doc.new_page(width=595, height=842)
+    filas = [("NIF/NIE", "69026956T"), ("COGNOMS / APELLIDOS", "MARTIN DELGADO"),
+             ("OBSERVACIONS / OBSERVACIONES", "PAULA MARTIN DELGADO"),
+             ("NÚM. REBUT / Nº RECIBO", "C071-2-55821")]
+    for k, (etiqueta, valor) in enumerate(filas):
+        y = 200 + 34 * k
+        p.insert_text((70, y), etiqueta, fontsize=6.5)
+        p.insert_text((70, y + 9), valor, fontsize=9)
+    doc.save(entrada)
+
+    redact_pdf_digital(entrada, salida, "t", analyzer)
+    texto = fitz.open(salida)[0].get_text()
+    for etiqueta, valor in filas:
+        assert etiqueta in texto, f"etiqueta mordida: {etiqueta}"
+    for valor in ("69026956T", "MARTIN DELGADO", "C071-2-55821"):
+        assert valor not in texto, f"sigue a la vista: {valor}"
