@@ -45,7 +45,10 @@ def main() -> None:
             mayor = max(((im[2] * im[3]) for im in imgs), default=0) / 1e6
             print(f"  pag {i + 1}: {_mm(p.rect.width)}x{_mm(p.rect.height)} mm, "
                   f"texto {len(p.get_text().strip())} car., imagenes {len(imgs)} "
-                  f"(la mayor {mayor:.1f} MP), trazos {len(p.get_drawings())}, "
+                  # get_cdrawings, la variante rapida (la que usa el pipeline):
+                  # get_drawings construye en Python cada trazo y en un plano
+                  # vectorial tardaba mas que el propio proceso.
+                  f"(la mayor {mayor:.1f} MP), trazos {len(p.get_cdrawings())}, "
                   f"plano={is_plan_page(p)}, imagen_dominante={is_image_dominant_page(p)}")
 
     salida = PRIVADA / f"{entrada.stem}_ANONIMIZADO.pdf"
