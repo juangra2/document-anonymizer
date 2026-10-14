@@ -104,5 +104,40 @@
     },
     "media_f1_por_valor": 0.9373,
     "media_f1_por_aparicion": 0.9096
+  },
+  "c3_2026_10_14": {
+    "fuente": "evaluation/resultados_c3_{c}.json (exacto). Todo lo de c2 y ademas: texto de menos de 2 puntos fuera de la salida, barrido de todas las apariciones en el digital, etiquetas de dato personal en el filtro institucional, pasaporte con la etiqueta pegada, cabecera y pie con CSV/IP/URL/documentos/importes/nombres, salto de linea a mitad de direccion. (El arreglo del barrido para nombres de institucion, 5ddb8b8, es posterior y solo cambia lo que se pinta, no lo que se detecta.)",
+    "digital": {
+      "documentos": 400,
+      "f1_por_valor": 0.9499,
+      "precision": 0.9175,
+      "recall": 0.9847,
+      "tp_pagina_negra": 0,
+      "sobre_redaccion": 403,
+      "sobre_redaccion_caracteres": 2988,
+      "f1_por_aparicion": 0.947
+    },
+    "escaneado": {
+      "documentos": 28,
+      "f1_por_valor": 0.9486,
+      "precision": 0.9474,
+      "recall": 0.9497,
+      "tp_pagina_negra": 4,
+      "sobre_redaccion": 15,
+      "sobre_redaccion_caracteres": 78,
+      "f1_por_aparicion": 0.9157
+    },
+    "hibrido": {
+      "documentos": 24,
+      "f1_por_valor": 0.933,
+      "precision": 0.9177,
+      "recall": 0.9489,
+      "tp_pagina_negra": 33,
+      "sobre_redaccion": 20,
+      "sobre_redaccion_caracteres": 197,
+      "f1_por_aparicion": 0.8885
+    },
+    "media_f1_por_valor": 0.9438,
+    "media_f1_por_aparicion": 0.9171
   }
 }

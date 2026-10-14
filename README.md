@@ -429,10 +429,10 @@ genera la evaluación (JSON, HTML, logs) está ignorado por git.
 
 ## Métricas actuales
 
-Medición **c2** del 7 de octubre de 2026 sobre el corpus sintético, por camino: digital (400
-documentos), escaneado (28) e híbrido (24). Las cifras de cada medición, junto con la línea base y
-la medición anterior, están en `evaluation/linea_base/transicion_contabilidad.json`, y cómo se
-leen, en `evaluation/linea_base/LEEME.md`.
+Medición **c3** del 14 de octubre de 2026 sobre el corpus sintético, por camino: digital (400
+documentos), escaneado (28) e híbrido (24). Con esta medición se congela la calidad. Las cifras de
+cada medición —línea base, c1, c2 y c3— están en `evaluation/linea_base/transicion_contabilidad.json`,
+y cómo se leen, en `evaluation/linea_base/LEEME.md`.
 
 **Cómo se cuenta.** Por **valor**: cada dato distinto de un documento cuenta una vez («¿se detectó
 este valor?»), porque la geometría tacha todas sus apariciones. Un dato que solo vive en páginas
@@ -444,31 +444,32 @@ listados en `evaluation/defectos_corpus.py`.
 
 | Camino | F1 por valor | Precisión | Recall | F1 por aparición | Sobre-redacción |
 |---|---|---|---|---|---|
-| Digital | **0,937** | 0,914 | 0,960 | 0,935 | 390 barras |
+| Digital | **0,950** | 0,918 | 0,985 | 0,947 | 403 barras |
 | Escaneado | **0,949** | 0,947 | 0,950 | 0,916 | 15 |
-| Híbrido | **0,927** | 0,914 | 0,940 | 0,878 | 19 |
-| Media | **0,937** | | | 0,910 | |
+| Híbrido | **0,933** | 0,918 | 0,949 | 0,889 | 20 |
+| Media | **0,944** | | | 0,917 | |
 
-Línea base, antes del arreglo del camino híbrido: media por valor 0,839 (digital 0,926,
-escaneado 0,872, híbrido 0,718).
+Evolución de la media por valor: línea base 0,839 → c1 0,913 → c2 0,937 → **c3 0,944**.
 
 **Lectura de barras.** Las métricas comparan listas de entidades; la lectura de barras abre el
-PDF entregado y busca cada dato etiquetado (`evaluation/lectura_salida.py`). En c2, sin ninguna
-fuga nueva respecto a la medición anterior:
+PDF entregado y busca cada dato etiquetado (`evaluation/lectura_salida.py`). Ningún dato pasa de
+tapado a legible respecto a c2:
 
-| Camino | Datos tapados | Fugas |
+| Camino | Tapado (c2 → c3) | Fugas (c2 → c3) |
 |---|---|---|
-| Escaneado (28) | 99,0 % | 3 |
-| Híbrido (24) | 96,8 % | 16 |
-| Digital (muestra de 100, uno de cada cuatro) | 93,9 % | 95 |
+| Escaneado (28) | 99,0 % → 99,0 % | 3 → 3 |
+| Híbrido (24) | 96,8 % → **99,2 %** | 16 → 4 |
+| Digital (muestra de 100, uno de cada cuatro) | 93,9 % → **99,1 %** | 95 → 14 |
 
-Las fugas del digital eran sobre todo datos ya detectados que seguían a la vista en otra
-aparición (bloque de firmas, la otra columna, la página siguiente), etiqueta y valor en líneas
-distintas y franjas de cabecera y pie que no admitían ciertos tipos. Con esos arreglos, la misma
-muestra queda en **98,6 % tapado y 22 fugas**, sin ningún dato que pase de tapado a legible: 11
-son el domicilio de la universidad empleadora (defecto del corpus) y la mayoría del resto,
-nombres de cargos firmando en el pie, pendientes de criterio. Falta la medición completa de los
-tres caminos con estos arreglos.
+De las 14 fugas del digital, 11 son el domicilio de la universidad empleadora (defecto del corpus:
+es contacto institucional, no dato personal). En el escaneado, 2 son fechas que MinerU lee distinto
+en cada pasada y 1 es ese mismo domicilio.
+
+Lo que cerró las fugas del digital: tachar todas las apariciones de un dato detectado (bloque de
+firmas, la otra columna, la página siguiente); quitar de la salida el texto de menos de 2 puntos
+(el contenido del QR en blanco, con nombre y DNI, se podía copiar); buscar en cabecera y pie los
+tipos que no admitían; y que el filtro institucional no tome por institucional un dato con
+etiqueta de dato personal («Domicilio fiscal:»).
 
 **Banco de pruebas de teléfonos y direcciones** (`scripts/banco_contacto.py`): 107 formatos reales
 detectados y tapados en versión digital y escaneada, y ninguna de las 21 trampas (expedientes,
@@ -485,9 +486,11 @@ dirección.
   `CREDIT_CARD`, `MEDICAL_ID`, `POLICY_NUMBER`, `REGISTRY_NUMBER`, `ROLE_TABLE_ROW` y `USER_ID` no
   tienen ninguna anotación en ninguno de los dos corpus: se detectan, pero su calidad no está medida.
   La extensión, además, no anota correo, CIF, NSS, IP, matrícula, pasaporte, QR ni URL.
-- **Nombres en el pie.** La franja del pie no busca nombres: un nombre que solo aparece en el
-  bloque de firmas queda a la vista (cargos firmando y, en algún caso, un particular como un
-  garante). Pendiente de decidir el criterio para cargos.
+- **Cargos que firman.** El pie busca nombres, así que los cargos que firman (secretario, rector…)
+  se tachan, como en el cuerpo. Si se decide dejarlos visibles, será con una regla que distinga
+  cargo de particular, no por la posición en la página.
+- **Nombres seguidos en una fila.** Si varios nombres van en la misma fila separados por un solo
+  espacio, solo se detecta el último.
 - **Membrete en el escaneado.** El teléfono de la centralita puede salir tachado aunque el filtro
   institucional lo aparta; pendiente de averiguar por qué. Y un código postal compartido por el
   destinatario y la institución se tacha en las dos apariciones.
