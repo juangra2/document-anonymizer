@@ -124,3 +124,30 @@ def test_every_coded_warning_of_the_report_has_a_phrase():
     textos = _texto_de("js/texts/es.js")
     for codigo in CODED_WARNING_CODES:
         assert f"{codigo}:" in textos, f"sin frase para el aviso {codigo}"
+
+
+def _contraste(a: str, b: str) -> float:
+    def lum(h):
+        c = [int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+        c = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+        return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+    claro, oscuro = sorted((lum(a), lum(b)), reverse=True)
+    return (claro + 0.05) / (oscuro + 0.05)
+
+
+def test_los_textos_cumplen_el_contraste_wcag_aa():
+    """Texto normal a 4,5:1 sobre su fondo; el borde de la casilla sin marcar,
+    que es lo unico que la distingue del fondo, a 3:1."""
+    import re
+
+    css = _texto_de("styles.css")
+    var = dict(re.findall(r"--([a-z-]+):(#[0-9A-Fa-f]{6})", css))
+    pares = [("ink", "page"), ("muted", "card"), ("muted", "page"), ("faint", "card"),
+             ("faint", "page"), ("accent", "card"), ("accent", "accent-soft"),
+             ("ok", "ok-soft"), ("warn", "card"), ("warn", "warn-soft"),
+             ("danger", "card"), ("danger", "danger-soft")]
+    for texto, fondo in pares:
+        r = _contraste(var[texto], var[fondo])
+        assert r >= 4.5, f"--{texto} sobre --{fondo}: {r:.2f}:1"
+    casilla = re.search(r"\.tick\.off\{[^}]*border:[^;}]*(#[0-9A-Fa-f]{6})", css).group(1)
+    assert _contraste(casilla, var["card"]) >= 3, "borde de la casilla sin marcar"

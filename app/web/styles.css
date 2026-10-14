@@ -6,9 +6,12 @@
  * lo terminado, ámbar en lo que hay que revisar, rojo en lo destructivo—.
  * Tipografía del sistema: la red del ayuntamiento puede no tener salida a
  * internet, y así no se pide nada a terceros desde los equipos municipales.
+ *
+ * Contraste WCAG AA: todo texto llega a 4,5:1 sobre su fondo (--faint era
+ * #8A9099, 3,0:1) y el borde de la casilla sin marcar a 3:1 (era #C7CDD4, 1,6:1).
  */
 :root{
-  --ink:#1A1D21; --muted:#5C6470; --faint:#8A9099; --line:#E2E5E9;
+  --ink:#1A1D21; --muted:#5C6470; --faint:#6C727B; --line:#E2E5E9;
   --page:#F7F8FA; --card:#FFFFFF;
   --accent:#2B6CB0; --accent-soft:#EBF2F9;
   --ok:#2F6B3A; --ok-soft:#EAF2EC;
@@ -61,7 +64,7 @@ h2{font-size:15px;font-weight:600;margin:0;letter-spacing:-0.01em}
 .row{display:flex;align-items:flex-start;gap:11px;padding:7px 0;cursor:pointer}
 .tick{flex:none;width:16px;height:16px;border-radius:4px;background:var(--accent);position:relative;margin-top:3px}
 .tick::after{content:"";position:absolute;left:5px;top:2px;width:4px;height:8px;border:solid #fff;border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}
-.tick.off{background:#fff;border:1.5px solid #C7CDD4}
+.tick.off{background:#fff;border:1.5px solid #8F959C}
 .tick.off::after{display:none}
 .tick.mixed::after{left:3px;top:6.5px;width:8px;height:0;border-width:0 0 1.5px 0;transform:none}
 .grp-name{font-size:14px;font-weight:500}
