@@ -117,6 +117,29 @@ def _buscar(page: fitz.Page, valor: str) -> list[fitz.Rect]:
     return rects
 
 
+_ENLACES_DE_NOMBRE = {"de", "del", "la", "las", "los", "y", "i", "da", "dos", "san", "santa"}
+
+
+def _tiene_forma_de_nombre(valor: str) -> bool:
+    """Si un PERSON detectado se puede barrer por todo el documento.
+
+    El analizador toma a veces por persona un nombre de institucion ("Ajuntament
+    de Sueca", "Universitat Politècnica de Llevant") o una frase ("La persona").
+    Tachado donde se detecto es un falso positivo; barrido, se tachaba tambien en
+    el membrete y en todas partes (c3: 163 barras de mas en 72 documentos).  No
+    se barre lo que nombra una institucion ni lo que lleva palabras en minuscula
+    que no son de enlace.  Donde se detecto se sigue tachando igual.
+    """
+    from app.services.pii.institution_filter import INSTITUTION_NAME_RE, PUBLIC_INSTITUTION_RE
+
+    if INSTITUTION_NAME_RE.search(valor) or PUBLIC_INSTITUTION_RE.search(valor):
+        return False
+    palabras = valor.split()
+    if palabras[0].lower() in _ENLACES_DE_NOMBRE:
+        return False
+    return all(p[0].isupper() or p.lower() in _ENLACES_DE_NOMBRE for p in palabras)
+
+
 def tachar_todas_las_apariciones(doc: fitz.Document, entidades: list[PiiEntity],
                                  analyzer: PiiAnalyzer) -> int:
     """Tacha en TODO el documento cada aparicion de un valor ya detectado.
@@ -139,7 +162,7 @@ def tachar_todas_las_apariciones(doc: fitz.Document, entidades: list[PiiEntity],
         v = " ".join(e.text.split())
         if e.entity_type == "PERSON":
             v = _nombre_sin_cola(v)
-            if len(v.split()) < 2:
+            if len(v.split()) < 2 or not _tiene_forma_de_nombre(v):
                 continue          # un nombre suelto cazaria a cualquier otro
         if len(v) >= _MIN_VALOR_BARRIDO and any(c.isalnum() for c in v):
             valores.add((e.entity_type, v))

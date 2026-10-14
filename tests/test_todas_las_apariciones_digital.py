@@ -76,3 +76,30 @@ def test_un_valor_corto_pegado_a_su_etiqueta_si_se_tacha():
     texto = " ".join(doc[0].get_text().split())
     assert "41001" not in texto
     assert "2028013/2024" in texto
+
+
+# --- el barrido no multiplica un nombre de institucion mal detectado ----------------
+# Medicion c3: el analizador toma a veces por PERSON "Universitat Politècnica de
+# Llevant", "Ajuntament de Sueca" o "La persona".  Antes se tachaban donde se
+# detectaban; el barrido los tachaba en todo el documento, membrete incluido: 163
+# barras de mas en 72 de 400 documentos.
+
+def test_el_barrido_no_multiplica_un_nombre_de_institucion():
+    from app.services.pdf.redactor import tachar_todas_las_apariciones
+    from app.services.pii.models import PiiEntity
+
+    doc = fitz.open()
+    p = doc.new_page(width=595, height=842)
+    p.insert_text((58, 120), "Ajuntament de Sueca · Universitat Politècnica de Llevant", fontsize=9)
+    p.insert_text((58, 300), "La persona interesada, Vicent Peris Llopis, comparece.", fontsize=10)
+    p.insert_text((58, 320), "Firma: Vicent Peris Llopis", fontsize=10)
+    tachar_todas_las_apariciones(doc, [
+        PiiEntity("PERSON", 0, 1, 0.8, text="Ajuntament de Sueca"),
+        PiiEntity("PERSON", 0, 1, 0.8, text="Universitat Politècnica de Llevant"),
+        PiiEntity("PERSON", 0, 1, 0.8, text="La persona"),
+        PiiEntity("PERSON", 0, 1, 0.8, text="Vicent Peris Llopis"),
+    ], analyzer)
+    texto = " ".join(doc[0].get_text().split())
+    assert "Ajuntament de Sueca" in texto and "Universitat Politècnica de Llevant" in texto
+    assert "La persona interesada" in texto
+    assert "Vicent Peris Llopis" not in texto
