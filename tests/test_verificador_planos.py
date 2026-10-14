@@ -73,3 +73,5 @@ def test_el_informe_dice_que_solo_se_verifico_el_cajetin():
     report = ProcessingReport(job_id="t", status="completed", document_type="pdf_digital")
     _avisos_de_verificacion(report, res)
     assert any("only the title block was verified" in w and "[1]" in w for w in report.warnings)
+    # Codigo estable: el frontend lo traduce sin depender de la frase.
+    assert [(a.code, a.pages) for a in report.coded_warnings] == [("plan_titleblock_only_verified", [1])]

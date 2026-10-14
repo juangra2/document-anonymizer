@@ -85,3 +85,4 @@ def test_los_avisos_del_informe_numeran_desde_1():
     assert "pages [3]" in avisos
     assert "not verified" in avisos and "[1]" in avisos
     assert report.manual_review_required
+    assert ("pages_not_verified", [1]) in [(a.code, a.pages) for a in report.coded_warnings]

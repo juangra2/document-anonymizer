@@ -248,6 +248,10 @@ curl -o anonimizado.pdf "http://localhost:8000/jobs/3f2a…/result?output=pdf"
   o `ocr_timeout`), con la numeración que ve el usuario. Se corta en 200 avisos y `notices_total`
   dice cuántos ha habido; el informe final lleva la lista completa en `pages_redacted_in_full`.
   `kind` y `reason` son códigos estables: la frase la elige el cliente.
+- **Avisos del informe con código**: `coded_warnings` (`code` y `pages`, desde 1) repite con código
+  estable los avisos de la verificación final: `plan_titleblock_only_verified` (en las páginas de
+  plano solo se verificó el cajetín) y `pages_not_verified` (páginas que no se pudieron verificar;
+  piden revisión manual). `warnings` sigue llevando la frase en inglés.
 - **Errores al encolar**: 415 si no es PDF, 413 si supera `MAX_UPLOAD_MB`, 400 si el fichero no es
   un PDF válido, 422 si `disabled_types` es inválido, y 503 con `Retry-After` si la cola está llena.
 - **Al descargar**: 409 si el trabajo no ha terminado o ha fallado, 410 si ya ha caducado.

@@ -3,7 +3,13 @@ from pathlib import Path
 from time import perf_counter
 
 from app.core.config import settings
-from app.schemas.report import ProcessingReport, VerificationSummary
+from app.schemas.report import (
+    PAGES_NOT_VERIFIED,
+    PLAN_TITLEBLOCK_ONLY_VERIFIED,
+    CodedWarning,
+    ProcessingReport,
+    VerificationSummary,
+)
 from app.services.layout.segmenters import OcrPageSegmenter
 from app.services.layout.zone_config import ALL_PII_TYPES
 from app.services.ocr.factory import get_ocr_engine
@@ -239,6 +245,8 @@ def _avisos_de_verificacion(report: ProcessingReport, result: DocumentVerificati
             "Construction-plan pages: only the title block was verified: "
             f"{[i + 1 for i in result.plan_pages]}.",
         )
+        report.coded_warnings.append(CodedWarning(
+            code=PLAN_TITLEBLOCK_ONLY_VERIFIED, pages=[i + 1 for i in result.plan_pages]))
 
     # Lo que no se pudo verificar se dice: saltarlo en silencio daba por buena
     # una pagina que nadie habia mirado.
@@ -258,6 +266,8 @@ def _avisos_de_verificacion(report: ProcessingReport, result: DocumentVerificati
             f"Verification could not run on part of the document and it was "
             f"not verified ({detalle}). Manual review required.",
         )
+        paginas = sorted({p for ps in por_capa.values() for p in ps})
+        report.coded_warnings.append(CodedWarning(code=PAGES_NOT_VERIFIED, pages=paginas))
         report.status = "completed_with_warnings"
         report.manual_review_required = True
 

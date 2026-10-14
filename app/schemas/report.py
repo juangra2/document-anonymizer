@@ -10,6 +10,25 @@ class DetectedEntityInfo(BaseModel):
     source: str
 
 
+# Codigos estables de los avisos con codigo (`ProcessingReport.coded_warnings`).
+PLAN_TITLEBLOCK_ONLY_VERIFIED = "plan_titleblock_only_verified"
+PAGES_NOT_VERIFIED = "pages_not_verified"
+
+
+class CodedWarning(BaseModel):
+    """Aviso del informe con codigo estable: el frontend lo traduce sin depender
+    de la frase en ingles de `warnings`, que se mantiene para quien lee el JSON."""
+
+    code: str = Field(
+        description="`plan_titleblock_only_verified` (en las paginas de plano solo se "
+                    "verifico el cajetin) o `pages_not_verified` (paginas que la "
+                    "verificacion final no pudo comprobar; requiere revision manual).",
+        examples=[PLAN_TITLEBLOCK_ONLY_VERIFIED],
+    )
+    pages: list[int] = Field(default_factory=list,
+                             description="Numeracion de usuario: la primera es la 1.")
+
+
 class PageRedactedInFull(BaseModel):
     """Página tachada entera porque el OCR no pudo leerla.
 
@@ -140,6 +159,10 @@ class ProcessingReport(BaseModel):
 
     manual_review_required: bool = False
     warnings: list[str] = Field(default_factory=list)
+    coded_warnings: list[CodedWarning] = Field(
+        default_factory=list,
+        description="Avisos con codigo estable, ademas de su frase en `warnings`.",
+    )
     pages_redacted_in_full: list[PageRedactedInFull] = Field(
         default_factory=list,
         description="Páginas tachadas enteras porque el OCR no pudo leerlas, "
