@@ -129,3 +129,25 @@ def test_gutter_is_found_on_a_two_column_page():
 
 def test_no_gutter_on_a_single_column_page():
     assert detect_column_gutter(_page_rows(False), page_width=595) is None
+
+
+# --- etiqueta de varias palabras tras el canal (caso dificil 12) -------------------
+
+def test_bilingue_a_dos_columnas_la_etiqueta_de_la_derecha_no_se_tacha():
+    """Solicitud bilingue a dos columnas: tras el canal, "Nombre y apellidos:" no
+    se reconocia como etiqueta y, por el invariante, se tachaba como valor."""
+    words = row(("Nom", 50, 68), ("i", 70, 72), ("cognoms:", 74, 113), ("Jordi", 145, 162),
+                ("Alapont", 165, 192), ("Ribes", 194, 214), ("Nombre", 307, 337), ("y", 339, 344),
+                ("apellidos:", 346, 383), ("Jordi", 402, 419), ("Alapont", 422, 449), ("Ribes", 451, 471))
+    segments = split_labeled_row(words[:3], words[3:], find_label=find_label, height=H, gutter_x=293.3)
+    assert {"Nombre", "y", "apellidos:"} <= _labels(segments)
+    assert [w.text for w in segments[-1].value_words] == ["Jordi", "Alapont", "Ribes"]
+    assert sum(1 for s in segments for w in s.value_words if w.text == "Alapont") == 2
+
+
+def test_una_frase_con_cifras_no_es_una_etiqueta():
+    words = row(("Nom", 50, 68), ("i", 70, 72), ("cognoms:", 74, 113), ("Jordi", 145, 162),
+                ("Ribes", 194, 214), ("Exp", 307, 325), ("2024", 327, 350), ("nº:", 352, 365),
+                ("Valor", 402, 430))
+    segments = split_labeled_row(words[:3], words[3:], find_label=find_label, height=H, gutter_x=293.3)
+    assert "2024" in _covered(segments), "lo que lleva cifras se sigue tachando"

@@ -40,6 +40,8 @@ GUTTER_CLEAR_FRACTION = 0.6
 # ambos lados (si no, no hay dos columnas).
 GUTTER_BOTH_SIDES_FRACTION = 0.5
 GUTTER_MIN_WIDTH = 6.0
+# Palabras como mucho de una etiqueta terminada en dos puntos tras un corte.
+_MAX_PALABRAS_ETIQUETA = 4
 
 _COLON_LABEL_RE = re.compile(r"^[^\W\d_][\w./·'’ ]{0,18}:$", re.UNICODE)
 
@@ -111,6 +113,15 @@ def _remainder_label_length(words: Sequence, find_label: LabelFinder) -> int | N
         return n
     if len(words) >= 2 and _is_colon_label(words[0]):
         return 1
+    # Etiqueta de varias palabras terminada en dos puntos («Nombre y apellidos:»,
+    # «Código postal:»): solicitud bilingüe a dos columnas, la etiqueta de la
+    # columna derecha se tachaba como valor.  Solo letras: lo que lleva cifras
+    # puede ser un dato y se sigue tachando.
+    for k in range(2, min(_MAX_PALABRAS_ETIQUETA, len(words) - 1) + 1):
+        if any(any(c.isdigit() for c in w.text) for w in words[:k]):
+            break
+        if words[k - 1].text.strip().endswith(":"):
+            return k
     return None
 
 
