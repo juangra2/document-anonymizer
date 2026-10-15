@@ -985,10 +985,31 @@ def _subrect_for_line_token(ent_tokens: set[str], word) -> fitz.Rect | None:
     n = len(word.text)
     if n <= 0:
         return None
+    # Posicion por ANCHURA de caracter, no a partes iguales: mayusculas y cifras
+    # son mas anchas que la media, y con el reparto uniforme la barra empezaba
+    # tarde (oficio escaneado real: nombre de pila y dos cifras del NIF a la
+    # vista).  Y un caracter medio de margen a cada lado: es una estimacion.
+    pesos = [_anchura_relativa(c) for c in word.text]
+    total = sum(pesos)
     width = word.rect.x1 - word.rect.x0
-    x0 = word.rect.x0 + width * (c0 / n)
-    x1 = word.rect.x0 + width * (c1 / n)
-    return _padded(fitz.Rect(x0, word.rect.y0, x1, word.rect.y1))
+    x0 = word.rect.x0 + width * (sum(pesos[:c0]) / total)
+    x1 = word.rect.x0 + width * (sum(pesos[:c1]) / total)
+    margen = width / n
+    return _padded(fitz.Rect(max(word.rect.x0, x0 - margen), word.rect.y0,
+                             min(word.rect.x1, x1 + margen), word.rect.y1))
+
+
+def _anchura_relativa(c: str) -> float:
+    """Anchura aproximada de un caracter en una fuente proporcional."""
+    if c in "iljtfrI.,:;'|!" or c == "·":
+        return 0.45
+    if c == " ":
+        return 0.5
+    if c in "mwMW":
+        return 1.35
+    if c.isupper() or c.isdigit():
+        return 1.15
+    return 0.95
 
 
 def _region_for_entity(entity: PiiEntity, zone: PageZone) -> fitz.Rect:

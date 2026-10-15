@@ -1986,7 +1986,11 @@ class PiiAnalyzer:
 
     # Etiquetas de firma: nunca pertenecen a un nombre y cortan la secuencia
     # (misma protección que _SIG_WORD_GUARD, para bloques "Fdo.: X  Fdo.: Y").
-    _NAME_TOKEN_STOP = {"FDO", "FIRMA", "FIRMADO", "FIRMAT", "SIGNAT", "SIGNATURA"}
+    _NAME_TOKEN_STOP = {"FDO", "FIRMA", "FIRMADO", "FIRMAT", "SIGNAT", "SIGNATURA",
+                        # Rotulos de la casilla del nombre: en el texto del OCR llegan
+                        # pegados al valor ("NOM / NOMBRE PEDRO") y la barra se los
+                        # llevaba.  Cortan la secuencia; el nombre empieza detras.
+                        "NOMBRE", "NOM", "APELLIDOS", "COGNOMS"}
 
     # Artículo/preposición inmediatamente antes del candidato → sintagma
     # organizativo o de lugar ("al Campus Nord", "el Área de Personal", "en
@@ -2036,7 +2040,15 @@ class PiiAnalyzer:
         entities: list[PiiEntity] = []
         matches = list(PiiAnalyzer._CAP_WORD_RE.finditer(text))
         i = 0
+        tras_rotulo = False
         while i < len(matches):
+            # Una palabra de corte tampoco empieza un nombre ("NOMBRE PEDRO").
+            # Si es el rotulo del nombre, lo que sigue puede ser un nombre de
+            # pila solo, de una palabra.
+            if gazetteer.normalize(matches[i].group()) in PiiAnalyzer._NAME_TOKEN_STOP:
+                tras_rotulo = gazetteer.normalize(matches[i].group()) in ("NOMBRE", "NOM")
+                i += 1
+                continue
             # Construir la secuencia contigua de palabras capitalizadas.
             run = [matches[i]]
             j = i + 1
@@ -2057,6 +2069,18 @@ class PiiAnalyzer:
                         break
                 run.append(matches[j])
                 j += 1
+
+            if len(run) == 1 and tras_rotulo:
+                # "NOM / NOMBRE PEDRO": un nombre de pila del padron, en la
+                # misma linea que su rotulo.
+                unica = gazetteer.normalize(run[0].group())
+                linea_del_rotulo = "\n" not in text[matches[i - 1].end():run[0].start()]
+                if linea_del_rotulo and gazetteer.is_person_token(unica):
+                    entities.append(PiiEntity(
+                        entity_type="PERSON", start=run[0].start(), end=run[0].end(),
+                        score=0.85, source="gazetteer_person",
+                    ))
+            tras_rotulo = False
 
             if len(run) >= 2:
                 norm = [gazetteer.normalize(m.group()) for m in run]

@@ -371,6 +371,27 @@ def _blocks_to_tokens(
     return tokens
 
 
+# MinerU devuelve a veces la casilla de un formulario con el valor PEGADO a la
+# ultima palabra de su rotulo bilingue: "NOM / NOMBREPEDRO", "NIF/NIE69026956T",
+# "N° RECIBOC071-2-55821" (expediente escaneado real).  Pegado, el valor no
+# casa con ninguna palabra de la imagen y no se tacha, y una fecha pegada a
+# letras ni se detecta.  Se despega SOLO tras la barra de un rotulo bilingue y
+# en una palabra de rotulo conocida: "IMPORTANTE" suelto no se parte.
+_PALABRA_DE_ROTULO = (
+    r"NOMBRE|NOM|APELLIDOS|COGNOMS|NIE|NIF|DNI|NACIMIENTO|NAIXEMENT|RECIBO|REBUT|"
+    r"FECHA|DATA|IMPORTE|IMPORT|OBSERVACIONES|OBSERVACIONS|DESCRIPCI[OÓ]N?|TASA|TAXA|"
+    r"TITULACI[OÓ]N?|REGISTRO|REGISTRE|DOMICILIO|DOMICILI|TEL[EÉ]FONO|TEL[EÈ]FON"
+)
+_ROTULO_PEGADO_RE = re.compile(
+    r"(/[^\S\n]*(?:[^\s/]+[^\S\n]+){0,2}(?i:" + _PALABRA_DE_ROTULO + r"))(?=[A-ZÀ-ÚÑ0-9])"
+)
+
+
+def despegar_rotulo(texto: str) -> str:
+    """Salto de linea entre un rotulo bilingue y el valor que MinerU le pego."""
+    return _ROTULO_PEGADO_RE.sub(lambda m: m.group(1) + "\n", texto)
+
+
 def _parse_html_table_tokens(
     html_content: str,
     table_rect: fitz.Rect,
@@ -409,6 +430,11 @@ def _parse_html_table_tokens(
             elif tag == "img" and self._cell is not None:
                 # Cell contains an image — mark to skip; base64 src is not text
                 self._skip_cell = True
+            elif tag == "br" and self._cell is not None:
+                # Rotulo y valor de una casilla van separados por <br>: sin el
+                # salto se pegaban ("RECIBO" + numero, "FECHA" + fecha) y el
+                # valor ni casaba con la imagen ni, si era una fecha, se detectaba.
+                self._cell += "\n"
 
         def handle_endtag(self, tag: str) -> None:
             if tag == "tr" and self._row is not None:
@@ -420,7 +446,7 @@ def _parse_html_table_tokens(
             elif tag in ("td", "th"):
                 if not self._skip_cell and self._cell and self._cell.strip():
                     if self._row is not None:
-                        self._row.append(self._cell.strip())
+                        self._row.append(despegar_rotulo(self._cell.strip()))
                 self._cell = None
                 self._skip_cell = False
 

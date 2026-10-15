@@ -219,3 +219,74 @@ def test_un_numero_suelto_corto_no_es_un_registro():
     texto = ("NÚM. REBUT / Nº RECIBO\nCURS ACADÈMIC/TITULACIÓ / CURSO ACADÉMICO/TITULACIÓN\n"
              "02262 - Máster Universitario en Ciencia de Datos\n")
     assert "REGISTRY_NUMBER" not in _tipos(texto, "02262")
+
+
+# --- camino escaneado: celdas de tabla de MinerU -------------------------------------
+# Expediente escaneado real: MinerU devuelve la casilla como una celda con el
+# rotulo y el valor separados por <br>, y el lector de tablas los pegaba sin
+# separador ("RECIBO" + numero, "FECHA" + fecha, "IMPORTE" + importe).  El
+# numero de recibo no casaba despues con ninguna palabra de la imagen y no se
+# tachaba; una fecha pegada a letras ni se detectaba.
+
+def test_el_rotulo_y_el_valor_de_una_celda_no_se_pegan():
+    from app.services.ocr.mineru_engine import _parse_html_table_tokens
+
+    html = ("<table><tr><td>NÚM. REBUT / Nº RECIBO<br>C071-2-55821</td>"
+            "<td>DATA / FECHA<br>12/03/2026</td><td>IMPORT / IMPORTE<br>148.35 €</td></tr></table>")
+    texto = " ".join(t.text for t in _parse_html_table_tokens(html, fitz.Rect(0, 0, 500, 40)))
+    assert "RECIBOC071" not in texto and "FECHA12" not in texto and "IMPORTE148" not in texto
+    for valor, tipo in (("C071-2-55821", "REGISTRY_NUMBER"), ("12/03/2026", "DATE_TIME"),
+                        ("148.35", "MONEY")):
+        assert tipo in _tipos(texto, valor), valor
+
+
+def test_mineru_pega_el_valor_al_rotulo_bilingue_y_se_despega():
+    """El propio MinerU devolvia la casilla sin separador: "NOM / NOMBREPEDRO",
+    "NIF/NIE69026956T", "Nº RECIBOC071-2-55821".  Se despega solo tras la ultima
+    palabra de un rotulo bilingue, nunca dentro de una palabra suelta."""
+    from app.services.ocr.mineru_engine import _parse_html_table_tokens
+
+    html = ("<table><tr><td>NIF/NIE69026956T</td></tr><tr><td>NOM / NOMBREPEDRO</td></tr>"
+            "<tr><td>COGNOMS / APELLIDOSMARTIN DELGADO</td></tr>"
+            "<tr><td>D. NAIXEMENT / F. NACIMIENTO12/03/1990</td></tr>"
+            "<tr><td>NÚM. REBUT / N° RECIBOC071-2-55821</td><td>DATA / FECHA12/03/2026</td>"
+            "<td>IMPORT / IMPORTE148.35 €</td></tr>"
+            "<tr><td>Es IMPORTANTE presentar la DATACION del recibo</td></tr></table>")
+    texto = "\n".join(t.text for t in _parse_html_table_tokens(html, fitz.Rect(0, 0, 500, 200)))
+    for valor, tipo in (("69026956T", "ES_DNI"), ("PEDRO", "PERSON"), ("MARTIN DELGADO", "PERSON"),
+                        ("C071-2-55821", "REGISTRY_NUMBER"), ("148.35", "MONEY")):
+        assert tipo in _tipos(texto, valor), valor
+    assert "IMPORTANTE" in texto and "DATACION" in texto
+
+
+def test_el_rotulo_no_entra_en_el_nombre():
+    """Con el valor despegado, la fila llega como "NOM / NOMBRE PEDRO", y el nombre
+    salia como "NOMBRE PEDRO": la barra se llevaba el rotulo."""
+    texto = "NOM / NOMBRE PEDRO\nCOGNOMS / APELLIDOS MARTIN DELGADO\n"
+    personas = [texto[e.start:e.end] for e in analyzer.analyze(texto, mode="strict", context_text=texto)
+                if e.entity_type == "PERSON"]
+    assert personas and not any(p.split()[0] in ("NOMBRE", "APELLIDOS", "NOM", "COGNOMS") for p in personas)
+    assert any("PEDRO" in p for p in personas) and any("MARTIN DELGADO" in p for p in personas)
+
+
+# --- camino escaneado: la barra dentro de una linea larga ------------------------
+# Oficio escaneado real: el OCR leyo la frase entera como una sola caja, y la
+# barra del dato se calculaba repartiendo el ancho a partes iguales entre los
+# caracteres.  Mayusculas y cifras son mas anchas que la media: la barra empezaba
+# tarde y dejaba a la vista el nombre de pila y las dos primeras cifras del NIF.
+
+def test_la_barra_de_un_dato_dentro_de_una_linea_larga_lo_cubre_desde_su_inicio():
+    from types import SimpleNamespace
+    from PIL import ImageFont
+    from app.services.pdf.scanned_redactor import _subrect_for_line_token, _content_tokens
+
+    fuente = ImageFont.load_default(size=30)
+    linea = ("Vista la solicitud de expedición de título presentada por PEDRO MARTIN DELGADO, "
+             "con NIF 69026956T y examinada la documentación aportada")
+    caja = fitz.Rect(100, 50, 100 + fuente.getlength(linea), 85)
+    palabra = SimpleNamespace(text=linea, rect=caja)
+    for dato in ("PEDRO MARTIN DELGADO", "69026956T"):
+        inicio = caja.x0 + fuente.getlength(linea[:linea.index(dato)])
+        fin = caja.x0 + fuente.getlength(linea[:linea.index(dato) + len(dato)])
+        barra = _subrect_for_line_token(_content_tokens(dato), palabra)
+        assert barra is not None and barra.x0 <= inicio and barra.x1 >= fin, (dato, barra, inicio, fin)
