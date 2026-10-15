@@ -1321,6 +1321,17 @@ _CORREO_ESTROPEADO_RE = re.compile(
 # sin etiqueta y sin redactar.
 _SIG_WORD_GUARD = r"(?!(?:fdo|firma(?:do|t)?|signat(?:ura)?)\b)"
 
+# Palabra capitalizada de un nombre (para alargar o recortar el de una firma).
+_PALABRA_DE_NOMBRE_RE = re.compile(r"[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’\-]+")
+# Cargos que cierran el nombre de una firma ("Fdo.: Juan Pérez García Alcalde
+# del ...").  Varios figuran en el padron como apellido.
+_CARGOS_DE_FIRMA = {
+    "ALCALDE", "ALCALDESA", "SECRETARIO", "SECRETARIA", "SECRETARI", "PRESIDENTE",
+    "PRESIDENTA", "CONCEJAL", "CONCEJALA", "REGIDOR", "REGIDORA", "VOCAL", "DIRECTOR",
+    "DIRECTORA", "JEFE", "JEFA", "CAP", "INTERVENTOR", "INTERVENTORA", "TESORERO",
+    "TESORERA", "TECNICO", "TECNICA", "TECNIC",
+}
+
 _SIGNATURE_NAME_RE = re.compile(
     # (?<![\wÀ-ÿ]): la etiqueta no puede empezar a mitad de palabra
     # ("ASSIGNATURES" contiene "signat" y disparaba un falso positivo).
@@ -2978,7 +2989,34 @@ class PiiAnalyzer:
         """
         entities: list[PiiEntity] = []
         for m in _SIGNATURE_NAME_RE.finditer(text):
-            value = m.group("value")
+            start, end = m.start("value"), m.end("value")
+            palabras = list(_PALABRA_DE_NOMBRE_RE.finditer(text, start, end))
+            # Por el final, fuera lo que no es nombre ("Juan Pérez García
+            # Alcalde ..."): el cargo no es parte del nombre.
+            def es_nombre(p):
+                n = gazetteer.normalize(p.group())
+                return n not in _CARGOS_DE_FIRMA and gazetteer.is_person_token(n)
+
+            corte = next((k for k, p in enumerate(palabras)
+                          if gazetteer.normalize(p.group()) in _CARGOS_DE_FIRMA), None)
+            if corte:
+                palabras = palabras[:corte]
+            while len(palabras) > 1 and not es_nombre(palabras[-1]):
+                palabras.pop()
+            end = palabras[-1].end() if palabras else end
+            # Y por delante, mientras sigan nombres o apellidos del padron en la
+            # misma linea: "Fdo.: Ana López Ferrer   Pedro Gil Marco   Carmen
+            # Soler Pons" (bloque de firmas de un acta).  El patron se queda con
+            # cinco palabras, y la sexta quedaba a la vista.
+            fin_linea = text.find("\n", end)
+            fin_linea = len(text) if fin_linea == -1 else fin_linea
+            for siguiente in _PALABRA_DE_NOMBRE_RE.finditer(text, end, fin_linea):
+                if text[end:siguiente.start()].strip():
+                    break
+                if not es_nombre(siguiente):
+                    break
+                end = siguiente.end()
+            value = text[start:end]
             if _INSTITUTION_NAME_RE.search(value):
                 continue
             tokens = _name_tokens(value)
@@ -2987,8 +3025,8 @@ class PiiAnalyzer:
             entities.append(
                 PiiEntity(
                     entity_type="PERSON",
-                    start=m.start("value"),
-                    end=m.end("value"),
+                    start=start,
+                    end=end,
                     score=0.90,
                     source="deterministic_regex",
                 )

@@ -57,3 +57,23 @@ def test_two_consecutive_fdo_blocks():
 def test_unknown_name_without_gazetteer_evidence_skipped():
     # No INE-known token → not emitted (precision guard).
     assert _persons("Fdo.: Zzqx Wnbk") == []
+
+
+def test_varias_firmas_seguidas_en_una_fila():
+    """Bloque de firmas de un acta: "Fdo.: Ana López Ferrer   Pedro Gil Marco
+    Carmen Soler Pons".  El patron de firma se quedaba con cinco palabras y el
+    padron con las tres ultimas: "Marco" quedaba a la vista entre los dos."""
+    texto = "Fdo.: Ana López Ferrer   Pedro Gil Marco   Carmen Soler Pons"
+    cubierto = set()
+    for e in analyzer.analyze(texto, mode="strict", zone_type="body"):
+        if e.entity_type == "PERSON":
+            cubierto |= set(range(e.start, e.end))
+    for nombre in ("Ana López Ferrer", "Pedro Gil Marco", "Carmen Soler Pons"):
+        ini = texto.index(nombre)
+        assert set(range(ini, ini + len(nombre))) <= cubierto, nombre
+
+
+def test_el_cargo_detras_de_la_firma_no_entra_en_el_nombre():
+    out = _persons("Fdo.: Juan Pérez García Alcalde del Ajuntament de Sueca")
+    assert any("Juan Pérez García" in p for p in out)
+    assert not any("Ajuntament" in p or "Alcalde" in p for p in out)
