@@ -1940,6 +1940,15 @@ class PiiAnalyzer:
                 if _parece_etiqueta(value):
                     continue
 
+                # Un nombre lleva al menos un nombre o un apellido del padron.  Sin
+                # esto, "Persona" del epigrafe de un formulario se tomaba por
+                # etiqueta y lo que seguia por un nombre (corpus digital: 26
+                # descartes, ningun nombre real).
+                if entity_type == "PERSON" and not any(
+                    gazetteer.is_person_token(gazetteer.normalize(t)) for t in _name_tokens(value)
+                ):
+                    continue
+
                 if entity_type == "PHONE_NUMBER" and sum(c.isdigit() for c in value) < 7:
                     continue
 
@@ -2764,6 +2773,8 @@ class PiiAnalyzer:
                     continue           # "UV" suelto, "RECIBO", la otra etiqueta
                 if _FECHA_RE.match(vm.group()):
                     continue
+                if vm.group().isdigit() and len(vm.group()) < 8:
+                    continue           # "02262 - Máster…": un codigo suelto, no el numero
                 return vm
             return None
 

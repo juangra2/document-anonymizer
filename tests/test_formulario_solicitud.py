@@ -203,3 +203,19 @@ def test_tras_nom_o_cognoms_otra_etiqueta_no_es_un_nombre():
 def test_tras_nom_y_cognoms_el_valor_si_es_un_nombre():
     texto = "NOM / NOMBRE\nPAULA\nCOGNOMS / APELLIDOS\nMARTIN DELGADO\n"
     assert "PERSON" in _tipos(texto, "MARTIN DELGADO")
+
+
+def test_tras_nom_un_valor_sin_nombre_ni_apellido_no_es_persona():
+    """Formulario real: "Persona" del epigrafe del pie se tomaba por etiqueta y
+    lo que seguia, por un nombre.  Sin un nombre o un apellido del padron no lo
+    es (corpus digital: 26 descartes de este detector, ningun nombre real)."""
+    texto = "Entrada electrònica de\nPersona y Entidad\n"
+    assert "PERSON" not in _tipos(texto, "y Entidad")
+
+
+def test_un_numero_suelto_corto_no_es_un_registro():
+    """En el orden del OCR, tras "Nº RECIBO" iba el bloque del curso: "02262 -
+    Máster..." acababa tachado como numero de recibo."""
+    texto = ("NÚM. REBUT / Nº RECIBO\nCURS ACADÈMIC/TITULACIÓ / CURSO ACADÉMICO/TITULACIÓN\n"
+             "02262 - Máster Universitario en Ciencia de Datos\n")
+    assert "REGISTRY_NUMBER" not in _tipos(texto, "02262")
