@@ -386,7 +386,13 @@ def _redact_pdf_digital(
                     continue
 
                 page_text = extract_page_text(page, page_index)
-                zoned_page = segmenter.segment(page_text, page.rect)
+                # Las palabras vienen en coordenadas de la pagina SIN girar; el
+                # segmentador tiene que medir las franjas en las mismas.  Con
+                # page.rect, en un anexo apaisado todo caia en el "pie" y se
+                # analizaba con sus tipos (el correo de la firma salia entero).
+                sin_girar = page.rect * page.derotation_matrix
+                sin_girar.normalize()
+                zoned_page = segmenter.segment(page_text, sin_girar)
 
                 # Add QR_CODE zones from visual detection.
                 # DigitalPageSegmenter works on text only and cannot detect visual codes;
