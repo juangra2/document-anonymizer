@@ -155,5 +155,6 @@ def test_el_evaluador_guarda_lo_que_hizo_la_red(monkeypatch, tmp_path):
     gt = {"d": {"document_id": "d", "entities": []}}
     r = ev.evaluate_single(tmp_path / "d.pdf", gt)
     assert r.red == {"imagenes_tachadas": 1, "zonas_repasadas": 3, "siguen_legibles": 2,
-                     "residuos_por_tipo": {"PERSON": 2}, "revision_manual": False}
+                     "residuos_por_tipo": {"PERSON": 2}, "revision_manual": False,
+                     "descartes_padron": []}
     assert ev._doc_result_desde_json(dataclasses.asdict(r)).red == r.red
