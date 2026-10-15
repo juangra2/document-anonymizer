@@ -64,11 +64,16 @@ class PdfAnonymizationPipeline:
                 ocr_engine=self._ocr_engine,
                 segmenter=self._segmenter,
             )
+        from app.services.pii import analyzer as _analyzer_mod
+        _analyzer_mod.DESCARTES_PADRON = [] if collect_entities else None
         try:
             report = self._dispatch(
                 input_path, output_path, job_id, mode, inspection, collect_entities,
             )
+            if collect_entities:
+                report.descartes_padron = list(dict.fromkeys(_analyzer_mod.DESCARTES_PADRON))
         finally:
+            _analyzer_mod.DESCARTES_PADRON = None
             self._analyzer = base_analyzer
             self._verifier = base_verifier
 

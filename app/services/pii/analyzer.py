@@ -1325,6 +1325,10 @@ _CORREO_ESTROPEADO_RE = re.compile(
 # sin etiqueta y sin redactar.
 _SIG_WORD_GUARD = r"(?!(?:fdo|firma(?:do|t)?|signat(?:ura)?)\b)"
 
+# Solo en evaluacion: lo que la regla del padron descarta en los nombres sin dos
+# puntos, para medir si se pierde algun nombre real (ver pipeline.process).
+DESCARTES_PADRON: list[str] | None = None
+
 # Palabra capitalizada de un nombre (para alargar o recortar el de una firma).
 _PALABRA_DE_NOMBRE_RE = re.compile(r"[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’\-]+")
 # Cargos que cierran el nombre de una firma ("Fdo.: Juan Pérez García Alcalde
@@ -1962,6 +1966,8 @@ class PiiAnalyzer:
                 if entity_type == "PERSON" and not any(
                     gazetteer.is_person_token(gazetteer.normalize(t)) for t in _name_tokens(value)
                 ):
+                    if DESCARTES_PADRON is not None:
+                        DESCARTES_PADRON.append(value.strip())
                     continue
 
                 if entity_type == "PHONE_NUMBER" and sum(c.isdigit() for c in value) < 7:

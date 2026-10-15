@@ -216,5 +216,9 @@ class ProcessingReport(BaseModel):
     # Populated after post-redaction verification runs.
     verification: VerificationSummary | None = None
 
+    # Solo con include_entities (evaluacion): nombres sin dos puntos que la regla
+    # del padron descarto.  Sirve para medir si se pierde algun nombre real.
+    descartes_padron: list[str] = Field(default_factory=list)
+
     # Populated only when ?include_entities=true is requested (evaluation / audit use).
     detected_entities: list[DetectedEntityInfo] = Field(default_factory=list)

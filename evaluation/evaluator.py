@@ -223,6 +223,8 @@ def evaluate_single(
         "siguen_legibles": ocr.get("safety_net_still_readable", 0),
         "residuos_por_tipo": report.get("residual_entities_by_type") or {},
         "revision_manual": bool(report.get("manual_review_required")),
+        # Lo que la regla del padron descarto (riesgo de perder un nombre real).
+        "descartes_padron": report.get("descartes_padron") or [],
     }
     return resultado
 

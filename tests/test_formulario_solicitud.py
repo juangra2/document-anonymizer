@@ -307,3 +307,23 @@ def test_registro_de_entrada_o_salida_sin_numero_delante():
 def test_el_registro_en_prosa_sigue_sin_disparar():
     texto = "Se presentó en el registro de entrada del Ayuntamiento el día 12 de marzo de 2026.\n"
     assert "REGISTRY_NUMBER" not in _tipos(texto, "2026")
+
+
+def test_en_evaluacion_el_informe_dice_que_nombres_descarto_la_regla_del_padron(tmp_path):
+    """Para medir el riesgo de la regla en el escaneado y el hibrido: con
+    include_entities (solo evaluacion y auditoria) el informe lista lo que el
+    detector de nombres sin dos puntos descarto por no llevar nombre del padron."""
+    from app.services.pdf.pipeline import PdfAnonymizationPipeline
+
+    entrada = tmp_path / "in.pdf"
+    doc = fitz.open()
+    p = doc.new_page()
+    p.insert_text((60, 100), "Entrada electrònica de", fontsize=10)
+    p.insert_text((60, 114), "Persona y Entidad", fontsize=10)
+    p.insert_text((60, 160), "Texto corriente del documento, sin datos personales de nadie.", fontsize=10)
+    doc.save(entrada)
+    pipe = PdfAnonymizationPipeline()
+    con = pipe.process(input_path=entrada, output_path=tmp_path / "a.pdf", job_id="t", collect_entities=True)
+    sin = pipe.process(input_path=entrada, output_path=tmp_path / "b.pdf", job_id="t")
+    assert any("Entidad" in v for v in con.descartes_padron)
+    assert sin.descartes_padron == []
