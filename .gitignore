@@ -70,3 +70,6 @@ model/
 
 # INE raw downloads (inputs to scripts/build_gazetteers.py; artefacts are committed)
 data/ine_raw/
+
+# Casos dificiles inventados: se regeneran con scripts/casos_dificiles.py
+samples/casos_dificiles/
