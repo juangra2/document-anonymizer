@@ -290,3 +290,20 @@ def test_la_barra_de_un_dato_dentro_de_una_linea_larga_lo_cubre_desde_su_inicio(
         fin = caja.x0 + fuente.getlength(linea[:linea.index(dato) + len(dato)])
         barra = _subrect_for_line_token(_content_tokens(dato), palabra)
         assert barra is not None and barra.x0 <= inicio and barra.x1 >= fin, (dato, barra, inicio, fin)
+
+
+# --- registro de entrada o salida sin "Nº" delante -----------------------------------
+# Caso dificil (oficio con la copia del DNI): "Registre d'entrada: 2026/118430" en
+# la cabecera no se tachaba; la etiqueta del registro exigia "Nº" o "Núm.".
+
+def test_registro_de_entrada_o_salida_sin_numero_delante():
+    for etiqueta in ("Registre d'entrada:", "Registre d’eixida:", "Registro de entrada:",
+                     "Registro de salida:", "Registro General de Entrada:", "Reg. entrada:",
+                     "Registre general d'entrada:", "Registre de sortida:"):
+        texto = f"AJUNTAMENT DE VALÈNCIA\n{etiqueta} 2026/118430\n"
+        assert "REGISTRY_NUMBER" in _tipos(texto, "2026/118430"), etiqueta
+
+
+def test_el_registro_en_prosa_sigue_sin_disparar():
+    texto = "Se presentó en el registro de entrada del Ayuntamiento el día 12 de marzo de 2026.\n"
+    assert "REGISTRY_NUMBER" not in _tipos(texto, "2026")

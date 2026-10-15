@@ -1201,6 +1201,10 @@ _CSV_WINDOW = 80   # max chars between a CSV label end and its value start
 _REGISTRO_LABEL_RE = re.compile(
     r"(?i)\bn(?:[uú]m(?:ero)?\.?|[º°]\.?|o\.)[^\S\r\n]*(?:de[^\S\r\n]+)?"
     r"(?:registre|registro|rebut|recibo)\b"
+    # Sin "Nº" delante, con dos puntos, como en una cabecera o un sello:
+    # "Registre d'entrada:", "Registro General de Salida:", "Reg. entrada:".
+    r"|\b(?:registr[eo]|reg\.)(?:[^\S\r\n]+general)?[^\S\r\n]+(?:(?:de|d)[^\S\r\n]*['’]?[^\S\r\n]*)?"
+    r"(?:entrada|salida|eixida|sortida)[^\S\r\n]*(?=:)"
 )
 # Valor: letras mayusculas y cifras, con guiones (tambien de fin de linea),
 # barras o puntos; al menos tres cifras.
