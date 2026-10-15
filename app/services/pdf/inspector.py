@@ -36,7 +36,7 @@ def cobertura_imagenes(page: fitz.Page) -> float:
     y hay que mirarlas, aunque ninguna llegue sola.  Solo entran las imagenes
     que cubren al menos `ocr_imagen_minima`, para que los adornos (logos de
     0,38 %) no se acumulen hasta disparar el OCR.  El razonamiento y las
-    mediciones estan junto a `ocr_imagen_pagina` en la config.
+    mediciones estan junto a `ocr_imagen_pagina_completa` en la config.
     """
     area = page.rect.width * page.rect.height
     if area <= 0:
@@ -76,7 +76,31 @@ def pagina_necesita_ocr(page: fitz.Page) -> bool:
         caracteres = 0
     if caracteres < settings.min_digital_text_chars:
         return True
-    return cobertura_imagenes(page) >= settings.ocr_imagen_pagina
+    return imagen_que_es_la_pagina(page)
+
+
+def imagen_que_es_la_pagina(page: fitz.Page) -> bool:
+    """Una imagen que no es un fondo ocupa al menos `ocr_imagen_pagina_completa`:
+    un escaneo pegado como pagina.  Las imagenes menores se leen recortadas
+    (pdf/imagenes_pegadas.py) y la pagina conserva su texto."""
+    from app.services.pdf.fondos import es_fondo
+
+    area = page.rect.width * page.rect.height
+    if area <= 0:
+        return False
+    dibujo = None
+    try:
+        for info in page.get_image_info():
+            visible = fitz.Rect(info["bbox"]) & page.rect
+            if visible.is_empty or visible.get_area() / area < settings.ocr_imagen_pagina_completa:
+                continue
+            if dibujo is None:
+                dibujo = (page.get_bboxlog(), page.get_texttrace())
+            if not es_fondo(visible, *dibujo):
+                return True
+    except Exception:
+        return False
+    return False
 
 
 def assert_pdf_within_limits(input_path: Path) -> int:

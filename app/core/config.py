@@ -268,21 +268,19 @@ class Settings(BaseSettings):
     #   foto pequena de un anexo (9 x 6 cm)              8,7 %
     #   copias pegadas del corpus hibrido               20 %
     #
-    # Se SUMAN las imagenes, y no se mira solo la mayor: cuatro miniaturas de un
-    # anexo fotografico de 3 % cada una son 12 % y hay que mirarlas; con la
-    # mayor, ninguna llegaria.  Los costes no son simetricos —mirar de mas
-    # cuesta tiempo y el texto seleccionable de esa pagina, mirar de menos puede
-    # dejar un DNI a la vista—, y la suma se equivoca hacia mirar.
+    # Ya NO se manda la pagina entera al OCR por la suma de sus imagenes: cada
+    # imagen que cubre al menos ocr_imagen_minima se lee SOLA, recortada y con
+    # sus propios pixeles, y se tacha en la pagina digital (ver
+    # pdf/imagenes_pegadas.py).  Con la suma del 5 %, un DNI real a mitad de
+    # escala (3,7 % las dos caras) no se miraba, uno girado 90 grados no lo leia
+    # el OCR de la pagina, y uno a tamano real tapaba la pagina entera, oficio
+    # incluido.  Leer un recorte cuesta 0,03 s (una firma) a 2 s (un DNI girado).
     #
-    # Para que la suma no la disparen los adornos, solo cuentan las imagenes que
-    # cubren al menos ocr_imagen_minima: los logos se quedan en 0,38 % y el
-    # minimo esta casi tres veces por encima.
-    #
-    # LIMITE CONOCIDO: un DNI pegado a la mitad de escala cubre 1,9 % y NO pasa
-    # por OCR.  Por eso las paginas con imagen que se quedan sin OCR se cuentan,
-    # y aparte las de la zona gris (alguna imagen por encima del minimo): si un
-    # dia llega ese caso, se ve en un numero y no en una fuga.
-    ocr_imagen_pagina: float = 0.05
+    # La pagina entera solo va al OCR si no tiene texto o si UNA imagen que no
+    # es un fondo (un formulario escrito encima, ver pdf/fondos.py) ocupa al
+    # menos ocr_imagen_pagina_completa: un escaneo pegado como pagina.  Los
+    # logos (0,38 %) quedan por debajo de ocr_imagen_minima y no se leen.
+    ocr_imagen_pagina_completa: float = 0.5
     ocr_imagen_minima: float = 0.01
 
     # Post-redaction verification thresholds [0.0–1.0].

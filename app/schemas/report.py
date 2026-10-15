@@ -76,7 +76,7 @@ class OcrInfo(BaseModel):
     low_confidence_pages: list[int] = Field(default_factory=list)
     second_pass_verification: bool = False
     # Paginas con texto e imagen que el criterio de superficie decidio NO mirar
-    # (ver ocr_imagen_pagina).  No es un aviso al usuario: es el numero donde se
+    # (ver ocr_imagen_pagina_completa).  No es un aviso al usuario: es el numero donde se
     # veria un dia que la imagen relevante era pequena, antes que en una fuga.
     pages_with_image_not_ocr: int = 0
     # De ellas, las de la zona gris: alguna imagen por encima del minimo por

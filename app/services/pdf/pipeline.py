@@ -121,8 +121,9 @@ class PdfAnonymizationPipeline:
         #
         # Pero lo contrario —toda pagina con imagen al OCR— tampoco: la mitad
         # de las paginas del corpus digital llevan el logo del membrete.  Cada
-        # pagina se mira si sus imagenes cubren lo bastante como para llevar
-        # texto que la capa no tiene (ver ocr_imagen_pagina en la config).
+        # pagina entera solo va al OCR si no tiene texto o si es un escaneo
+        # pegado; las imagenes menores se leen recortadas en el pase digital
+        # (ver ocr_imagen_pagina_completa en la config).
         paginas_ocr, sin_ocr, zona_gris = _reparto(input_path)
 
         if not paginas_ocr:
@@ -143,10 +144,9 @@ class PdfAnonymizationPipeline:
         report.ocr.pages_image_grey_zone = zona_gris
         if zona_gris:
             logger.info(
-                "%d pagina(s) con una imagen de mas del %.0f %% de la pagina no "
-                "llegaron al umbral del %.0f %% y no pasaron por OCR (zona gris).",
+                "%d pagina(s) con texto y alguna imagen de mas del %.0f %% de la "
+                "pagina: sus imagenes se leyeron recortadas, sin OCR de pagina.",
                 zona_gris, settings.ocr_imagen_minima * 100,
-                settings.ocr_imagen_pagina * 100,
             )
         return report
 

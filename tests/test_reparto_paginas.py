@@ -1,14 +1,15 @@
-"""El reparto es PAGINA A PAGINA con un criterio de superficie.
+"""El reparto es PAGINA A PAGINA: que paginas van ENTERAS al OCR.
 
 Antes se decidia por documento: si la media llegaba a 200 caracteres por pagina,
 el documento entero iba por el camino digital sin pasar ni una pagina por OCR.
-Dos folios de texto tapaban veinte paginas escaneadas, y una copia de DNI
-pegada en un expediente se entregaba intacta y sin aviso.
+Despues, por la suma de superficie de las imagenes (5 %): una copia de DNI
+pegada mandaba la pagina entera al OCR, y la pagina perdia su texto.
 
-La correccion NO es "toda pagina con imagen al OCR": el 51 % de las paginas del
-corpus digital llevan el logo del membrete, y pasarlas por OCR les quitaria el
-texto seleccionable y cambiaria una redaccion exacta por otra que no lo es.  Se
-mira la fraccion de pagina cubierta (ver ocr_imagen_pagina en la config).
+Ahora las imagenes de una pagina con texto se leen recortadas en el pase
+digital (pdf/imagenes_pegadas.py; casos con un DNI real: a mitad de escala y
+girado salia entero, a tamano real se tapaba el oficio).  La pagina entera solo
+va al OCR si no tiene texto o si una imagen que no es un fondo ocupa al menos
+la mitad: un escaneo pegado como pagina.
 """
 import fitz
 import pytest
@@ -53,27 +54,34 @@ def test_las_imagenes_pequenas_no_suman():
 # --- la decision ------------------------------------------------------------
 
 def test_el_logo_del_membrete_no_manda_la_pagina_al_ocr():
-    """El 51 % del corpus digital: no se le puede quitar el texto por un logo."""
     assert not pagina_necesita_ocr(_pagina_con_imagenes([0.0038]))
 
 
-def test_una_copia_pegada_si():
-    assert pagina_necesita_ocr(_pagina_con_imagenes([0.20]))
+def test_una_copia_pegada_se_lee_recortada_no_con_la_pagina():
+    for fraccion in (0.074, 0.20, 0.034):              # DNI, copia, firma
+        assert not pagina_necesita_ocr(_pagina_con_imagenes([fraccion]))
 
 
-def test_un_dni_a_tamano_real_si():
-    assert pagina_necesita_ocr(_pagina_con_imagenes([0.074]))
+def test_varias_miniaturas_tampoco():
+    assert not pagina_necesita_ocr(_pagina_con_imagenes([0.03, 0.03, 0.03, 0.03]))
 
 
-def test_varias_miniaturas_de_un_anexo_se_suman():
-    """Cuatro fotos de 3 % no llegan una a una; juntas son 12 %."""
-    page = _pagina_con_imagenes([0.03, 0.03, 0.03, 0.03])
-    assert pagina_necesita_ocr(page)
+def test_un_escaneo_pegado_como_pagina_si():
+    assert pagina_necesita_ocr(_pagina_con_imagenes([0.80]))
 
 
-def test_una_firma_escaneada_sola_no():
-    """3,4 %: por debajo del umbral.  La firma la trata el camino digital."""
-    assert not pagina_necesita_ocr(_pagina_con_imagenes([0.034]))
+def test_un_fondo_con_el_formulario_encima_no():
+    """El escudo de fondo de un formulario real (57,7 %): la pagina conserva su
+    texto y sus etiquetas, que el camino escaneado mordia."""
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 20, 20), 0)
+    pix.clear_with(235)
+    page.insert_image(fitz.Rect(60, 180, 535, 760), pixmap=pix)
+    for k in range(9):
+        page.insert_text((80, 230 + 40 * k), f"Campo {k}: valor del formulario", fontsize=9)
+    page.insert_textbox(fitz.Rect(40, 40, 555, 150), "Cabecera del formulario. " * 10, fontsize=9)
+    assert not pagina_necesita_ocr(page)
 
 
 def test_una_pagina_sin_texto_siempre_va_al_ocr():
@@ -82,5 +90,5 @@ def test_una_pagina_sin_texto_siempre_va_al_ocr():
 
 
 def test_el_umbral_se_puede_cambiar(monkeypatch):
-    monkeypatch.setattr(settings, "ocr_imagen_pagina", 0.02)
-    assert pagina_necesita_ocr(_pagina_con_imagenes([0.034]))
+    monkeypatch.setattr(settings, "ocr_imagen_pagina_completa", 0.15)
+    assert pagina_necesita_ocr(_pagina_con_imagenes([0.20]))

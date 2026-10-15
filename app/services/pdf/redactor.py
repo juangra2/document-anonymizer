@@ -34,8 +34,9 @@ from app.services.layout.models import PageZone, ZoneType
 from app.services.layout.segmenters import DigitalPageSegmenter
 from app.services.layout.zone_config import ALL_PII_TYPES, get_detector_config
 from app.services.pdf.extractor import extract_page_text, rects_for_span
-from app.services.pdf.inspector import inspect_pdf_for_phase1
+from app.services.pdf.inspector import inspect_pdf_for_phase1, pagina_necesita_ocr
 from app.services.pdf.full_redaction import classify_pages
+from app.services.pdf.imagenes_pegadas import revisar_imagenes
 from app.services.pdf.plan_pages import is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services import cancellation, progress
@@ -331,6 +332,7 @@ def _redact_pdf_digital(
 
         plan_pages_skipped: list[int] = []
         plan_pages_done: list[int] = []
+        copias_pegadas: list[int] = []
 
         # Redacción total (copia de DNI, autoliquidación): se clasifica sobre el
         # texto de TODAS las páginas de una vez, porque la propagación a una
@@ -410,6 +412,18 @@ def _redact_pdf_digital(
                 for rect in page_rects:
                     page.add_redact_annot(rect, fill=(0, 0, 0))
 
+                # Imagenes pegadas: se leen recortadas y se tachan aqui, en la
+                # pagina digital (ver imagenes_pegadas.py).  La pagina que va
+                # entera al OCR (un escaneo) la lee el camino escaneado.
+                if not pagina_necesita_ocr(page):
+                    for imagen in revisar_imagenes(page, analyzer, mode):
+                        for rect in imagen.rects:
+                            page.add_redact_annot(rect, fill=(0, 0, 0))
+                        redacted_count += len(imagen.rects)
+                        all_entities.extend(imagen.entidades)
+                        if imagen.copia:
+                            copias_pegadas.append(page_index)
+
                 _apply_redactions_safe(page)
 
             redacted_count += tachar_todas_las_apariciones(
@@ -442,6 +456,11 @@ def _redact_pdf_digital(
                 f"self-assessment forms ({detail}). Manual review required."
             )
 
+        if copias_pegadas:
+            warnings.append(
+                "Pasted identity-document copies redacted in full; the rest of the "
+                f"page was kept: {sorted({i + 1 for i in copias_pegadas})}."
+            )
         if plan_pages_done:
             warnings.append(
                 "Construction-plan pages: only the title block was analysed "
