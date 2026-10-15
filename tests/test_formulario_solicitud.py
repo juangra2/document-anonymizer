@@ -188,3 +188,18 @@ def test_el_registro_no_pesca_un_numero_lejano_ni_una_fecha():
 def test_el_registro_salta_solo_etiquetas_hasta_su_valor():
     texto = "Núm. registre:\nNº registro:\nUV-SEU-0000000731905\n"
     assert "REGISTRY_NUMBER" in _tipos(texto, "UV-SEU-0000000731905")
+
+
+def test_tras_nom_o_cognoms_otra_etiqueta_no_es_un_nombre():
+    """Pasada OCR del formulario real: el detector de campo sin dos puntos tomaba
+    por nombre la linea que sigue a "COGNOMS / APELLIDOS", que en el orden del OCR
+    era otra etiqueta.  Se tachaban lineas de etiqueta enteras."""
+    texto = ("NOM / NOMBRE\nCOGNOMS / APELLIDOS\nD. NAIXEMENT / F. NACIMIENTO\n"
+             "PROVINCIA NAIXEMENT / PROVINCIA NACIMIENTO\nDESCRIPCIÓ / DESCRIPCIÓN\n")
+    for etiqueta in ("COGNOMS", "D. NAIXEMENT", "PROVINCIA NAIXEMENT", "DESCRIPCIÓ"):
+        assert "PERSON" not in _tipos(texto, etiqueta), etiqueta
+
+
+def test_tras_nom_y_cognoms_el_valor_si_es_un_nombre():
+    texto = "NOM / NOMBRE\nPAULA\nCOGNOMS / APELLIDOS\nMARTIN DELGADO\n"
+    assert "PERSON" in _tipos(texto, "MARTIN DELGADO")

@@ -1226,6 +1226,11 @@ def _parece_etiqueta(linea: str) -> bool:
     from app.services.pii.label_types import label_entity_type
 
     limpia = linea.strip()
+    # Un rotulo no lleva cifras ni arroba.  Sin esto, un correo de
+    # "telefonica.net" o una direccion "postal:Ronda..." parecian etiquetas
+    # (corpus digital: 4 datos reales perdidos).
+    if "@" in limpia or any(c.isdigit() for c in limpia):
+        return False
     return (
         limpia.endswith(":")
         or bool(_LUGAR_NACIMIENTO_LABEL_RE.search(limpia))
@@ -1926,6 +1931,13 @@ class PiiAnalyzer:
                     continue
 
                 if PiiAnalyzer._looks_like_false_positive(entity_type, value):
+                    continue
+
+                # En el texto del OCR las etiquetas pueden ir seguidas y los
+                # valores despues: la linea que sigue a "COGNOMS / APELLIDOS" es
+                # entonces otra etiqueta ("D. NAIXEMENT / F. NACIMIENTO"), no un
+                # nombre.  Formulario real: se tachaban lineas de etiqueta enteras.
+                if _parece_etiqueta(value):
                     continue
 
                 if entity_type == "PHONE_NUMBER" and sum(c.isdigit() for c in value) < 7:
