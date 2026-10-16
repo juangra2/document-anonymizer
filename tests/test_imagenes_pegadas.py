@@ -106,3 +106,14 @@ def test_deshacer_el_giro_devuelve_las_coordenadas_originales():
         caja = fitz.Rect(Image.eval(girada, lambda v: 255 - v).getbbox())
         vuelta = _deshacer_giro(caja, giro, ancho, alto)
         assert all(abs(a - b) <= 1.5 for a, b in zip(vuelta, original)), (giro, vuelta)
+
+
+def test_una_copia_tapada_entera_informa_de_los_datos_que_lleva():
+    """Medicion c4, corpus hibrido: la copia de DNI pegada se tapaba entera (bien)
+    pero el informe solo decia "una copia", sin los datos de dentro.  Quien lea el
+    informe, y el evaluador, tienen que ver que se taparon un nombre y un DNI."""
+    _, p = _pagina(fitz.Rect(240, 300, 361, 376))
+    r = revisar_imagenes(p, analyzer, leer=_lector(_COPIA))
+    tipos = {e.entity_type for e in r[0].entidades}
+    assert r[0].copia and {"PERSON", "ES_DNI"} <= tipos
+    assert any(e.text == "69026956T" for e in r[0].entidades)

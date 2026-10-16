@@ -288,7 +288,8 @@ def cajas_de_letra_ajustadas():
     completo (ascendente y descendente), en un formulario con la etiqueta pequena
     justo encima del valor la barra del valor se llevaba el pie de la etiqueta
     ("BSERVACIONES", "ECIBO").  Ajustadas, la barra cubre el valor y nada mas.
-    Es un ajuste global de PyMuPDF: se restaura al salir.
+    Es un ajuste global de PyMuPDF: se activa solo al aplicar las tachaduras
+    y se restaura al salir.
     """
     antes = fitz.TOOLS.set_small_glyph_heights()
     fitz.TOOLS.set_small_glyph_heights(True)
@@ -306,9 +307,8 @@ def redact_pdf_digital(
     mode: str = "strict",
     collect_entities: bool = False,
 ) -> ProcessingReport:
-    with cajas_de_letra_ajustadas():
-        return _redact_pdf_digital(input_path, output_path, job_id, analyzer,
-                                   mode, collect_entities)
+    return _redact_pdf_digital(input_path, output_path, job_id, analyzer,
+                               mode, collect_entities)
 
 
 def _redact_pdf_digital(
@@ -805,6 +805,27 @@ def _redact_whole_page(page: fitz.Page) -> None:
     _apply_redactions_safe(page)
 
 
+def _ajustar_a_las_letras(page: fitz.Page) -> None:
+    """Recorta en vertical cada marca de tachado a las letras que tapa.
+
+    Las marcas salen de las cajas de palabra de alto completo, y una caja alta
+    toca el pie de la etiqueta de encima: al aplicar, MuPDF la borraba.  Con las
+    cajas ajustadas activas (ver cajas_de_letra_ajustadas), cada marca se reduce
+    a la altura de las palabras cuyo centro cae dentro.  Las marcas sin palabras
+    debajo (una imagen, un QR) se quedan como estan.
+    """
+    palabras = [fitz.Rect(w[:4]) for w in page.get_text("words")]
+    for annot in page.annots(types=[fitz.PDF_ANNOT_REDACT]):
+        r = annot.rect
+        dentro = [w for w in palabras if r.contains(fitz.Point((w.x0 + w.x1) / 2, (w.y0 + w.y1) / 2))]
+        if not dentro:
+            continue
+        y0 = min(w.y0 for w in dentro) - 0.3
+        y1 = max(w.y1 for w in dentro) + 0.3
+        if y0 > r.y0 or y1 < r.y1:
+            annot.set_rect(fitz.Rect(r.x0, max(r.y0, y0), r.x1, min(r.y1, y1)))
+
+
 def _apply_redactions_safe(page: fitz.Page, **opciones) -> None:
     """apply_redactions con fallback de colorspace.
 
@@ -814,10 +835,15 @@ def _apply_redactions_safe(page: fitz.Page, **opciones) -> None:
     FzErrorArgument.  En ese caso se reintenta ELIMINANDO las imágenes que
     solapan la redacción — mismo resultado de privacidad.
     """
-    try:
-        page.apply_redactions(**opciones)
-    except Exception:
-        page.apply_redactions(**{**opciones, "images": fitz.PDF_REDACT_IMAGE_REMOVE})
+    # Cajas ajustadas SOLO al aplicar: es donde MuPDF decide que caracteres
+    # borra.  Activas tambien al extraer, partian filas en dos (medicion c4: el
+    # IBAN de una nomina quedaba en dos zonas y no se detectaba).
+    with cajas_de_letra_ajustadas():
+        _ajustar_a_las_letras(page)
+        try:
+            page.apply_redactions(**opciones)
+        except Exception:
+            page.apply_redactions(**{**opciones, "images": fitz.PDF_REDACT_IMAGE_REMOVE})
 
 
 def _add_signature_zones(page: fitz.Page, zoned_page, page_text) -> None:

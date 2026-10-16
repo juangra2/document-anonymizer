@@ -327,3 +327,28 @@ def test_en_evaluacion_el_informe_dice_que_nombres_descarto_la_regla_del_padron(
     sin = pipe.process(input_path=entrada, output_path=tmp_path / "b.pdf", job_id="t")
     assert any("Entidad" in v for v in con.descartes_padron)
     assert sin.descartes_padron == []
+
+
+def test_un_iban_partido_en_dos_lineas_de_una_celda_se_tacha(tmp_path):
+    """Medicion c4: con las cajas de letra ajustadas tambien al EXTRAER, el IBAN de
+    una nomina, partido en dos lineas de su celda y desplazado respecto a la
+    etiqueta, quedaba en dos zonas y no se detectaba.  Las cajas ajustadas solo
+    se usan al aplicar las tachaduras."""
+    from app.services.pdf.redactor import redact_pdf_digital
+
+    entrada, salida = tmp_path / "in.pdf", tmp_path / "out.pdf"
+    doc = fitz.open()
+    p = doc.new_page(width=595, height=842)
+    # Geometria de la nomina del corpus: etiqueta y valor en columnas, y el
+    # IBAN partido en dos lineas desplazadas respecto a la de la etiqueta.
+    p.insert_text((67.2, 376.9), "Móvil/Tel.:", fontsize=9.5)
+    p.insert_text((164.0, 376.9), "(667) 248-578", fontsize=9.5)
+    p.insert_text((337.0, 376.9), "Núm. cuenta:", fontsize=9.5)
+    p.insert_text((423.8, 370.0), "ES71 3058 2097 1034", fontsize=9.5)
+    p.insert_text((423.8, 383.8), "7979 0013", fontsize=9.5)
+    p.insert_text((67, 420), "Por la presente se comunica el abono de la nomina del mes.", fontsize=9.5)
+    doc.save(entrada)
+
+    redact_pdf_digital(entrada, salida, "t", analyzer)
+    texto = fitz.open(salida)[0].get_text()
+    assert "3058" not in texto and "7979" not in texto

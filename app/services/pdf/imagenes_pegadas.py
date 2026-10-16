@@ -169,7 +169,11 @@ def revisar_imagenes(page: fitz.Page, analyzer, mode: str = "strict",
         if classify_page(ocr.text) == DNI_SCAN:
             r.copia = r.entera = True
             r.rects = [bbox]
-            r.entidades = [PiiEntity("ES_DNI", 0, 0, 0.99, source="imagen_pegada_copia")]
+            # Se tapa entera, pero el informe dice que datos llevaba: sin esto
+            # solo constaba "una copia" (medicion c4: el evaluador, y quien lea
+            # el informe, no veian el nombre ni el DNI que se habian tapado).
+            leidos = [e for e, _ in _datos(ocr, analyzer, mode)]
+            r.entidades = leidos or [PiiEntity("ES_DNI", 0, 0, 0.99, source="imagen_pegada_copia")]
             revisadas.append(r)
             continue
 
