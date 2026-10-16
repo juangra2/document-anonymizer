@@ -1243,6 +1243,15 @@ def _parece_etiqueta(linea: str) -> bool:
         or label_entity_type(limpia) is not None
     )
 
+# TELEFONO PARTIDO entre dos lineas tras su etiqueta ("Nº teléfono:60" /
+# "885 718 1"): cada linea cae en una zona y ninguna ve el numero entero.  Solo
+# con etiqueta y solo si el valor cruza un salto de linea; el resto lo cubre el
+# patron general.
+_TELEFONO_PARTIDO_RE = re.compile(
+    r"(?i)\b(?:tel[eéè]fono?|m[oóò]vil|m[oò]bil|telf\.?|tfno\.?)[^\S\r\n]*:[^\S\r\n]*"
+    r"(?P<value>(?:\+|00)?\d[\d \-]*\r?\n[^\S\r\n]*\d[\d \-]*\d)"
+)
+
 # LUGAR DE NACIMIENTO: solo con su etiqueta.  Fuera de ella un lugar no se tacha.
 _LUGAR_NACIMIENTO_LABEL_RE = re.compile(
     r"(?i)\b(?:lugar|lloc|provincia|prov[ií]ncia|municipio|municipi|localidad|"
@@ -2795,7 +2804,7 @@ class PiiAnalyzer:
         pagina, en cada una."""
         def detectar(t: str) -> list[PiiEntity]:
             return (cls._detect_csv(t) + cls._detect_numero_de_registro(t)
-                    + cls._detect_lugar_de_nacimiento(t))
+                    + cls._detect_lugar_de_nacimiento(t) + cls._detect_telefono_partido(t))
 
         if not context_text or context_text == text or text not in context_text:
             return detectar(text)
@@ -2859,6 +2868,17 @@ class PiiAnalyzer:
                 entities.append(PiiEntity("REGISTRY_NUMBER", *span, 0.9,
                                           source="form_label", text=vm.group()))
         return entities
+
+    @staticmethod
+    def _detect_telefono_partido(text: str) -> list[PiiEntity]:
+        """Telefono tras su etiqueta, partido en dos lineas (ver _TELEFONO_PARTIDO_RE)."""
+        out = []
+        for m in _TELEFONO_PARTIDO_RE.finditer(text):
+            cifras = sum(c.isdigit() for c in m.group("value"))
+            if 9 <= cifras <= 13:
+                out.append(PiiEntity("PHONE_NUMBER", m.start("value"), m.end("value"), 0.9,
+                                     source="form_label", text=m.group("value")))
+        return out
 
     @staticmethod
     def _detect_lugar_de_nacimiento(text: str) -> list[PiiEntity]:

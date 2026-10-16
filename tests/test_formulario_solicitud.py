@@ -352,3 +352,26 @@ def test_un_iban_partido_en_dos_lineas_de_una_celda_se_tacha(tmp_path):
     redact_pdf_digital(entrada, salida, "t", analyzer)
     texto = fitz.open(salida)[0].get_text()
     assert "3058" not in texto and "7979" not in texto
+
+
+# --- telefono partido entre dos lineas ----------------------------------------------
+# Medicion c4, hibrido: "Nº teléfono:60" en una linea y "885 718 1" en la siguiente,
+# en zonas distintas.  Cada zona se analiza sola y ninguna veia el numero entero.
+# En c3 se tachaba porque la pagina iba entera al OCR; ahora sigue siendo digital.
+
+def test_un_telefono_partido_tras_su_etiqueta_se_detecta_en_cada_zona():
+    """Cada linea es una zona: la primera solo lleva "65" y la segunda el resto.
+    Con la pagina como contexto, cada zona recibe su trozo del telefono, y las
+    cifras de las dos quedan dentro de una barra (en la primera, la direccion
+    etiquetada llega hasta el final de la linea y se lo lleva)."""
+    primera = "Domicilio fiscal:Ronda de Valencia, 116, 28003 Madrid Nº teléfono:65"
+    segunda = "412 908 7 E-mail:paula.mendez@example.com"
+    pagina = "INFORME\n" + primera + "\n" + segunda + "\nTexto corriente.\n"
+    for zona, trozo in ((primera, "65"), (segunda, "412 908 7")):
+        cubierto = set()
+        for e in analyzer.analyze(zona, mode="strict", context_text=pagina):
+            cubierto |= set(range(e.start, e.end))
+        ini = zona.rindex(trozo) if trozo == "65" else zona.index(trozo)
+        assert set(range(ini, ini + len(trozo))) <= cubierto, trozo
+    segunda_tipos = {e.entity_type for e in analyzer.analyze(segunda, mode="strict", context_text=pagina)}
+    assert "PHONE_NUMBER" in segunda_tipos
