@@ -1882,6 +1882,13 @@ class PiiAnalyzer:
                     ):
                         continue
 
+                    # Un numero de expediente o de registro lleva cifras.  Con la
+                    # etiqueta vacia (el valor ya tachado), la linea siguiente es
+                    # otra cosa: una frase, no un numero.
+                    if entity_type in ("CASE_NUMBER", "REGISTRY_NUMBER") and not any(
+                            c.isdigit() for c in value):
+                        continue
+
                     # Re-type PERSON labeled_field values that are actually
                     # document numbers (e.g. "representante:05078944S").
                     # Without this, PERSON (priority 5) would suppress ES_DNI

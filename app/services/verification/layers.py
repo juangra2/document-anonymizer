@@ -72,6 +72,37 @@ def analizar_por_trozos(analyzer: PiiAnalyzer, texto: str, mode: str,
     return entidades
 
 
+def _entidades_de_la_pagina(page: fitz.Page, analyzer: PiiAnalyzer, mode: str) -> list[PiiEntity]:
+    """La pagina ENTERA, con todos los tipos, y los mismos filtros que el tachado.
+
+    Sin limitar tipos por zona: las fugas de estas semanas (telefonos y
+    direcciones en las franjas de cabecera y pie, nombres en el pie, el texto
+    del QR) estaban justo en esas limitaciones, y el verificador las vio porque
+    no las tiene.  Pero con el MISMO texto que el tachado (las lineas en su
+    orden): ordenada con sort=True, la pagina juntaba palabras de celdas
+    distintas ("Acero Guantes") que el detector de nombres tomaba por un
+    nombre.  Y con el mismo filtro institucional: el contacto del membrete no
+    es un residuo.  Los filtros de etiquetas y de nombres estan dentro del
+    analizador, que es el mismo.
+    """
+    from app.services.layout.segmenters import DigitalPageSegmenter
+    from app.services.pdf.extractor import extract_page_text
+    from app.services.pii.institution_filter import filter_institutional
+
+    page_text = extract_page_text(page, page.number or 0)
+    texto = page_text.text
+    if not texto.strip():
+        return []
+    entidades = analizar_por_trozos(analyzer, texto, mode)
+    sin_girar = page.rect * page.derotation_matrix
+    sin_girar.normalize()
+    zonas = DigitalPageSegmenter().segment(page_text, sin_girar)
+    # Como en el tachado: donde hay un nombre de persona, el contacto es suyo.
+    personas = [(e.start, e.end) for e in entidades if e.entity_type == "PERSON"]
+    apartadas = filter_institutional(texto, zonas, entidades, person_spans=personas)
+    return [e for i, e in enumerate(entidades) if i not in apartadas]
+
+
 def check_textual(
     pdf_path: Path,
     page_index: int,
@@ -86,14 +117,18 @@ def check_textual(
     doc = fitz.open(pdf_path)
     try:
         page = doc[page_index]
-        # sort=True rellena con espacios los huecos entre fragmentos: en un
-        # plano, 69.000 caracteres reales se convertian en 20 millones.
-        recorte = clip * page.derotation_matrix if clip is not None else None
-        text = _ESPACIOS_RE.sub(" ", page.get_text("text", sort=True, clip=recorte))
+        if clip is not None:
+            # Cajetin de un plano: solo ese recorte.  sort=True rellena con
+            # espacios los huecos entre fragmentos (69.000 caracteres reales de
+            # un plano se convertian en 20 millones): se colapsan.
+            recorte = clip * page.derotation_matrix
+            text = _ESPACIOS_RE.sub(" ", page.get_text("text", sort=True, clip=recorte))
+            entities = analizar_por_trozos(analyzer, text, mode) if text.strip() else []
+        else:
+            entities = _entidades_de_la_pagina(page, analyzer, mode)
     finally:
         doc.close()
 
-    entities = analizar_por_trozos(analyzer, text, mode) if text.strip() else []
     entities = [e for e in entities if e.entity_type in _REDACTABLE_TYPES]
 
     return LayerResult(
