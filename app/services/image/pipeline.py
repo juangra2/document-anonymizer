@@ -16,6 +16,7 @@ from app.schemas.report import (
     ProcessingReport,
 )
 from app.services.layout.segmenters import OcrPageSegmenter
+from app.services.pdf.limpieza import limpiar_para_entregar
 from app.services.ocr.factory import get_ocr_engine
 from app.services.pdf.scanned_redactor import _collect_redaction_rects
 from app.services.pii.analyzer import PiiAnalyzer
@@ -138,7 +139,8 @@ class ImageAnonymizationPipeline:
         doc = fitz.open()
         page = doc.new_page(width=width, height=height)
         page.insert_image(fitz.Rect(0, 0, width, height), stream=buffer.getvalue())
-        doc.set_metadata({})
+        # Lo mismo que los caminos de PDF: fuera el JFIF que escribe PIL.
+        limpiar_para_entregar(doc)
         doc.save(
             output_pdf_path,
             garbage=4,
