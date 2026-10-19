@@ -30,12 +30,12 @@ a mano.
 31 tipos de dato: 30 tipos de texto más los códigos QR y de barras. `GET /entity-types` devuelve
 este catálogo con nombre legible y descripción para la interfaz.
 
-**Todos son desmarcables.** Cada petición puede excluir los que no quiera anonimizar con
-`disabled_types`; sin esa lista, la API los anonimiza todos. La interfaz presenta cada casilla
-según `default_enabled`: todas marcadas salvo el número de expediente, que empieza desmarcado
-mientras el ayuntamiento decide si es un dato a ocultar. Si se marca, se tacha en todos sus
-formatos, también el municipal (`E-03001-2022-000074-00`). lo que se haya desmarcado queda escrito en
-`entity_types_disabled` del informe, que es el rastro de quién decidió no ocultar qué. La API solo
+**Todos son desmarcables, y el valor por defecto es uno solo: el del catálogo** (`default_enabled`),
+igual en la interfaz y en la API. Todos vienen activos salvo el número de expediente, apagado
+mientras el ayuntamiento decide si es un dato a ocultar; si se activa, se tacha en todos sus
+formatos, también el municipal (`E-03001-2022-000074-00`). Cada petición puede apagar tipos con
+`disabled_types` y encender los que vienen apagados con `enabled_types`. Lo que quede apagado se
+escribe en `entity_types_disabled` del informe, que es el rastro de quién decidió no ocultar qué. La API solo
 rechaza un tipo que no exista.
 
 | Tipo | Qué captura |
@@ -295,6 +295,11 @@ espacios, se pasa a mayúsculas y se ignoran los valores vacíos; una lista vac�
 enviarlo. Un tipo inexistente se rechaza con **422 sin procesar nada**. No se admiten valores
 separados por comas.
 
+`enabled_types` funciona igual y enciende los tipos que el catálogo trae apagados
+(`?enabled_types=CASE_NUMBER`). Sin ninguna de las dos listas se aplica el catálogo, lo mismo que
+ve la interfaz al empezar. Un tipo en las dos listas da 422. La evaluación pide todos los tipos de
+forma explícita, para medir lo mismo que en c4.
+
 ### Retención y borrado
 
 - **El original** se borra del disco en cuanto termina el proceso (salvo `STORE_ORIGINAL=true`).
@@ -532,9 +537,9 @@ dirección.
   `CREDIT_CARD`, `MEDICAL_ID`, `POLICY_NUMBER`, `REGISTRY_NUMBER`, `ROLE_TABLE_ROW` y `USER_ID` no
   tienen ninguna anotación en ninguno de los dos corpus: se detectan, pero su calidad no está medida.
   La extensión, además, no anota correo, CIF, NSS, IP, matrícula, pasaporte, QR ni URL.
-- **Número de expediente, a la espera de decisión.** La interfaz lo presenta desmarcado y no se
-  tacha; si se marca, se tacha en todos sus formatos. La API sin `disabled_types` lo tacha, como
-  todos los tipos. Falta que el ayuntamiento decida si es un dato a ocultar.
+- **Número de expediente, a la espera de decisión.** Apagado por defecto en la interfaz y en la
+  API; si se activa, se tacha en todos sus formatos. Falta que el ayuntamiento decida si es un
+  dato a ocultar.
 - **Copias pegadas con texto encima.** El corpus casi no las tiene (una en el híbrido); solo las
   cubren los casos difíciles con un DNI real, fuera del repositorio. La copia se tapa entera,
   incluido el texto que la cruza.

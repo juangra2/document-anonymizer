@@ -138,3 +138,12 @@ def known_type_ids() -> set[str]:
     return {info.id for info in entity_catalog()}
 
 
+
+
+def default_disabled_ids() -> frozenset[str]:
+    """Tipos que no se anonimizan si la petición no dice nada de ellos.
+
+    Es el único valor por defecto: lo usan la interfaz (casillas desmarcadas al
+    empezar) y la API (sin `enabled_types`, estos tipos quedan fuera).
+    """
+    return frozenset(info.id for info in entity_catalog() if not info.default_enabled)

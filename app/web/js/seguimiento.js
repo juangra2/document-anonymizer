@@ -41,27 +41,27 @@ export class Seguimiento {
   }
 
   /** Sube los que estén pendientes, uno detrás de otro. */
-  async subirPendientes(tiposDesmarcados) {
+  async subirPendientes(tipos) {
     if (this.subiendo) return;
     this.subiendo = true;
     try {
       for (const documento of this.documentos) {
         if (documento.estado !== "pendiente") continue;
-        await this._subirUno(documento, tiposDesmarcados);
+        await this._subirUno(documento, tipos);
       }
     } finally {
       this.subiendo = false;
     }
   }
 
-  async _subirUno(documento, tiposDesmarcados) {
+  async _subirUno(documento, tipos) {
     documento.estado = "subiendo";
     documento.porcentajeSubida = 0;
     this.alCambiar(documento);
     try {
       const trabajo = await api.subirDocumento(
         documento.fichero,
-        tiposDesmarcados,
+        tipos,
         (porcentaje) => {
           documento.porcentajeSubida = porcentaje;
           this.alCambiar(documento);

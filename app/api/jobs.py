@@ -145,6 +145,15 @@ async def create_job(
             "tipo inexistente. No se admite separar varios valores con comas."
         ),
     ),
+    enabled_types: list[EntityType] | None = Query(
+        default=None,
+        description=(
+            "Tipos que vienen apagados en el catalogo (default_enabled falso) y "
+            "SI se anonimizan en esta peticion: ?enabled_types=CASE_NUMBER. Sin "
+            "este parametro se aplica el catalogo, igual que en la interfaz. Se "
+            "normaliza como disabled_types; un tipo en las dos listas da 422."
+        ),
+    ),
 ) -> JobResponse:
     """Encola un PDF para anonimizar y devuelve el trabajo con su identificador.
 
@@ -159,7 +168,7 @@ async def create_job(
     if file.content_type not in _PDF_CONTENT_TYPES:
         raise HTTPException(status_code=415, detail="Solo se admiten ficheros PDF.")
 
-    disabled = _parse_disabled_types(disabled_types)
+    disabled = _parse_disabled_types(disabled_types, enabled_types)
 
     try:
         # El nombre del fichero NO se guarda: suele llevar el del interesado.

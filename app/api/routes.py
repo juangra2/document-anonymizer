@@ -25,6 +25,7 @@ from app.schemas.report import InputFileInfo
 from app.services.jobs import job_store
 from app.services.pii.entity_catalog import (
     entity_catalog,
+    default_disabled_ids,
     known_type_ids,
 )
 from app.services.pdf.pipeline import PdfAnonymizationPipeline
@@ -86,18 +87,15 @@ def build_zip_response_bytes(
     return zip_buffer.getvalue()
 
 
-def _parse_disabled_types(raw: list[EntityType] | None) -> frozenset[str]:
-    """Valida los tipos desmarcados que llegan por query.
+def _validar_tipos(raw: list[EntityType] | None) -> frozenset[str]:
+    """Normaliza y valida una lista de tipos recibida por query.
 
-    Todos los tipos se pueden desmarcar.  Por HTTP el valor ya llega
-    normalizado (DisabledTypesQueryMiddleware) y el Enum ya ha rechazado lo
-    inexistente; la comprobación se repite aquí para las llamadas internas.
+    Por HTTP el valor ya llega normalizado (DisabledTypesQueryMiddleware) y el
+    Enum ya ha rechazado lo inexistente; la comprobación se repite aquí para las
+    llamadas internas que no pasan por HTTP.
     """
     if not raw:
         return frozenset()
-
-    # La normalización real ocurre antes de validar (query_normalization); aquí
-    # se aplica la misma función para las llamadas internas que no pasan por HTTP.
     requested = {
         normalize_type_id(item.value if isinstance(item, EntityType) else str(item))
         for item in raw
@@ -112,8 +110,31 @@ def _parse_disabled_types(raw: list[EntityType] | None) -> frozenset[str]:
                 "Consulte GET /entity-types para ver los identificadores validos."
             ),
         )
-
     return frozenset(requested)
+
+
+def _parse_disabled_types(
+    raw: list[EntityType] | None,
+    enabled: list[EntityType] | None = None,
+) -> frozenset[str]:
+    """Tipos que NO se anonimizan en esta petición.
+
+    Se parte del catálogo, el mismo valor por defecto que ve la interfaz: los
+    tipos con `default_enabled` falso quedan fuera salvo que lleguen en
+    `enabled_types`.  `disabled_types` apaga cualquier tipo.  Un tipo en las dos
+    listas es una contradicción y se rechaza con 422.
+    """
+    apagar = _validar_tipos(raw)
+    encender = _validar_tipos(enabled)
+    ambos = sorted(apagar & encender)
+    if ambos:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Tipos a la vez en enabled_types y disabled_types: {', '.join(ambos)}."
+            ),
+        )
+    return frozenset((default_disabled_ids() - encender) | apagar)
 
 
 @router.get("/entity-types", response_model=list[EntityTypeResponse])
@@ -163,12 +184,21 @@ async def anonymize(
             "tipo inexistente. No se admite separar varios valores con comas."
         ),
     ),
+    enabled_types: list[EntityType] | None = Query(
+        default=None,
+        description=(
+            "Tipos que vienen apagados en el catalogo (default_enabled falso) y "
+            "SI se anonimizan en esta peticion: ?enabled_types=CASE_NUMBER. Sin "
+            "este parametro se aplica el catalogo, igual que en la interfaz. Se "
+            "normaliza como disabled_types; un tipo en las dos listas da 422."
+        ),
+    ),
 ) -> Response:
     # Único modo de redacción; el parámetro se retiró de la API (un query param
     # extra como ?mode=... se ignora, comportamiento estándar de FastAPI).
     mode = settings.default_redaction_mode
 
-    disabled = _parse_disabled_types(disabled_types)
+    disabled = _parse_disabled_types(disabled_types, enabled_types)
 
     supported_content_types = {
         "application/pdf",

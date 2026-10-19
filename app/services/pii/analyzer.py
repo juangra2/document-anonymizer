@@ -654,9 +654,10 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         # 00128-2022-093281).  Identifies the specific communication addressed to
         # a citizen, so it is always redacted.  Distinct from CASE_NUMBER (which
         # requires a 2–5 letter prefix); here the leading group is purely numeric
-        # and the middle group is a 4-digit year.
+        # and the middle group is a 4-digit year.  Not after "letter-": that is
+        # the municipal case-file number (E-03001-2022-000074-00), a CASE_NUMBER.
         "REGISTRY_NUMBER",
-        r"\b\d{4,6}-(?:19|20)\d{2}-\d{5,8}\b",
+        r"(?<![A-Za-z]-)\b\d{4,6}-(?:19|20)\d{2}-\d{5,8}\b",
         0.85,
     ),
     (

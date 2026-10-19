@@ -19,6 +19,7 @@ from pathlib import Path
 import httpx
 
 from evaluation.metrics import DocResult, EntityRecord, EntityRecord, evaluate_document
+from app.services.pii.entity_catalog import known_type_ids
 
 API_ENDPOINT = "http://127.0.0.1:8000/anonymize"
 _DEFAULT_TIMEOUT = 180  # seconds per document
@@ -69,6 +70,10 @@ def call_api(
                     # Tipos desactivados en la peticion (compuerta del bloque 2b):
                     # httpx repite la clave por cada valor.
                     "disabled_types": list(disabled_types or []),
+                    # Todos los demas, pedidos de forma explicita: la API parte
+                    # del catalogo (expediente apagado) y la medicion tiene que
+                    # seguir comparando lo mismo que c4, con todo activo.
+                    "enabled_types": sorted(known_type_ids() - set(disabled_types or [])),
                 },
                 timeout=timeout,
             )

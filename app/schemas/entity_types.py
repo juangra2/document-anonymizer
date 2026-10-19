@@ -37,7 +37,8 @@ class EntityTypeResponse(BaseModel):
     default_enabled: bool = Field(
         default=True,
         description=(
-            "Si la interfaz presenta el tipo marcado al empezar. La API no lo "
-            "aplica: sin disabled_types se anonimizan todos los tipos."
+            "Si el tipo se anonimiza cuando la peticion no dice nada de el. Es el "
+            "mismo valor por defecto en la interfaz y en la API; los apagados se "
+            "encienden con enabled_types."
         ),
     )

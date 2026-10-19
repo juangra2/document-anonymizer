@@ -305,7 +305,16 @@ function avisarSiTandaGrande() {
 
 async function lanzarTanda() {
   $("anonimizar").disabled = true;
-  await seguimiento.subirPendientes([...estado.desmarcados]);
+  // Se envia lo que difiere del catalogo: los desmarcados que vienen activos y
+  // los marcados que vienen apagados (el servicio parte del mismo catalogo).
+  await seguimiento.subirPendientes({
+    desactivar: estado.catalogo
+      .filter((t) => t.default_enabled && estado.desmarcados.has(t.id))
+      .map((t) => t.id),
+    activar: estado.catalogo
+      .filter((t) => !t.default_enabled && !estado.desmarcados.has(t.id))
+      .map((t) => t.id),
+  });
   $("anonimizar").disabled = false;
   pintarTodo();
 }

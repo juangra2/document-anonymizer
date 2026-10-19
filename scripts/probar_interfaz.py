@@ -197,8 +197,8 @@ def flujo_expediente(p, pagina, tmp: Path) -> None:
     pagina.set_input_files("#ficheros", str(pdf_simple(tmp / "exp_desmarcado.pdf")))
     with pagina.expect_request("**/jobs*") as peticion:
         pagina.click("#anonimizar")
-    p.comprobar("disabled_types=CASE_NUMBER" in peticion.value.url,
-                "sin tocarla, el documento se envia con el expediente sin tachar")
+    p.comprobar("CASE_NUMBER" not in peticion.value.url,
+                "sin tocarla no se envia nada: el servicio aplica el mismo catalogo")
 
     abrir(pagina)
     pagina.click("#grupos .grp-head:has-text('Empresas y documentos') .spacer")
@@ -206,8 +206,8 @@ def flujo_expediente(p, pagina, tmp: Path) -> None:
     pagina.set_input_files("#ficheros", str(pdf_simple(tmp / "exp_marcado.pdf")))
     with pagina.expect_request("**/jobs*") as peticion:
         pagina.click("#anonimizar")
-    p.comprobar("CASE_NUMBER" not in peticion.value.url,
-                "marcada, el documento se envia con el expediente a tachar")
+    p.comprobar("enabled_types=CASE_NUMBER" in peticion.value.url,
+                "marcada, el documento se envia pidiendo tachar el expediente")
 
 
 def flujo_tanda(p, pagina, tmp: Path) -> None:

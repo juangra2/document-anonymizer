@@ -59,7 +59,9 @@ def test_case_file_number_redacted_when_the_type_is_on():
 def test_case_file_number_kept_when_the_type_is_off():
     apagado = analyzer.with_disabled_types({"CASE_NUMBER"})
     texto = "Expediente: E-03001-2022-000074-00"
-    assert not any(e.entity_type == "CASE_NUMBER" for e in apagado.analyze(texto, mode="strict"))
+    # Ni como expediente ni como trozo de otro tipo: el patron del numero de
+    # registro reconocia el tramo central (03001-2022-000074).
+    assert not apagado.analyze(texto, mode="strict")
 
 
 def test_corpus_case_number_still_redacted():

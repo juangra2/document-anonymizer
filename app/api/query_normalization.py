@@ -1,4 +1,4 @@
-"""Normalización de `disabled_types` antes de que FastAPI lo valide.
+"""Normalización de `disabled_types` y `enabled_types` antes de que FastAPI lo valide.
 
 El parámetro se tipa con el Enum de tipos para que Swagger ofrezca un selector
 y un valor inexistente se rechace con 422.  Pero esa validación ocurre antes de
@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from urllib.parse import parse_qsl, urlencode
 
-PARAM = "disabled_types"
+PARAMS = ("disabled_types", "enabled_types")
 
 
 def normalize_type_id(value: str) -> str:
@@ -30,12 +30,12 @@ def normalize_type_id(value: str) -> str:
 
 def normalize_query_string(query_string: bytes) -> bytes:
     """Devuelve la query con `disabled_types` normalizado; el resto, intacto."""
-    if PARAM.encode() not in query_string:
+    if not any(p.encode() in query_string for p in PARAMS):
         return query_string
     pairs = parse_qsl(query_string.decode("latin-1"), keep_blank_values=True)
     out: list[tuple[str, str]] = []
     for key, value in pairs:
-        if key != PARAM:
+        if key not in PARAMS:
             out.append((key, value))
             continue
         canonical = normalize_type_id(value)

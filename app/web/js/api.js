@@ -81,11 +81,12 @@ export async function tiposDeDato() {
  * informa del progreso de SUBIDA: con expedientes de 200 MB, una barra que no
  * se mueve durante minutos parece que se ha colgado.
  */
-export function subirDocumento(fichero, tiposDesmarcados, alProgresar) {
+export function subirDocumento(fichero, tipos, alProgresar) {
   return new Promise((resolver, rechazar) => {
-    const parametros = tiposDesmarcados
-      .map((t) => `disabled_types=${encodeURIComponent(t)}`)
-      .join("&");
+    const parametros = [
+      ...tipos.desactivar.map((t) => `disabled_types=${encodeURIComponent(t)}`),
+      ...tipos.activar.map((t) => `enabled_types=${encodeURIComponent(t)}`),
+    ].join("&");
     const peticion = new XMLHttpRequest();
     peticion.open("POST", parametros ? `jobs?${parametros}` : "jobs");
 

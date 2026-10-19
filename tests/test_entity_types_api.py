@@ -68,7 +68,7 @@ def test_several_types_are_disabled_with_repeated_parameters():
     assert response.status_code == 200
     with zipfile.ZipFile(BytesIO(response.content)) as zf:
         report = json.loads(zf.read("report.json"))
-    assert set(report["entity_types_disabled"]) == {"DATE_TIME", "URL"}
+    assert set(report["entity_types_disabled"]) == {"DATE_TIME", "URL", "CASE_NUMBER"}
 
 
 def test_swagger_offers_the_valid_values():
@@ -101,15 +101,17 @@ def test_disabling_a_type_leaves_it_in_the_document():
     assert "DATE_TIME" not in report["entity_types_applied"]
 
 
-def test_without_configuration_every_type_applies():
+def test_without_configuration_the_catalog_applies():
+    # Sin configuracion, lo mismo que la interfaz al empezar: todo salvo lo que
+    # el catalogo trae apagado (el numero de expediente).
     response = client.post(
         "/anonymize?output=zip",
         files={"file": ("in.pdf", BytesIO(_sample_pdf()), "application/pdf")},
     )
     with zipfile.ZipFile(BytesIO(response.content)) as zf:
         report = json.loads(zf.read("report.json"))
-    assert report["entity_types_disabled"] == []
-    assert set(report["entity_types_applied"]) == set(ALL_PII_TYPES)
+    assert report["entity_types_disabled"] == ["CASE_NUMBER"]
+    assert set(report["entity_types_applied"]) == set(ALL_PII_TYPES) - {"CASE_NUMBER"}
 
 
 # --- C3: resumen de lo aplicado ----------------------------------------------
@@ -184,7 +186,7 @@ def test_unmarking_is_recorded_in_the_report():
     assert response.status_code == 200
     with zipfile.ZipFile(BytesIO(response.content)) as zf:
         report = json.loads(zf.read("report.json"))
-    assert report["entity_types_disabled"] == ["ES_DNI", "PERSON"]
+    assert report["entity_types_disabled"] == ["CASE_NUMBER", "ES_DNI", "PERSON"]
     assert "ES_DNI" not in report["entity_types_applied"]
 
 

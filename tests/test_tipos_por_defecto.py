@@ -1,0 +1,103 @@
+"""Un solo valor por defecto, el del catalogo, en la pantalla y en la API.
+
+El numero de expediente salia desmarcado en pantalla, pero la API llamada sin
+lista lo tachaba: quien usara la API directamente obtenia algo distinto a la
+web.  Ahora la API parte del catalogo (`default_enabled`); `disabled_types`
+apaga tipos y `enabled_types` enciende los que vienen apagados.  La evaluacion
+pide todos los tipos de forma explicita para seguir siendo comparable con c4.
+"""
+import json
+import zipfile
+from io import BytesIO
+
+import fitz
+import httpx
+from fastapi.testclient import TestClient
+
+from app.main import app
+from app.services.pii.entity_catalog import entity_catalog, known_type_ids
+
+client = TestClient(app)
+APAGADOS_DEL_CATALOGO = sorted(i.id for i in entity_catalog() if not i.default_enabled)
+
+
+def _pdf() -> bytes:
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 100), "Expediente: E-03001-2022-000074-00", fontsize=11)
+    page.insert_text((72, 130), "DNI: 12345678Z", fontsize=11)
+    data = doc.tobytes()
+    doc.close()
+    return data
+
+
+def _anonimizar(query: str = ""):
+    return client.post(
+        f"/anonymize?output=zip{query}",
+        files={"file": ("in.pdf", BytesIO(_pdf()), "application/pdf")},
+    )
+
+
+def _desactivados_y_texto(response) -> tuple[list[str], str]:
+    with zipfile.ZipFile(BytesIO(response.content)) as zf:
+        informe = json.loads(zf.read("report.json"))
+        pdf = next(n for n in zf.namelist() if n.endswith(".pdf"))
+        texto = " ".join(fitz.open(stream=zf.read(pdf), filetype="pdf")[0].get_text().split())
+    return informe["entity_types_disabled"], texto
+
+
+def test_el_catalogo_tiene_algun_tipo_apagado():
+    assert APAGADOS_DEL_CATALOGO == ["CASE_NUMBER"]
+
+
+def test_sin_listas_la_api_aplica_el_catalogo():
+    response = _anonimizar()
+    assert response.status_code == 200
+    desactivados, texto = _desactivados_y_texto(response)
+    assert desactivados == APAGADOS_DEL_CATALOGO
+    assert "E-03001-2022-000074-00" in texto, "como en la pantalla: el expediente no se tacha"
+
+
+def test_enabled_types_enciende_un_tipo_apagado():
+    response = _anonimizar("&enabled_types=case_number")
+    assert response.status_code == 200
+    desactivados, texto = _desactivados_y_texto(response)
+    assert desactivados == []
+    assert "E-03001-2022-000074-00" not in texto
+
+
+def test_un_tipo_en_las_dos_listas_se_rechaza():
+    response = _anonimizar("&enabled_types=CASE_NUMBER&disabled_types=CASE_NUMBER")
+    assert response.status_code == 422
+
+
+def test_un_tipo_inexistente_en_enabled_types_se_rechaza():
+    assert _anonimizar("&enabled_types=NO_EXISTE").status_code == 422
+
+
+def test_jobs_admite_enabled_types():
+    response = client.post(
+        "/jobs?enabled_types=CASE_NUMBER",
+        files={"file": ("in.pdf", BytesIO(_pdf()), "application/pdf")},
+    )
+    assert response.status_code == 202
+
+
+def test_la_evaluacion_pide_todos_los_tipos(tmp_path, monkeypatch):
+    from evaluation import evaluator
+
+    enviados = {}
+
+    def falso_post(url, files, params, timeout):
+        enviados.update(params)
+        return httpx.Response(500, text="no importa")
+
+    monkeypatch.setattr(evaluator.httpx, "post", falso_post)
+    pdf = tmp_path / "x.pdf"
+    pdf.write_bytes(_pdf())
+    evaluator.call_api(pdf)
+    assert sorted(enviados["enabled_types"]) == sorted(known_type_ids())
+    assert list(enviados["disabled_types"]) == []
+
+    evaluator.call_api(pdf, disabled_types=["URL"])
+    assert "URL" not in enviados["enabled_types"]
