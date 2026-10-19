@@ -1244,11 +1244,12 @@ def _parece_etiqueta(linea: str) -> bool:
     )
 
 # TELEFONO PARTIDO entre dos lineas tras su etiqueta ("Nº teléfono:60" /
-# "885 718 1"): cada linea cae en una zona y ninguna ve el numero entero.  Solo
+# "885 718 1", tambien tras "Móvil/Tel.:"): cada linea cae en una zona y ninguna
+# ve el numero entero.  Solo
 # con etiqueta y solo si el valor cruza un salto de linea; el resto lo cubre el
 # patron general.
 _TELEFONO_PARTIDO_RE = re.compile(
-    r"(?i)\b(?:tel[eéè]fono?|m[oóò]vil|m[oò]bil|telf\.?|tfno\.?)[^\S\r\n]*:[^\S\r\n]*"
+    r"(?i)\b(?:tel[eéè]fono?|m[oóò]vil|m[oò]bil|telf\.?|tfno\.?)[^\r\n:]{0,8}:[^\S\r\n]*"
     r"(?P<value>(?:\+|00)?\d[\d \-]*\r?\n[^\S\r\n]*\d[\d \-]*\d)"
 )
 

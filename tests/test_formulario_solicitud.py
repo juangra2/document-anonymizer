@@ -375,3 +375,13 @@ def test_un_telefono_partido_tras_su_etiqueta_se_detecta_en_cada_zona():
         assert set(range(ini, ini + len(trozo))) <= cubierto, trozo
     segunda_tipos = {e.entity_type for e in analyzer.analyze(segunda, mode="strict", context_text=pagina)}
     assert "PHONE_NUMBER" in segunda_tipos
+
+
+def test_el_telefono_partido_tras_movil_tel():
+    """Lectura de barras c4 (hibrido): "Móvil/Tel.:+34 950 314" / "671"."""
+    primera = "Domicilio:Pza. de la Cruz, 120, 3º C, 29010 Málaga Móvil/Tel.:+34 950 314"
+    segunda = "671 Email:sergio.morales@example.com Cuenta bancaria:"
+    pagina = "INFORME\n" + primera + "\n" + segunda + "\nTexto corriente.\n"
+    tipos = {e.entity_type for e in analyzer.analyze(segunda, mode="strict", context_text=pagina)
+             if segunda[e.start:e.end].strip() == "671"}
+    assert "PHONE_NUMBER" in tipos
