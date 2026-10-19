@@ -59,3 +59,13 @@ def test_una_frase_tras_una_etiqueta_vacia_no_es_un_numero_de_expediente():
     texto = "Expediente:\nEste documento contiene datos personales ficticios para probar la anonimización.\n"
     tipos = [e.entity_type for e in analyzer.analyze(texto, mode="strict")]
     assert "CASE_NUMBER" not in tipos
+
+
+
+def test_en_una_carta_corta_el_telefono_personal_del_pie_tambien(tmp_path):
+    """Con una sola linea de cuerpo, el filtro tomaba el pie por membrete (cabia en
+    las primeras lineas de la pagina) y el verificador, que comparte el filtro,
+    tampoco veia el movil del particular."""
+    cuerpo = [(50, 300, "Por la presente se le comunica la resolucion del expediente de referencia.", 10)]
+    pie = [(50, 800, "Persona de contacto: Vicent Peris Llopis, movil 655 123 456", 8)]
+    assert "PHONE_NUMBER" in _tipos(_pagina(tmp_path, _MEMBRETE + cuerpo + pie))

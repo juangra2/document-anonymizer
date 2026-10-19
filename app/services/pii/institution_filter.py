@@ -185,10 +185,21 @@ def letterhead_ranges(page_text: str, zoned_page: ZonedPage) -> list[tuple[int, 
     # hasta la primera linea LARGA: un membrete son lineas cortas, y en un
     # escaneado MinerU devuelve un parrafo entero como una sola linea —sin este
     # corte, el primer parrafo del cuerpo contaba como membrete—.
+    # Y nunca hasta el pie: en una carta corta (una linea de cuerpo) la pagina
+    # entera cabia en esas primeras lineas, y el movil de un particular en el pie
+    # se apartaba como contacto de la institucion.  El pie es membrete solo si lo
+    # es por si mismo (lleva el nombre de una institucion: ver arriba).
+    inicio_pie = min(
+        (z.page_text_offset for z in zoned_page.zones
+         if z.zone_type == ZoneType.FOOTER and z.text and z.page_text_offset is not None),
+        default=len(page_text) + 1,
+    )
     end = 0
     line_count = 0
     line_start = 0
     for i, ch in enumerate(page_text + "\n"):
+        if i >= inicio_pie:
+            break
         if ch == "\n":
             if i - line_start > _LETTERHEAD_MAX_LINE:
                 break

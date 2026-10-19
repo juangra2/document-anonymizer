@@ -114,3 +114,27 @@ def test_un_nombre_que_solo_esta_en_el_pie_se_tacha(tmp_path):
     """Como en el documento real: el cargo en una linea y el nombre debajo."""
     texto = _carta(tmp_path, _MEMBRETE, ["Garante", "Paula Martín Delgado"])
     assert "Paula Martín Delgado" not in texto
+
+
+
+# --- carta corta: el pie no es membrete por caer en las primeras lineas -------------
+# Una carta con una sola linea de cuerpo cabia entera en las "primeras lineas" que
+# el filtro institucional toma por membrete: el movil de un particular en el pie
+# se apartaba como contacto del ayuntamiento y quedaba a la vista.  Con dos lineas
+# de cuerpo el recuento acababa antes y si se tachaba.
+
+def test_en_una_carta_corta_el_telefono_personal_del_pie_se_tacha(tmp_path):
+    entrada, salida = tmp_path / "carta.pdf", tmp_path / "carta_out.pdf"
+    doc = fitz.open()
+    p = doc.new_page(width=595, height=842)
+    y = 30
+    for linea in _MEMBRETE:
+        p.insert_text((50, y), linea, fontsize=8); y += 11
+    p.insert_text((50, 300), "Por la presente se le comunica la resolucion del expediente de referencia.",
+                  fontsize=10)
+    p.insert_text((50, 770), "Persona de contacto: Vicent Peris Llopis, movil 655 123 456", fontsize=8)
+    doc.save(entrada)
+    redact_pdf_digital(entrada, salida, "t", analyzer)
+    texto = " ".join(fitz.open(salida)[0].get_text().split())
+    assert "655 123 456" not in texto
+    assert "96 170 05 00" in texto, "el telefono del membrete sigue a la vista"
