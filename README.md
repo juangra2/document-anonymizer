@@ -94,8 +94,10 @@ Reglas que conviene conocer:
 |---|---|---|
 | Digital (texto seleccionable) | `redactor.py` | Texto y geometría con PyMuPDF; el tachado borra las palabras del contenido del PDF |
 | Escaneado | `scanned_redactor.py` | Rasteriza cada página, OCR, tacha sobre la imagen y reconstruye el PDF con imágenes |
-| Mixto con poco texto (< 200 caracteres/página) | `hybrid_redactor.py` | Pasada digital sobre el texto y OCR sobre lo escaneado |
-| Mixto con texto abundante | `redactor.py` | Las imágenes son iconos o QR; el camino digital ya cubre el contenido |
+| Mixto | `hybrid_redactor.py` | Pasada digital sobre todo el documento y OCR solo de las páginas que lo necesitan: las que no tienen texto y las que son un escaneo pegado como página (una imagen que no es fondo y ocupa al menos la mitad) |
+
+El reparto es **página a página**. Una página con texto conserva su texto seleccionable aunque
+lleve imágenes: cada imagen se lee aparte (ver *Imágenes pegadas* abajo).
 
 Las imágenes sueltas (PNG, JPG, TIFF) siguen su propio pipeline con EasyOCR y solo se admiten en
 `POST /anonymize`.
@@ -147,6 +149,13 @@ las entidades que cuenta el informe salen de la misma lista.
   concatena documentos distintos. En una copia de DNI escaneada se intenta tachar solo la tarjeta:
   se pinta la región, se vuelve a pasar OCR y, si queda texto legible fuera, se tacha la página
   entera.
+- **Imágenes pegadas** (`pdf/imagenes_pegadas.py`): en una página con texto, cada imagen que
+  cubre al menos el 1 % se lee **recortada**, con sus propios píxeles (sin el texto digital que
+  vaya encima) y probando los giros. Si es una copia de un documento de identidad, se tapa la
+  imagen entera y el resto de la página se conserva; si no, se tachan los datos que se leen en
+  ella. Después se relee el recorte ya tachado, como la red de seguridad. Una imagen con el
+  formulario escrito encima es un **fondo** (`pdf/fondos.py`), no una copia, y una firma pegada
+  no se tapa entera: la rúbrica se conserva.
 - **Planos de obra** (`pdf/plan_pages.py`, `vision/titleblock.py`): las páginas A2 o mayores con
   mucho dibujo y sin párrafos se detectan **antes de rasterizar**, solo con metadatos. Se localiza
   el cajetín y se analiza únicamente ese recorte. Si no se encuentra cajetín, la página se deja
@@ -439,10 +448,10 @@ genera la evaluación (JSON, HTML, logs) está ignorado por git.
 
 ## Métricas actuales
 
-Medición **c3** del 14 de octubre de 2026 sobre el corpus sintético, por camino: digital (400
-documentos), escaneado (28) e híbrido (24). Con esta medición se congela la calidad. Las cifras de
-cada medición —línea base, c1, c2 y c3— están en `evaluation/linea_base/transicion_contabilidad.json`,
-y cómo se leen, en `evaluation/linea_base/LEEME.md`.
+Medición **c4** del 19 de octubre de 2026 sobre el corpus sintético, por camino: digital (400
+documentos), escaneado (28) e híbrido (24). Las cifras de cada medición —línea base, c1, c2, c3 y
+c4— están en `evaluation/linea_base/transicion_contabilidad.json`, y cómo se leen, en
+`evaluation/linea_base/LEEME.md`.
 
 **Cómo se cuenta.** Por **valor**: cada dato distinto de un documento cuenta una vez («¿se detectó
 este valor?»), porque la geometría tacha todas sus apariciones. Un dato que solo vive en páginas
@@ -452,35 +461,48 @@ como **sobre-redacción** y se publica al lado. Se guarda también la cuenta ant
 Quedan fuera los tipos que no se anonimizan (`LOCATION`…) y los defectos conocidos del corpus,
 listados en `evaluation/defectos_corpus.py`.
 
-| Camino | F1 por valor | Precisión | Recall | F1 por aparición | Sobre-redacción |
+| Camino | F1 por valor (c3 → c4) | Precisión | Recall | F1 por aparición | Sobre-redacción |
 |---|---|---|---|---|---|
-| Digital | **0,950** | 0,918 | 0,985 | 0,947 | 403 barras |
-| Escaneado | **0,949** | 0,947 | 0,950 | 0,916 | 15 |
-| Híbrido | **0,933** | 0,918 | 0,949 | 0,889 | 20 |
-| Media | **0,944** | | | 0,917 | |
+| Digital | 0,950 → **0,950** | 0,917 | 0,986 | 0,947 | 403 → 381 barras |
+| Escaneado | 0,949 → **0,947** | 0,945 | 0,950 | 0,915 | 15 → 15 |
+| Híbrido | 0,933 → **0,934** | 0,942 | 0,927 | 0,903 | 20 → 20 |
+| Media | 0,944 → **0,944** | | | 0,922 | |
 
-Evolución de la media por valor: línea base 0,839 → c1 0,913 → c2 0,937 → **c3 0,944**.
+Evolución de la media por valor: línea base 0,839 → c1 0,913 → c2 0,937 → c3 0,944 → **c4 0,944**.
+
+c4 no busca subir la media sino cerrar casos que el corpus no cubría (imágenes pegadas en páginas
+con texto, formularios, páginas giradas, dos columnas, firmas en fila), sin perder nada. En el
+híbrido la precisión sube 2,4 puntos y el recall baja 2,2: las páginas con una copia de DNI pegada
+ya no pasan enteras por OCR; la copia se tapa entera y el oficio que la acompaña conserva su texto.
+Lo que el recall ya no cuenta son datos dentro de esas copias, que siguen tapados (lo confirma la
+lectura de barras). Dos efectos de contabilidad: el tipo nuevo «lugar de nacimiento» cuenta como
+falso positivo porque el corpus no lo etiqueta, y los trozos de un teléfono partido en dos líneas
+cuentan como falsos positivos aunque el teléfono se tacha entero.
 
 **Lectura de barras.** Las métricas comparan listas de entidades; la lectura de barras abre el
-PDF entregado y busca cada dato etiquetado (`evaluation/lectura_salida.py`). Ningún dato pasa de
-tapado a legible respecto a c2:
+PDF entregado y busca cada dato etiquetado (`evaluation/lectura_salida.py`).
 
-| Camino | Tapado (c2 → c3) | Fugas (c2 → c3) |
+| Camino | Tapado (c3 → c4) | Fugas (c3 → c4) |
 |---|---|---|
 | Escaneado (28) | 99,0 % → 99,0 % | 3 → 3 |
-| Híbrido (24) | 96,8 % → **99,2 %** | 16 → 4 |
-| Digital (muestra de 100, uno de cada cuatro) | 93,9 % → **99,1 %** | 95 → 14 |
+| Híbrido (24) | 99,2 % → 98,8 % | 4 → 6 |
+| Digital (muestra de 100, uno de cada cuatro) | 99,1 % → 99,1 % | 14 → 14 |
 
-De las 14 fugas del digital, 11 son el domicilio de la universidad empleadora (defecto del corpus:
-es contacto institucional, no dato personal). En el escaneado, 2 son fechas que MinerU lee distinto
-en cada pasada y 1 es ese mismo domicilio.
+Las fugas nuevas del híbrido son tres defectos conocidos del corpus —dos veces el domicilio de la
+universidad empleadora, que es contacto institucional, y un teléfono con formato de EE. UU.— que en
+c3 salían tapados solo porque esas páginas pasaban enteras por OCR. Ningún dato personal real pasa
+de tapado a legible. La lectura de barras de c4 encontró dos fugas reales (los apellidos tras
+«Nombre» en una nómina y un teléfono partido tras «Móvil/Tel.:»), corregidas antes de esta medición.
 
-Lo que cerró las fugas del digital: tachar todas las apariciones de un dato detectado (bloque de
-firmas, la otra columna, la página siguiente); quitar de la salida el texto de menos de 2 puntos
-que no se ve —en blanco, invisible o tapado por una imagen— (el contenido del QR en blanco, con
-nombre y DNI, se podía copiar; las cotas de un plano, diminutas pero visibles, se quedan); buscar en cabecera y pie los
-tipos que no admitían; y que el filtro institucional no tome por institucional un dato con
-etiqueta de dato personal («Domicilio fiscal:»).
+**Regla del padrón.** Un nombre detectado sin dos puntos («NOMBRE / PEDRO») tiene que llevar un
+nombre o un apellido del padrón. Se midió lo que descarta: 0 en el escaneado, 1 en el híbrido y 25
+en el digital, todos trozos de prosa; ningún nombre real.
+
+**Casos difíciles** (`scripts/casos_dificiles.py`, `tests/test_casos_dificiles.py`): un
+certificado bancario con el IBAN repetido en la prosa, un formulario bilingüe a dos columnas, un
+anexo en A3 apaisado y un bloque de firmas en fila, en versión digital y escaneada, sin ningún dato
+a la vista. Los casos con un documento de identidad real (a tamaño real, a mitad de escala, girado,
+con sello, en un expediente y escaneado) viven fuera del repositorio y su test se salta sin ellos.
 
 **Banco de pruebas de teléfonos y direcciones** (`scripts/banco_contacto.py`): 107 formatos reales
 detectados y tapados en versión digital y escaneada, y ninguna de las 21 trampas (expedientes,

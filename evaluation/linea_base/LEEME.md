@@ -72,6 +72,11 @@ con `scripts/recontar_resultados.py`):
 | escaneado | 0.9157 | 0.9486 | 15 (78) |
 | hibrido | 0.8885 | 0.9330 | 20 (197) |
 | media | 0.9171 | 0.9438 | |
+| **c4** (19-10-2026: c3 y ademas imagenes pegadas leidas recortadas, formularios (registro, recibo, CSV, importe, lugar de nacimiento), celdas de MinerU, paginas giradas, dos columnas, firmas en fila, telefono partido) | | | |
+| digital | 0.9471 | 0.9498 | 381 (2897) |
+| escaneado | 0.9149 | 0.9474 | 15 (78) |
+| hibrido | 0.9028 | 0.9345 | 20 (197) |
+| media | 0.9216 | 0.9439 | |
 
 Todas las filas recontadas el 07-10-2026 con el evaluador actual (incluidas las
 exclusiones domicilio_institucional y lugar_infraccion_sin_etiquetar), asi que

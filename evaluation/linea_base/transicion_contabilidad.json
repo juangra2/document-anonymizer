@@ -139,5 +139,74 @@
     },
     "media_f1_por_valor": 0.9438,
     "media_f1_por_aparicion": 0.9171
+  },
+  "c4_2026_10_19": {
+    "fuente": "evaluation/resultados_c4_{c}.json (exacto), codigo f17292e. Todo lo de c3 y ademas: imagenes pegadas leidas recortadas y tachadas en su sitio (la pagina con texto ya no va entera al OCR por la suma de sus imagenes; la copia de identidad se tapa entera y el oficio se conserva), fondo de formulario no es copia pegada, firma pegada no se tapa entera, registro/recibo/CSV/importe/lugar de nacimiento en formularios, rotulo y valor despegados en celdas de MinerU, barra por anchura de caracter en el escaneado, paginas giradas, bilingue a dos columnas, firmas en fila, telefono partido en dos lineas, cajas de letra ajustadas al aplicar, regla del padron en nombres sin dos puntos.  Contabilidad: PLACE_OF_BIRTH (tipo nuevo) cuenta como FP porque el corpus no lo etiqueta; los trozos de un telefono partido entre zonas cuentan como FP aunque el telefono se tacha entero.",
+    "digital": {
+      "documentos": 400,
+      "f1_por_valor": 0.9498,
+      "precision": 0.9166,
+      "recall": 0.9855,
+      "tp_pagina_negra": 0,
+      "sobre_redaccion": 381,
+      "sobre_redaccion_caracteres": 2897,
+      "f1_por_aparicion": 0.9471
+    },
+    "escaneado": {
+      "documentos": 28,
+      "f1_por_valor": 0.9474,
+      "precision": 0.945,
+      "recall": 0.9497,
+      "tp_pagina_negra": 4,
+      "sobre_redaccion": 15,
+      "sobre_redaccion_caracteres": 78,
+      "f1_por_aparicion": 0.9149
+    },
+    "hibrido": {
+      "documentos": 24,
+      "f1_por_valor": 0.9345,
+      "precision": 0.9418,
+      "recall": 0.9272,
+      "tp_pagina_negra": 10,
+      "sobre_redaccion": 20,
+      "sobre_redaccion_caracteres": 197,
+      "f1_por_aparicion": 0.9028
+    },
+    "media_f1_por_valor": 0.9439,
+    "media_f1_por_aparicion": 0.9216,
+    "lectura_de_barras": {
+      "escaneado": {
+        "tapados": 308,
+        "fugas": 3,
+        "tapado_pct": 99.0,
+        "fugas_nuevas_frente_a_c3": 0
+      },
+      "hibrido": {
+        "tapados": 491,
+        "fugas": 6,
+        "tapado_pct": 98.8,
+        "fugas_nuevas_frente_a_c3": 4
+      },
+      "digital": {
+        "tapados": 1525,
+        "fugas": 14,
+        "tapado_pct": 99.1,
+        "fugas_nuevas_frente_a_c3": 0
+      }
+    },
+    "riesgo_regla_padron": {
+      "escaneado": {
+        "descartes": 0,
+        "nombres_reales": 0
+      },
+      "hibrido": {
+        "descartes": 1,
+        "nombres_reales": 0
+      },
+      "digital": {
+        "descartes": 25,
+        "nombres_reales": 0
+      }
+    }
   }
 }
