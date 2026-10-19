@@ -812,11 +812,16 @@ def _ajustar_a_las_letras(page: fitz.Page) -> None:
     toca el pie de la etiqueta de encima: al aplicar, MuPDF la borraba.  Con las
     cajas ajustadas activas (ver cajas_de_letra_ajustadas), cada marca se reduce
     a la altura de las palabras cuyo centro cae dentro.  Las marcas sin palabras
-    debajo (una imagen, un QR) se quedan como estan.
+    debajo (una imagen, un QR) se quedan como estan, y tambien las que tapan una
+    imagen aunque tenga texto encima (un sello, una linea que cruza la copia de
+    un DNI): reducirlas a esa linea destaparia la copia.
     """
     palabras = [fitz.Rect(w[:4]) for w in page.get_text("words")]
+    imagenes = [fitz.Rect(i["bbox"]) for i in page.get_image_info()]
     for annot in page.annots(types=[fitz.PDF_ANNOT_REDACT]):
         r = annot.rect
+        if any(abs(r & img) > 0.5 * abs(img) for img in imagenes):
+            continue
         dentro = [w for w in palabras if r.contains(fitz.Point((w.x0 + w.x1) / 2, (w.y0 + w.y1) / 2))]
         if not dentro:
             continue

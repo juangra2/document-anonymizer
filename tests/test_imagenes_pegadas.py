@@ -117,3 +117,26 @@ def test_una_copia_tapada_entera_informa_de_los_datos_que_lleva():
     tipos = {e.entity_type for e in r[0].entidades}
     assert r[0].copia and {"PERSON", "ES_DNI"} <= tipos
     assert any(e.text == "69026956T" for e in r[0].entidades)
+
+
+
+def test_una_copia_con_texto_encima_se_tapa_entera(tmp_path, monkeypatch):
+    """Casos dificiles con un DNI real: la copia con un sello encima, o cruzada por
+    una linea del oficio, salia tapada solo entre un 9 y un 19 %.  El ajuste de las
+    barras a las letras (para no morder etiquetas) reducia la marca de la copia
+    entera a la altura de esa linea de texto.  La marca de una imagen no es una
+    barra de texto y no se ajusta."""
+    from app.services.pdf import imagenes_pegadas
+    from app.services.pdf.redactor import redact_pdf_digital
+
+    monkeypatch.setattr(imagenes_pegadas, "lector_por_defecto", lambda: _lector(_COPIA))
+    entrada, salida = tmp_path / "in.pdf", tmp_path / "out.pdf"
+    doc, p = _pagina(fitz.Rect(150, 300, 450, 490))
+    p.insert_text((160, 420), "ES COPIA FIEL DEL ORIGINAL - COMPULSADO", fontsize=8)
+    doc.save(entrada)
+    redact_pdf_digital(entrada, salida, "t", analyzer)
+    out = fitz.open(salida)[0]
+    caja = fitz.Rect(out.get_image_info()[0]["bbox"]) if out.get_image_info() else fitz.Rect(150, 300, 450, 490)
+    pix = out.get_pixmap(dpi=40, clip=caja, colorspace=fitz.csGRAY)
+    negro = sum(1 for v in pix.samples if v < 45) / len(pix.samples)
+    assert negro > 0.9, f"la copia solo esta tapada al {negro:.0%}"
