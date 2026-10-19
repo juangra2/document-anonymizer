@@ -47,6 +47,7 @@ from app.services.ocr.factory import get_ocr_engine, get_word_ocr_engine
 from app.services.ocr.models import OcrPage
 from app.services.ocr.orientation import resolve_orientation
 from app.services.pdf.inspector import inspect_pdf_for_phase1
+from app.services.pdf.limpieza import integrar_anotaciones, limpiar_para_entregar
 from app.services.pdf.partial import append_partial_notice
 from app.services.pdf.full_redaction import DNI_SCAN, classify_page, classify_pages
 from app.services.pdf.plan_pages import is_image_dominant_page, is_plan_page, redact_plan_page
@@ -141,6 +142,9 @@ def redact_pdf_scanned(
     segmenter = OcrPageSegmenter()
 
     source_doc = fitz.open(input_path)
+    # Las anotaciones visibles se pintan en la pagina, como en el camino digital:
+    # asi entran en lo que se rasteriza y en las paginas que se copian (planos).
+    integrar_anotaciones(source_doc)
     output_doc = fitz.open()
 
     all_entities: list[PiiEntity] = []
@@ -602,11 +606,7 @@ def redact_pdf_scanned(
                     full_redaction_pages.update(propagadas)
                     redacted_count += len(propagadas)
 
-        output_doc.set_metadata({})
-        try:
-            output_doc.del_xml_metadata()
-        except Exception:
-            pass
+        limpiar_para_entregar(output_doc)
 
         output_doc.save(
             output_path,

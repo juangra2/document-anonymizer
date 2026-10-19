@@ -37,6 +37,7 @@ from app.services.pdf.extractor import extract_page_text, rects_for_span
 from app.services.pdf.inspector import inspect_pdf_for_phase1, pagina_necesita_ocr
 from app.services.pdf.full_redaction import classify_pages
 from app.services.pdf.imagenes_pegadas import revisar_imagenes
+from app.services.pdf.limpieza import integrar_anotaciones, limpiar_para_entregar
 from app.services.pdf.plan_pages import is_plan_page, redact_plan_page
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services import cancellation, progress
@@ -323,6 +324,9 @@ def _redact_pdf_digital(
     segmenter = DigitalPageSegmenter()
 
     doc = fitz.open(input_path)
+    # Lo que se ve de las anotaciones y los campos pasa a la pagina antes del
+    # analisis; lo que no se ve, fuera (ver limpieza.py).
+    integrar_anotaciones(doc)
 
     try:
         all_entities: list[PiiEntity] = []
@@ -502,12 +506,7 @@ def _redact_pdf_digital(
                 "Metadata and auxiliary object cleanup may be partial."
             )
 
-        doc.set_metadata({})
-
-        try:
-            doc.del_xml_metadata()
-        except Exception:
-            pass
+        limpiar_para_entregar(doc)
 
         doc.save(
             output_path,
