@@ -159,8 +159,10 @@ def test_the_catalog_does_not_impose_any_type():
     assert all("mandatory" not in item for item in items), (
         "el catalogo ya no marca tipos obligatorios"
     )
-    assert all(item["default_enabled"] for item in items), (
-        "todo sigue activado por defecto: se desmarca a mano"
+    apagados = {item["id"] for item in items if not item["default_enabled"]}
+    assert apagados == {"CASE_NUMBER"}, (
+        "todo activado por defecto salvo el numero de expediente, a la espera de "
+        "la decision del ayuntamiento"
     )
 
 

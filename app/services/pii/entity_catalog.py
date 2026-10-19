@@ -79,8 +79,12 @@ _CATALOG: tuple[EntityTypeInfo, ...] = (
                    "Matrículas españolas de vehículo."),
     EntityTypeInfo("CADASTRAL_REFERENCE", "Referencia catastral",
                    "Referencia catastral de un inmueble."),
+    # Desmarcado al empezar mientras el ayuntamiento decide si el expediente es
+    # dato a ocultar; si se marca, se tacha en todos sus formatos.
     EntityTypeInfo("CASE_NUMBER", "Número de expediente",
-                   "Referencias de expediente administrativo."),
+                   "Referencias de expediente administrativo, también las "
+                   "municipales (E-03001-2022-000074-00).",
+                   default_enabled=False),
     EntityTypeInfo("REGISTRY_NUMBER", "Número de registro",
                    "Número de registro de entrada o salida del documento."),
     EntityTypeInfo("CSV", "Código seguro de verificación",

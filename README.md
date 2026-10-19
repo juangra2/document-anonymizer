@@ -30,8 +30,11 @@ a mano.
 31 tipos de dato: 30 tipos de texto más los códigos QR y de barras. `GET /entity-types` devuelve
 este catálogo con nombre legible y descripción para la interfaz.
 
-**Todos son desmarcables y todos están activos por defecto.** Cada petición puede excluir los que
-no quiera anonimizar con `disabled_types`; lo que se haya desmarcado queda escrito en
+**Todos son desmarcables.** Cada petición puede excluir los que no quiera anonimizar con
+`disabled_types`; sin esa lista, la API los anonimiza todos. La interfaz presenta cada casilla
+según `default_enabled`: todas marcadas salvo el número de expediente, que empieza desmarcado
+mientras el ayuntamiento decide si es un dato a ocultar. Si se marca, se tacha en todos sus
+formatos, también el municipal (`E-03001-2022-000074-00`). lo que se haya desmarcado queda escrito en
 `entity_types_disabled` del informe, que es el rastro de quién decidió no ocultar qué. La API solo
 rechaza un tipo que no exista.
 
@@ -56,7 +59,7 @@ rechaza un tipo que no exista.
 | `DATE_TIME` | Cualquier otra fecha, incluidas las de registro y firma |
 | `LICENSE_PLATE` | Matrícula de vehículo |
 | `CADASTRAL_REFERENCE` | Referencia catastral |
-| `CASE_NUMBER` | Referencias de expediente administrativo |
+| `CASE_NUMBER` | Referencias de expediente administrativo, también las municipales (desmarcado al empezar en la interfaz) |
 | `REGISTRY_NUMBER` | Número de registro de entrada o salida |
 | `CSV` | Código seguro de verificación |
 | `CERT_SERIAL` | Número de serie del certificado de firma electrónica |
@@ -359,7 +362,6 @@ Por variables de entorno o fichero `.env` (plantilla en `.env.example`). Las má
 | `NER_USE_GPU` | `true` | NER en GPU |
 | `PRESIDIO_SCORE_THRESHOLD` | `0.55` | Puntuación mínima de una detección |
 | `GAZETTEER_ADDRESS` / `GAZETTEER_PERSON` | `true` | Usar los gazetteers del INE |
-| `REDACT_CASE_FILE_NUMBER` | `false` | Tachar el número de expediente administrativo (el número de salida se tacha siempre) |
 | `FULL_REDACTION_ENABLED` | `true` | Página completa para copias de DNI y autoliquidaciones |
 | `DNI_CROP_ENABLED` | `true` | En copias de DNI escaneadas, intentar tachar solo la tarjeta |
 | `PLAN_PAGE_ENABLED` | `true` | Tratamiento de planos de obra por cajetín |

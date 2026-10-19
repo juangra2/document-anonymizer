@@ -82,12 +82,6 @@ class Settings(BaseSettings):
     gazetteer_address: bool = True
     gazetteer_person: bool = True
 
-    # Redact the administrative case-file number (e.g. E-03001-2022-000074-00).
-    # Off by default: the expediente is a public administrative reference.  The
-    # output-register / "número de salida" is always redacted (it identifies the
-    # specific communication addressed to a citizen).
-    redact_case_file_number: bool = False
-
     # Construction-plan pages (A1/A0 drawings).  Detected from fitz metadata
     # BEFORE rasterising or running any OCR (O(ms)), so a 30+ MP plan never
     # stalls the pipeline.  PII on a plan lives in the title block (cajetín);

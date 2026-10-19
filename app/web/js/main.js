@@ -145,6 +145,10 @@ function mostrarBanner(elemento, texto, clase) {
 async function cargarTipos() {
   try {
     estado.catalogo = await api.tiposDeDato();
+    // Cada casilla empieza como el servicio dice que se trata por defecto.
+    estado.desmarcados = new Set(
+      estado.catalogo.filter((t) => !t.default_enabled).map((t) => t.id),
+    );
     estado.grupos = agrupar(estado.catalogo);
     pintarGrupos();
   } catch {

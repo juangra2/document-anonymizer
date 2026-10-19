@@ -187,6 +187,29 @@ def flujo_documento_completo(p, pagina, tmp: Path) -> None:
     )
 
 
+def flujo_expediente(p, pagina, tmp: Path) -> None:
+    print("\n1b) El numero de expediente empieza desmarcado y la casilla manda")
+    abrir(pagina)
+    pagina.click("#grupos .grp-head:has-text('Empresas y documentos') .spacer")
+    fila = pagina.locator(".grp-body .row:has-text('Número de expediente')")
+    p.comprobar("off" in (fila.get_attribute("class") or ""),
+                "la casilla del numero de expediente sale desmarcada")
+    pagina.set_input_files("#ficheros", str(pdf_simple(tmp / "exp_desmarcado.pdf")))
+    with pagina.expect_request("**/jobs*") as peticion:
+        pagina.click("#anonimizar")
+    p.comprobar("disabled_types=CASE_NUMBER" in peticion.value.url,
+                "sin tocarla, el documento se envia con el expediente sin tachar")
+
+    abrir(pagina)
+    pagina.click("#grupos .grp-head:has-text('Empresas y documentos') .spacer")
+    pagina.locator(".grp-body .row:has-text('Número de expediente')").click()
+    pagina.set_input_files("#ficheros", str(pdf_simple(tmp / "exp_marcado.pdf")))
+    with pagina.expect_request("**/jobs*") as peticion:
+        pagina.click("#anonimizar")
+    p.comprobar("CASE_NUMBER" not in peticion.value.url,
+                "marcada, el documento se envia con el expediente a tachar")
+
+
 def flujo_tanda(p, pagina, tmp: Path) -> None:
     print("\n2) Una tanda con un fichero rechazado")
     abrir(pagina)
@@ -367,6 +390,7 @@ def main() -> int:
 
     flujos = {
         "completo": flujo_documento_completo,
+        "expediente": flujo_expediente,
         "tanda": flujo_tanda,
         "parar": flujo_parar,
         "eliminar": flujo_eliminar,

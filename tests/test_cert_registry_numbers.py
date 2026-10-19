@@ -1,7 +1,6 @@
 """CERT_SERIAL, REGISTRY_NUMBER detection and case-file number policy."""
 import pytest
 
-from app.core.config import settings
 from app.services.pii.analyzer import PiiAnalyzer
 
 analyzer = PiiAnalyzer()
@@ -48,19 +47,19 @@ def test_short_number_not_cert_serial():
 
 
 # --- case-file (expediente) policy ----------------------------------------
+# La casilla "Numero de expediente" decide: si esta marcada se tacha cualquier
+# formato, tambien el municipal (E-03001-2022-000074-00); si no, ninguno.  Antes
+# un ajuste del servidor dejaba el municipal siempre a la vista aunque la
+# pantalla mostrara la casilla marcada.
 
-def test_case_file_number_kept_by_default():
-    text = "Expediente: E-03001-2022-000074-00"
-    assert not _has(text, "CASE_NUMBER", "E-03001-2022-000074-00")
+def test_case_file_number_redacted_when_the_type_is_on():
+    assert _has("Expediente: E-03001-2022-000074-00", "CASE_NUMBER", "E-03001-2022-000074-00")
 
 
-def test_case_file_number_redacted_when_enabled():
-    text = "Expediente: E-03001-2022-000074-00"
-    settings.redact_case_file_number = True
-    try:
-        assert _has(text, "CASE_NUMBER", "E-03001-2022-000074-00")
-    finally:
-        settings.redact_case_file_number = False
+def test_case_file_number_kept_when_the_type_is_off():
+    apagado = analyzer.with_disabled_types({"CASE_NUMBER"})
+    texto = "Expediente: E-03001-2022-000074-00"
+    assert not any(e.entity_type == "CASE_NUMBER" for e in apagado.analyze(texto, mode="strict"))
 
 
 def test_corpus_case_number_still_redacted():

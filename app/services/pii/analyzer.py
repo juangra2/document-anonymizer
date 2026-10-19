@@ -1364,16 +1364,12 @@ _SIGNATURE_NAME_RE = re.compile(
 )
 
 # Administrative case-file number after an "Expedient/Expediente" label
-# (e.g. E-03001-2022-000074-00).  Only used when redact_case_file_number is on.
+# (e.g. E-03001-2022-000074-00).  Whether it is redacted is the CASE_NUMBER
+# checkbox (disabled_types), like any other type.
 _CASE_FILE_NUMBER_RE = re.compile(
     r"(?i)expedient(?:e)?[^\n:]{0,12}:[^\S\r\n]*"
     r"(?P<value>[A-Z]-\d{4,6}-\d{4}-\d{4,8}(?:-\d{2})?)"
 )
-
-# Value shape of the municipal case-file number (single letter + dashed groups).
-# Used to keep it out of redaction when redact_case_file_number is off, without
-# affecting the corpus's letter-prefixed/slash CASE_NUMBER formats.
-_CASE_FILE_VALUE_RE = re.compile(r"(?i)^[A-Z]-\d{4,6}-\d{4}-\d{4,8}(?:-\d{2})?$")
 
 # Residential dwelling marker (floor + door): the strongest "personal address"
 # signal in the corpus (0 institutional FPs).  When present, the institutional-
@@ -1615,18 +1611,6 @@ class PiiAnalyzer:
             cp for cp in self._extract_postal_codes_from_addresses(text, addresses)
             if (cp.start, cp.end) not in known_cp
         )
-
-        # Policy: the administrative case-file number (E-03001-2022-000074-00) is
-        # a public reference; keep it unless explicitly enabled.  The output
-        # register number is a different type (REGISTRY_NUMBER) and unaffected.
-        if not settings.redact_case_file_number:
-            merged = [
-                e for e in merged
-                if not (
-                    e.entity_type == "CASE_NUMBER"
-                    and _CASE_FILE_VALUE_RE.match(text[e.start:e.end])
-                )
-            ]
 
         if self.disabled_types:
             merged = [e for e in merged if e.entity_type not in self.disabled_types]
@@ -2292,19 +2276,18 @@ class PiiAnalyzer:
                 )
 
         # Administrative case-file number ("Expedient/Expediente: E-03001-2022-
-        # 000074-00").  Public reference by policy → only redacted when explicitly
-        # enabled.  The leading single letter means it never matches CASE_NUMBER.
-        if settings.redact_case_file_number:
-            for match in re.finditer(_CASE_FILE_NUMBER_RE, text):
-                entities.append(
-                    PiiEntity(
-                        entity_type="CASE_NUMBER",
-                        start=match.start("value"),
-                        end=match.end("value"),
-                        score=0.85,
-                        source="deterministic_regex",
-                    )
+        # 000074-00").  The leading single letter means the general CASE_NUMBER
+        # patterns never match it.
+        for match in re.finditer(_CASE_FILE_NUMBER_RE, text):
+            entities.append(
+                PiiEntity(
+                    entity_type="CASE_NUMBER",
+                    start=match.start("value"),
+                    end=match.end("value"),
+                    score=0.85,
+                    source="deterministic_regex",
                 )
+            )
 
         return entities
 
