@@ -28,6 +28,7 @@ import fitz
 from app.services.layout.zone_config import ALL_PII_TYPES
 from app.services.pii.analyzer import DIRECT_REGEX_PATTERNS, PiiAnalyzer
 from app.services.pii.models import PiiEntity
+from app.services.pdf.limpieza import jpeg_con_metadatos
 from app.services.verification.models import LayerResult, VerificationLayer
 from app.services.verification.scorer import compute_layer_score
 from app.services.storage.temp_storage import scratch_dir
@@ -221,76 +222,99 @@ def check_metadata(
     pdf_path: Path,
     analyzer: PiiAnalyzer,
 ) -> LayerResult:
-    """Inspect all metadata fields, XMP blob, AcroForm values, and annotations."""
+    """Lo que no es contenido de pagina y no deberia estar en la salida.
+
+    El PDF entregado no lleva nada oculto ni interactivo (ver pdf/limpieza.py).
+    Esta capa lo comprueba de forma independiente del tratamiento: diccionario de
+    informacion, XMP (documento, pagina, imagen), anotaciones (tipo y autor),
+    campos de formulario, marcadores, JavaScript, adjuntos, metadatos dentro de
+    las imagenes JPEG y versiones anteriores por guardado incremental.  El texto
+    que encuentra se analiza; ningun valor se copia a los avisos.
+
+    "format" no se mira: no es un metadato guardado, es la version del PDF que
+    PyMuPDF deduce de la cabecera ("PDF 1.7").
+    """
     started = perf_counter()
     warnings: list[str] = []
     entities: list[PiiEntity] = []
 
+    def analizar(texto: str) -> None:
+        if texto and len(texto) >= _META_MIN_LEN:
+            entities.extend(analyzer.analyze(texto, mode="strict"))
+
     doc = fitz.open(pdf_path)
     try:
-        # 1. Standard PDF Info dict
-        meta = doc.metadata or {}
-        for key, value in meta.items():
-            if not value or len(value) < _META_MIN_LEN:
+        # 1. Diccionario de informacion
+        for key, value in (doc.metadata or {}).items():
+            if key in ("format", "encryption") or not value or not str(value).strip():
                 continue
             if key.lower() in _SENSITIVE_META_KEYS:
-                found = analyzer.analyze(value, mode="strict")
-                entities.extend(found)
-            if value.strip():
-                # El valor NO se copia al aviso: el informe se conserva horas y
-                # un metadato sin limpiar puede ser el nombre del interesado.
-                # Basta con decir qué campo y cuánto ocupa para arreglarlo.
-                warnings.append(
-                    f"Metadata field '{key}' is not empty "
-                    f"({len(value)} characters)."
-                )
+                analizar(value)
+            warnings.append(f"Metadata field '{key}' is not empty ({len(value)} characters).")
 
-        # 2. XMP metadata blob
+        # 2. XMP del documento
         xmp = doc.get_xml_metadata() or ""
         if xmp.strip():
             warnings.append(f"XMP metadata blob present ({len(xmp)} bytes)")
-            found = analyzer.analyze(xmp, mode="strict")
-            entities.extend(found)
+            analizar(xmp)
 
-        # 3. AcroForm field values
-        for page in doc:
-            for widget in page.widgets() or []:
-                val = widget.field_value or ""
-                if len(val) >= _META_MIN_LEN:
-                    found = analyzer.analyze(val, mode="strict")
-                    entities.extend(found)
-                    if val.strip():
-                        warnings.append(
-                            f"AcroForm field '{widget.field_name}' has a value "
-                            f"({len(val)} characters)."
-                        )
-
-        # 4. Annotation contents
+        # 3. Anotaciones y campos
         for page in doc:
             for annot in page.annots() or []:
-                content = annot.info.get("content", "") or ""
-                if len(content) >= _META_MIN_LEN:
-                    found = analyzer.analyze(content, mode="strict")
-                    entities.extend(found)
+                info = annot.info or {}
+                autor = "with author" if (info.get("title") or "").strip() else "without author"
+                warnings.append(
+                    f"Annotation '{annot.type[1]}' ({autor}) on page {page.number + 1}.")
+                analizar(info.get("content", "") or "")
+                analizar(info.get("title", "") or "")
+            for widget in page.widgets() or []:
+                warnings.append(f"Form field '{widget.field_name}' on page {page.number + 1}.")
+                analizar(widget.field_value or "")
 
-        # 5. Embedded / attached files (count only — contents not inspected)
+        # 4. Marcadores
+        toc = doc.get_toc()
+        if toc:
+            warnings.append(f"{len(toc)} bookmark(s) remain in the document.")
+            for _nivel, titulo, *_ in toc:
+                analizar(titulo)
+
+        # 5. Adjuntos
         embedded_count = doc.embfile_count() if hasattr(doc, "embfile_count") else 0
         if embedded_count:
             warnings.append(f"{embedded_count} embedded file(s) remain in the document.")
 
-        # 6. JavaScript presence
-        for page in doc:
-            for annot in page.annots() or []:
-                if annot.type[0] in (fitz.PDF_ANNOT_WIDGET,):
-                    pass  # already handled above
-            # Check page-level JS via xref
-        try:
-            js_xrefs = doc.get_page_xobjects(0) if doc.page_count > 0 else []
-        except Exception:
-            js_xrefs = []
+        # 6. Objetos: JavaScript, XMP de pagina o imagen, metadatos dentro de los JPEG
+        js = xmp_objetos = imagenes_con_metadatos = 0
+        for xref in range(1, doc.xref_length()):
+            try:
+                objeto = doc.xref_object(xref)
+            except Exception:
+                continue
+            if "/JS" in objeto or "/JavaScript" in objeto:
+                js += 1
+            if "/Metadata" in objeto and xref != doc.pdf_catalog():
+                xmp_objetos += 1
+            if "/Subtype /Image" in objeto and "/DCTDecode" in objeto:
+                try:
+                    if jpeg_con_metadatos(doc.xref_stream_raw(xref)):
+                        imagenes_con_metadatos += 1
+                except Exception:
+                    pass
+        if js:
+            warnings.append(f"JavaScript present in {js} object(s).")
+        if xmp_objetos:
+            warnings.append(f"XMP metadata in {xmp_objetos} page or image object(s).")
+        if imagenes_con_metadatos:
+            warnings.append(
+                f"{imagenes_con_metadatos} image(s) carry EXIF/XMP/IPTC or encoder metadata.")
 
     finally:
         doc.close()
+
+    # 7. Versiones anteriores dentro del fichero
+    revisiones = Path(pdf_path).read_bytes().count(b"%%EOF")
+    if revisiones > 1:
+        warnings.append(f"{revisiones} revisions in the file (incremental save).")
 
     # Deduplicate entities (same span may appear across multiple checks)
     entities = [e for e in entities if e.entity_type in _REDACTABLE_TYPES]
