@@ -181,11 +181,82 @@ las entidades que cuenta el informe salen de la misma lista.
 - **EasyOCR**: da la caja de cada palabra para situar los tachados, hace la segunda pasada de
   verificación sobre la imagen ya tachada y sustituye a MinerU cuando no está disponible.
 
+### Metadatos y contenido oculto
+
+**En el PDF entregado no queda nada oculto ni interactivo: todo lo que se ve ha pasado por el
+análisis, y lo demás se quita** (`services/pdf/limpieza.py`). Se hace en dos momentos:
+
+- **Antes del análisis**, al abrir el documento (caminos digital y escaneado; el híbrido pasa por
+  los dos):
+  - Las anotaciones que se ven (texto libre, sellos, dibujos, subrayados) y los campos de
+    formulario pasan a ser contenido de la página. Su texto se analiza y se tacha como el resto, y
+    un rótulo pintado dentro de un campo se conserva.
+  - Lo que no se ve se quita sin integrarlo: notas de comentario con su autor, adjuntos,
+    enlaces, sonidos y anotaciones ocultas.
+  - El valor de un campo que no está dibujado se pierde.
+- **Al guardar**, en todos los caminos, también en las páginas de plano y en las que el híbrido
+  copia sin OCR:
+  - fuera las anotaciones y campos que queden, los marcadores y el JavaScript (acción de
+    apertura, árbol de nombres, acciones de anotaciones y de campos);
+  - fuera los adjuntos con su árbol de nombres, las miniaturas, el XMP del documento, de cada
+    página y de cada imagen, la estructura de etiquetas y el diccionario de información;
+  - el fichero se escribe entero, sin las versiones anteriores de un guardado incremental.
+- **Imágenes que se conservan:** los JPEG pierden EXIF, GPS, XMP, IPTC, JFIF, comentarios y marcas
+  del codificador (Ducky…) **sin volver a comprimirse**. Se borran esos segmentos y los datos de
+  imagen quedan byte a byte iguales. Solo se quedan el perfil de color (ICC) y la marca de Adobe,
+  que en CMYK decide los colores. Una imagen tachada ya se vuelve a codificar sin nada de eso.
+
+| Qué | Digital | Escaneado | Híbrido | Imagen suelta |
+|---|---|---|---|---|
+| Diccionario de información (autor, creador, productor, fechas, título, asunto, claves) | fuera | fuera | fuera | fuera |
+| XMP del documento, de página y de imagen | fuera | fuera | fuera | fuera |
+| EXIF, GPS, XMP, IPTC y marcas del codificador de las imágenes | fuera, sin recomprimir | se repinta | fuera / se repinta | fuera |
+| Versiones anteriores (guardado incremental) | fuera | fuera | fuera | — |
+| Notas de comentario (autor y texto), adjuntos, enlaces | fuera | fuera | fuera | — |
+| Texto libre, sellos, dibujos | a la página y analizados | a la página y analizados (OCR) | a la página y analizados | — |
+| Campos de formulario | a la página y analizados; ya no es formulario | ídem (OCR) | ídem | — |
+| Marcadores, JavaScript, miniaturas | fuera | fuera | fuera | — |
+
+**Comprobación independiente.** `python -m evaluation.comprobar_metadatos salida.pdf` mira el
+fichero con ExifTool y qpdf, sin código del servicio, y dice qué queda. Lo que comprueba:
+
+- el diccionario de información y el XMP;
+- anotaciones, campos, marcadores, JavaScript, adjuntos y miniaturas;
+- lo que hay dentro de cada imagen, extraída tal como está guardada;
+- las revisiones del fichero.
+
+Solo imprime nombres de campo y recuentos, nunca valores, así que sirve también para documentos
+reales. Termina con código 1 si queda algo. Busca las herramientas en `EXIFTOOL` y `QPDF` o en el
+PATH; si faltan, se salta con código 0, porque no son dependencias del servicio.
+`tests/test_comprobar_metadatos.py` pasa los cuatro casos de prueba por los tres caminos con esas
+herramientas y se salta sin ellas.
+
+Los cuatro casos de prueba (`tests/casos_metadatos.py`) son:
+
+- un PDF digital con toda la carga y una foto de móvil pegada (EXIF, GPS, XMP, ICC);
+- una página que es solo una foto de móvil;
+- un documento mixto;
+- un PDF guardado de forma incremental, con una versión anterior sin tachar.
+
+Con ExifTool 13.59 y qpdf 12.4.2, las salidas de los tres caminos salen limpias. También salen
+limpias las de `samples/real/` (copia de DNI escaneada y formulario de la Universitat). El
+formulario traía autor, creador, productor, fechas, XMP, un adjunto, dos campos rellenos, marcas
+Ducky y JFIF en sus imágenes y tres revisiones incrementales.
+
 ### Verificación posterior
 
 Sobre el PDF de salida de los caminos digital e híbrido se ejecutan varias capas
-(`services/verification/`): texto extraíble, metadatos (Info, XMP, formularios, anotaciones,
-adjuntos, JavaScript) y bytes crudos; la capa de OCR es opcional. Si queda algo, el informe lo marca
+(`services/verification/`): texto extraíble, metadatos y bytes crudos; la capa de OCR es opcional.
+La de metadatos comprueba todo lo de la sección anterior:
+
+- diccionario de información y XMP del documento, de página y de imagen;
+- anotaciones, con su autor, y campos;
+- marcadores, JavaScript y adjuntos;
+- metadatos dentro de los JPEG;
+- versiones anteriores.
+
+El texto que encuentra lo analiza y nunca copia valores a los avisos. No avisa por `format`, que
+no es un metadato guardado sino la versión del PDF que deduce PyMuPDF. Si queda algo, el informe lo marca
 con `manual_review_required`. En el camino escaneado, la segunda pasada de OCR cumple el mismo
 papel.
 
@@ -447,6 +518,7 @@ Herramientas para comparar (no llaman a la API):
 | `python -m evaluation.identidad_contra --pdfs DIR --ref evaluation/work_ref` | Comprueba que la salida no ha cambiado; sale con código 1 si hay diferencias |
 | `python -m evaluation.compuerta_tipos REF PRUEBA --desmarcados T1,T2` | Compuerta: desmarcar un tipo no puede hacer desaparecer otro (ver su docstring) |
 | `python -m evaluation.rebuild_report RESULTADOS.json INFORME.html` | Regenera el HTML de un informe desde su JSON |
+| `python -m evaluation.comprobar_metadatos SALIDA.pdf` | Comprobación independiente de metadatos con ExifTool y qpdf (ver [Metadatos y contenido oculto](#metadatos-y-contenido-oculto)) |
 
 Los resultados de referencia están en `evaluation/reference/` (bajo seguimiento). Todo lo demás que
 genera la evaluación (JSON, HTML, logs) está ignorado por git.
@@ -545,6 +617,17 @@ dirección.
   incluido el texto que la cruza.
 - **Lugar de nacimiento.** Se tacha solo con su etiqueta. El corpus no lo anota, así que cuenta
   como falso positivo en las métricas.
+- **Metadatos: lo que no se limpia.**
+  - No se limpian los metadatos de las imágenes JPEG 2000, de los JPEG guardados bajo otro filtro
+    ni de las imágenes en línea dentro del contenido de la página. No se han visto en el corpus ni
+    en los documentos reales.
+  - El contenido de las capas opcionales desactivadas (OCG) no se ha comprobado.
+  - Se conserva el perfil de color de las fotos, que puede nombrar el perfil del dispositivo.
+  - Al quitar la estructura de etiquetas, el PDF entregado deja de estar etiquetado para
+    accesibilidad.
+- **Rótulo seguido de un dato en la línea siguiente, sin dos puntos.** En «NIF / DNI del titular»
+  con el DNI debajo, el detector toma «NIF» por etiqueta y tacha también «/ DNI del titular» junto
+  con el número: sobre-redacción del rótulo.
 - **Cargos que firman.** El pie busca nombres, así que los cargos que firman (secretario, rector…)
   se tachan, como en el cuerpo. Si se decide dejarlos visibles, será con una regla que distinga
   cargo de particular, no por la posición en la página.
