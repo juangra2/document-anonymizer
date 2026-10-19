@@ -185,7 +185,13 @@
         "tapados": 491,
         "fugas": 6,
         "tapado_pct": 98.8,
-        "fugas_nuevas_frente_a_c3": 4
+        "fugas_nuevas_frente_a_c3": 4,
+        "con_arreglo_de_copias_ea502de": {
+          "tapados": 467,
+          "fugas": 6,
+          "tapado_pct": 98.7,
+          "nota": "la copia de DNI con texto encima se tapa entera; 24 datos bajo ella pasan a no concluyentes"
+        }
       },
       "digital": {
         "tapados": 1525,

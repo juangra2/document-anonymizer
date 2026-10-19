@@ -451,7 +451,8 @@ genera la evaluación (JSON, HTML, logs) está ignorado por git.
 ## Métricas actuales
 
 Medición **c4** del 19 de octubre de 2026 sobre el corpus sintético, por camino: digital (400
-documentos), escaneado (28) e híbrido (24). Las cifras de cada medición —línea base, c1, c2, c3 y
+documentos), escaneado (28) e híbrido (24). **Son las cifras finales: la calidad queda congelada en
+c4.** Las cifras de cada medición —línea base, c1, c2, c3 y
 c4— están en `evaluation/linea_base/transicion_contabilidad.json`, y cómo se leen, en
 `evaluation/linea_base/LEEME.md`.
 
@@ -487,7 +488,7 @@ PDF entregado y busca cada dato etiquetado (`evaluation/lectura_salida.py`).
 | Camino | Tapado (c3 → c4) | Fugas (c3 → c4) |
 |---|---|---|
 | Escaneado (28) | 99,0 % → 99,0 % | 3 → 3 |
-| Híbrido (24) | 99,2 % → 98,8 % | 4 → 6 |
+| Híbrido (24) | 99,2 % → 98,7 % | 4 → 6 |
 | Digital (muestra de 100, uno de cada cuatro) | 99,1 % → 99,1 % | 14 → 14 |
 
 Las fugas nuevas del híbrido son tres defectos conocidos del corpus —dos veces el domicilio de la
@@ -495,6 +496,14 @@ universidad empleadora, que es contacto institucional, y un teléfono con format
 c3 salían tapados solo porque esas páginas pasaban enteras por OCR. Ningún dato personal real pasa
 de tapado a legible. La lectura de barras de c4 encontró dos fugas reales (los apellidos tras
 «Nombre» en una nómina y un teléfono partido tras «Móvil/Tel.:»), corregidas antes de esta medición.
+
+Después de c4, los casos difíciles con un DNI real destaparon una fuga que el corpus apenas tiene:
+una copia pegada con texto encima (un sello, una fila de la tabla que la cruza) salía tapada solo
+por la franja de ese texto, porque la barra se ajustaba a las letras. Corregido, se repitió la
+lectura de barras de lo afectado: la muestra digital sale idéntica y en el híbrido la única copia
+así (una nómina) pasa a taparse entera. Las fugas no cambian; el tapado baja de 98,8 % a 98,7 %
+porque 24 datos que antes se veían tapados uno a uno quedan bajo la copia en negro y la lectura ya
+no puede concluir sobre ellos. Las cifras de F1 no cambian: el arreglo solo toca el dibujo.
 
 **Regla del padrón.** Un nombre detectado sin dos puntos («NOMBRE / PEDRO») tiene que llevar un
 nombre o un apellido del padrón. Se midió lo que descarta: 0 en el escaneado, 1 en el híbrido y 25
@@ -505,6 +514,8 @@ certificado bancario con el IBAN repetido en la prosa, un formulario bilingüe a
 anexo en A3 apaisado y un bloque de firmas en fila, en versión digital y escaneada, sin ningún dato
 a la vista. Los casos con un documento de identidad real (a tamaño real, a mitad de escala, girado,
 con sello, en un expediente y escaneado) viven fuera del repositorio y su test se salta sin ellos.
+Esos tests (`tests/test_casos_dificiles_reales.py`, marcados `lento`) se pasan **antes de cada
+medición**: son los únicos que cubren copias con texto encima.
 
 **Banco de pruebas de teléfonos y direcciones** (`scripts/banco_contacto.py`): 107 formatos reales
 detectados y tapados en versión digital y escaneada, y ninguna de las 21 trampas (expedientes,
@@ -521,6 +532,14 @@ dirección.
   `CREDIT_CARD`, `MEDICAL_ID`, `POLICY_NUMBER`, `REGISTRY_NUMBER`, `ROLE_TABLE_ROW` y `USER_ID` no
   tienen ninguna anotación en ninguno de los dos corpus: se detectan, pero su calidad no está medida.
   La extensión, además, no anota correo, CIF, NSS, IP, matrícula, pasaporte, QR ni URL.
+- **Número de expediente, a la espera de decisión.** La interfaz lo presenta desmarcado y no se
+  tacha; si se marca, se tacha en todos sus formatos. La API sin `disabled_types` lo tacha, como
+  todos los tipos. Falta que el ayuntamiento decida si es un dato a ocultar.
+- **Copias pegadas con texto encima.** El corpus casi no las tiene (una en el híbrido); solo las
+  cubren los casos difíciles con un DNI real, fuera del repositorio. La copia se tapa entera,
+  incluido el texto que la cruza.
+- **Lugar de nacimiento.** Se tacha solo con su etiqueta. El corpus no lo anota, así que cuenta
+  como falso positivo en las métricas.
 - **Cargos que firman.** El pie busca nombres, así que los cargos que firman (secretario, rector…)
   se tachan, como en el cuerpo. Si se decide dejarlos visibles, será con una regla que distinga
   cargo de particular, no por la posición en la página.
