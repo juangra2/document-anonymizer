@@ -151,3 +151,16 @@ def test_una_frase_con_cifras_no_es_una_etiqueta():
                 ("Valor", 402, 430))
     segments = split_labeled_row(words[:3], words[3:], find_label=find_label, height=H, gutter_x=293.3)
     assert "2024" in _covered(segments), "lo que lleva cifras se sigue tachando"
+
+
+def test_un_nombre_antes_de_otra_etiqueta_no_se_toma_por_etiqueta():
+    """Lectura de barras c4 (nomina del hibrido): "Nombre | Eva González Domínguez |
+    Doc. identitat: | 89650526E".  La etiqueta de varias palabras terminada en dos
+    puntos se usaba tambien para BUSCAR el corte, y "González Domínguez Doc.
+    identitat:" pasaba por etiqueta: se cortaba tras "Eva" y los apellidos
+    quedaban a la vista."""
+    words = row(("Nombre", 67, 103), ("Eva", 164, 181), ("González", 183, 225), ("Domínguez", 227, 270),
+                ("Doc.", 337, 358), ("identitat:", 360, 400), ("89650526E", 424, 472))
+    segments = split_labeled_row(words[:1], words[1:], find_label=find_label, height=H)
+    assert {"Eva", "González", "Domínguez"} <= _covered(segments)
+    assert "89650526E" in _covered(segments)

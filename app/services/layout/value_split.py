@@ -98,7 +98,8 @@ def _is_colon_label(word) -> bool:
     return bool(_COLON_LABEL_RE.match(word.text.strip()))
 
 
-def _remainder_label_length(words: Sequence, find_label: LabelFinder) -> int | None:
+def _remainder_label_length(words: Sequence, find_label: LabelFinder,
+                            varias_palabras: bool = False) -> int | None:
     """Longitud de la etiqueta al inicio de *words*.
 
     Además de las etiquetas reconocidas se acepta un token corto terminado en dos
@@ -116,7 +117,11 @@ def _remainder_label_length(words: Sequence, find_label: LabelFinder) -> int | N
     # Etiqueta de varias palabras terminada en dos puntos («Nombre y apellidos:»,
     # «Código postal:»): solicitud bilingüe a dos columnas, la etiqueta de la
     # columna derecha se tachaba como valor.  Solo letras: lo que lleva cifras
-    # puede ser un dato y se sigue tachando.
+    # puede ser un dato y se sigue tachando.  Y SOLO justo tras el canal de
+    # columnas: en una fila corrida, «González Domínguez Doc. identitat:» pasaba
+    # por etiqueta y los apellidos quedaban a la vista (lectura de barras c4).
+    if not varias_palabras:
+        return None
     for k in range(2, min(_MAX_PALABRAS_ETIQUETA, len(words) - 1) + 1):
         if any(any(c.isdigit() for c in w.text) for w in words[:k]):
             break
@@ -159,6 +164,7 @@ def split_labeled_row(
     label: list = list(label_words)
     label_used = False
     rest: list = list(value_words)
+    tras_canal = False
 
     def close_label() -> None:
         # Una etiqueta que se queda sin valor se registra igual: se protege, y
@@ -172,14 +178,16 @@ def split_labeled_row(
         if label and gutter_x is not None and label[-1].rect.x1 <= gutter_x <= rest[0].rect.x0:
             close_label()
             label, label_used = [], False
+            tras_canal = True
         # El valor empieza a su vez por una etiqueta («correu teléfono +34…»).
-        n = _remainder_label_length(rest, find_label)
+        n = _remainder_label_length(rest, find_label, varias_palabras=tras_canal)
         if n:
             close_label()
             label, label_used, rest = rest[:n], False, rest[n:]
             continue
         cut = _first_cut(rest, height, gutter_x, find_label)
         head, rest = (rest, []) if cut is None else (rest[:cut], rest[cut:])
+        tras_canal = bool(rest) and gutter_x is not None and head[-1].rect.x1 <= gutter_x <= rest[0].rect.x0
         segments.append(FieldSegment(label_words=label, value_words=head))
         label_used = True
         if rest:
