@@ -366,6 +366,7 @@ def redact_pdf_scanned(
                     easy_words=easy_words,
                 )
 
+                page_rects = _sin_pisar_rotulos(page_rects, ocr_page.tokens)
                 draw = ImageDraw.Draw(work_image)
                 for rect in page_rects:
                     draw.rectangle(
@@ -1691,6 +1692,37 @@ def _imagenes_pegadas_px(page: fitz.Page, zoom: float) -> list[fitz.Rect]:
         return rects
     except Exception:
         return []
+
+
+# Solape maximo (fraccion de la altura del rotulo) para considerar que la barra
+# solo MUERDE su borde.  Mas solape: el rotulo y el valor van en la misma caja del
+# OCR, y recortar la barra destaparia el valor.
+_MORDISCO_MAXIMO = 0.40
+
+
+def _sin_pisar_rotulos(rects: list[fitz.Rect], tokens: list) -> list[fitz.Rect]:
+    """La barra de un valor empieza debajo del rotulo de encima si solo le muerde
+    el pie (formulario escaneado real: "COGNOMS", "NOM", "Nº RECIBO" mordidos)."""
+    from app.services.pii.analyzer import _parece_etiqueta
+
+    rotulos = [t.rect for t in tokens if t.text and t.text.strip() and _parece_etiqueta(t.text)]
+    if not rotulos:
+        return rects
+    salida = []
+    for r in rects:
+        r = fitz.Rect(r)
+        alto = r.y1 - r.y0
+        for w in rotulos:
+            if w.x1 <= r.x0 or w.x0 >= r.x1:
+                continue                                  # no se tocan en horizontal
+            if (w.y0 + w.y1) / 2 >= (r.y0 + r.y1) / 2 or w.y1 <= r.y0:
+                continue                                  # no esta encima, o no la toca
+            if (w.y1 - r.y0) > _MORDISCO_MAXIMO * (w.y1 - w.y0):
+                continue                                  # mas que un mordisco: misma caja
+            if r.y1 - (w.y1 + 1) >= 0.5 * alto:
+                r.y0 = w.y1 + 1
+        salida.append(r)
+    return salida
 
 
 def _aplicar_red(
