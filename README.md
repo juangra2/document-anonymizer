@@ -199,8 +199,22 @@ análisis, y lo demás se quita** (`services/pdf/limpieza.py`). Se hace en dos m
   - fuera las anotaciones y campos que queden, los marcadores y el JavaScript (acción de
     apertura, árbol de nombres, acciones de anotaciones y de campos);
   - fuera los adjuntos con su árbol de nombres, las miniaturas, el XMP del documento, de cada
-    página y de cada imagen, la estructura de etiquetas y el diccionario de información;
+    página y de cada imagen, y el diccionario de información;
+  - **fuera las copias de texto: la estructura de etiquetas y el `/ActualText`, `/Alt` y `/E` del
+    contenido marcado.** Es una decisión de seguridad con un coste (ver más abajo);
   - el fichero se escribe entero, sin las versiones anteriores de un guardado incremental.
+
+**Por qué se quitan las etiquetas de estructura.** Un PDF etiquetado guarda copias del texto
+fuera de los glifos que se ven: el texto alternativo de la estructura (`/Alt`) y el `/ActualText`
+del contenido marcado. El tachado quita los glifos, pero no esas copias. Con un PDF etiquetado de
+prueba, antes de este arreglo, el DNI tachado seguía en el fichero; al copiar el texto o con un
+lector de pantalla se obtenía «DNI: 48291736K». Por eso se quitan.
+
+**El coste:** el PDF entregado deja de estar etiquetado, y la normativa de accesibilidad también
+se aplica a los PDF que el ayuntamiento publique en su web. Queda como pendiente valorar si se
+puede conservar la estructura vaciando solo esas copias (ver
+[Limitaciones](#limitaciones-conocidas-y-pendientes)). Ningún documento del corpus ni de
+`samples/real/` estaba etiquetado, así que las métricas no cambian.
 - **Imágenes que se conservan:** los JPEG pierden EXIF, GPS, XMP, IPTC, JFIF, comentarios y marcas
   del codificador (Ducky…) **sin volver a comprimirse**. Se borran esos segmentos y los datos de
   imagen quedan byte a byte iguales. Solo se quedan el perfil de color (ICC) y la marca de Adobe,
@@ -216,12 +230,14 @@ análisis, y lo demás se quita** (`services/pdf/limpieza.py`). Se hace en dos m
 | Texto libre, sellos, dibujos | a la página y analizados | a la página y analizados (OCR) | a la página y analizados | — |
 | Campos de formulario | a la página y analizados; ya no es formulario | ídem (OCR) | ídem | — |
 | Marcadores, JavaScript, miniaturas | fuera | fuera | fuera | — |
+| Etiquetas de estructura y copias de texto (`/ActualText`, `/Alt`) | fuera | se repinta | fuera | — |
 
 **Comprobación independiente.** `python -m evaluation.comprobar_metadatos salida.pdf` mira el
 fichero con ExifTool y qpdf, sin código del servicio, y dice qué queda. Lo que comprueba:
 
 - el diccionario de información y el XMP;
 - anotaciones, campos, marcadores, JavaScript, adjuntos y miniaturas;
+- la estructura de etiquetas y los `/ActualText` del contenido;
 - lo que hay dentro de cada imagen, extraída tal como está guardada;
 - las revisiones del fichero.
 
@@ -252,6 +268,7 @@ La de metadatos comprueba todo lo de la sección anterior:
 - diccionario de información y XMP del documento, de página y de imagen;
 - anotaciones, con su autor, y campos;
 - marcadores, JavaScript y adjuntos;
+- copias de texto (`/ActualText`, estructura de etiquetas);
 - metadatos dentro de los JPEG;
 - versiones anteriores.
 
@@ -623,8 +640,11 @@ dirección.
     en los documentos reales.
   - El contenido de las capas opcionales desactivadas (OCG) no se ha comprobado.
   - Se conserva el perfil de color de las fotos, que puede nombrar el perfil del dispositivo.
-  - Al quitar la estructura de etiquetas, el PDF entregado deja de estar etiquetado para
-    accesibilidad.
+- **Accesibilidad: el PDF entregado sale sin etiquetas** (decisión de seguridad, ver
+  [Metadatos y contenido oculto](#metadatos-y-contenido-oculto)). Pendiente: valorar si se puede
+  conservar la estructura vaciando solo las copias de texto (`/Alt`, `/ActualText`, `/E`) y
+  quitando los elementos que apuntan a contenido tachado. La normativa de accesibilidad también se
+  aplica a los PDF que el ayuntamiento publique en su web.
 - **Rótulo seguido de un dato en la línea siguiente, sin dos puntos.** En «NIF / DNI del titular»
   con el DNI debajo, el detector toma «NIF» por etiqueta y tacha también «/ DNI del titular» junto
   con el número: sobre-redacción del rótulo.
