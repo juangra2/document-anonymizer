@@ -535,9 +535,10 @@ Herramientas para comparar (no llaman a la API):
 | `python -m evaluation.identidad_contra --pdfs DIR --ref evaluation/work_ref` | Comprueba que la salida no ha cambiado; sale con código 1 si hay diferencias |
 | `python -m evaluation.compuerta_tipos REF PRUEBA --desmarcados T1,T2` | Compuerta: desmarcar un tipo no puede hacer desaparecer otro (ver su docstring) |
 | `python -m evaluation.rebuild_report RESULTADOS.json INFORME.html` | Regenera el HTML de un informe desde su JSON |
+| `python -m evaluation.informe_final` | Regenera `evaluation/informe_final.html`, el informe de calidad para quien no ha seguido el trabajo, desde `evaluation/reference/c4/` |
 | `python -m evaluation.comprobar_metadatos SALIDA.pdf` | Comprobación independiente de metadatos con ExifTool y qpdf (ver [Metadatos y contenido oculto](#metadatos-y-contenido-oculto)) |
 
-Los resultados de referencia están en `evaluation/reference/` (bajo seguimiento). Todo lo demás que
+Los resultados de referencia están en `evaluation/reference/` (bajo seguimiento); los de la medición final, c4, en `evaluation/reference/c4/`, junto con la lectura de barras, el banco de teléfonos y direcciones y las comprobaciones de las que sale el informe final. Todo lo demás que
 genera la evaluación (JSON, HTML, logs) está ignorado por git.
 
 ---
@@ -612,7 +613,7 @@ Esos tests (`tests/test_casos_dificiles_reales.py`, marcados `lento`) se pasan *
 medición**: son los únicos que cubren copias con texto encima.
 
 **Banco de pruebas de teléfonos y direcciones** (`scripts/banco_contacto.py`): 107 formatos reales
-detectados y tapados en versión digital y escaneada, y ninguna de las 21 trampas (expedientes,
+detectados y tapados en versión digital y escaneada, y ninguna de las 23 trampas (expedientes,
 importes, códigos postales, «la calle estaba cortada», «ver Pg. 12»…) tomada por teléfono o
 dirección.
 

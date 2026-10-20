@@ -1,0 +1,32 @@
+{
+ "casos_dificiles": {
+  "comprobado_por": "tests/test_casos_dificiles.py (inventados, en la suite) y tests/test_casos_dificiles_reales.py (reales, fuera del repositorio)",
+  "fecha": "2026-10-20",
+  "inventados": [
+   {"caso": "Certificado bancario con el IBAN repetido en la prosa", "versiones": "digital y escaneada", "resultado": "sin datos a la vista"},
+   {"caso": "Formulario bilingüe a dos columnas", "versiones": "digital y escaneada", "resultado": "sin datos a la vista"},
+   {"caso": "Anexo en A3 apaisado", "versiones": "digital y escaneada", "resultado": "sin datos a la vista"},
+   {"caso": "Bloque de firmas en fila", "versiones": "digital y escaneada", "resultado": "sin datos a la vista"}
+  ],
+  "reales": {
+   "descripcion": "Copias de un documento de identidad real pegadas en documentos: a tamaño real, a mitad de escala, girada, con un sello encima, dentro de un expediente y en un expediente escaneado. Viven fuera del repositorio.",
+   "resultado": "sin datos a la vista en ningún caso"
+  }
+ },
+ "metadatos": {
+  "comprobado_por": "evaluation/comprobar_metadatos.py (ExifTool 13.59 y qpdf 12.4.2) y tests/test_metadatos_salida.py",
+  "fecha": "2026-10-20",
+  "principio": "En el PDF entregado no queda nada oculto ni interactivo: todo lo que se ve ha pasado por el análisis y lo demás se quita.",
+  "filas": [
+   {"que": "Diccionario de información (autor, creador, productor, fechas, título, asunto, palabras clave)", "digital": "se quita", "escaneado": "se quita", "hibrido": "se quita"},
+   {"que": "XMP del documento, de cada página y de cada imagen", "digital": "se quita", "escaneado": "se quita", "hibrido": "se quita"},
+   {"que": "EXIF, GPS, XMP e IPTC de las fotos que se conservan", "digital": "se quitan sin recomprimir la foto", "escaneado": "la página se repinta", "hibrido": "se quitan o se repinta"},
+   {"que": "Versiones anteriores por guardado incremental", "digital": "se quitan", "escaneado": "se quitan", "hibrido": "se quitan"},
+   {"que": "Notas de comentario (autor y texto), adjuntos, enlaces", "digital": "se quitan", "escaneado": "se quitan", "hibrido": "se quitan"},
+   {"que": "Texto libre, sellos, dibujos y campos de formulario", "digital": "pasan a la página y se analizan", "escaneado": "pasan a la página y se analizan", "hibrido": "pasan a la página y se analizan"},
+   {"que": "Marcadores, JavaScript, miniaturas", "digital": "se quitan", "escaneado": "se quitan", "hibrido": "se quitan"},
+   {"que": "Etiquetas de estructura y copias de texto (ActualText, texto alternativo)", "digital": "se quitan", "escaneado": "se quitan", "hibrido": "se quitan"}
+  ],
+  "resultado": "Los cuatro casos de prueba cargados de metadatos (PDF digital con autor, XMP y comentarios; foto de móvil con EXIF y GPS; documento mixto; PDF guardado de forma incremental con una versión anterior sin tachar), por los tres caminos, y los documentos reales de prueba: ExifTool y qpdf no encuentran nada en la salida."
+ }
+}

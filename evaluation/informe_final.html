@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang=es>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width, initial-scale=1">
+<title>Anonimizador: informe final de calidad</title>
+<style>
+:root {
+  --fondo: #f7f6f2; --papel: #ffffff; --tinta: #1d2329; --suave: #545d66; --linea: #d9dcd6;
+  --acento: #1f5f8b; --acento-suave: #e6eef4; --bien: #2c6e49; --aviso: #8a5a00;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --fondo: #15191d; --papel: #1d2328; --tinta: #e6e8e9; --suave: #a3abb2; --linea: #343c43;
+          --acento: #7fb4d9; --acento-suave: #22313c; --bien: #7cc49a; --aviso: #e0b35a; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--fondo); color: var(--tinta);
+       font: 16px/1.55 "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 32px 20px 64px; }
+header { border-bottom: 3px solid var(--acento); padding-bottom: 16px; margin-bottom: 28px; }
+h1 { font-size: 1.9rem; margin: 0 0 6px; line-height: 1.2; }
+h2 { font-size: 1.35rem; margin: 44px 0 10px; padding-top: 8px; border-top: 1px solid var(--linea); }
+h3 { margin: 0 0 4px; font-size: 1.15rem; }
+h4 { margin: 18px 0 4px; }
+p, li { max-width: 75ch; }
+.meta { color: var(--suave); margin: 0; }
+.meta strong { color: var(--tinta); }
+.resumen { background: var(--acento-suave); border-radius: 6px; padding: 16px 20px; }
+.corpus-fila { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; }
+.corpus { background: var(--papel); border: 1px solid var(--linea); border-radius: 6px; padding: 16px 18px; }
+.corpus .desc { color: var(--suave); font-size: .92rem; margin: 2px 0; }
+dl { margin: 12px 0 0; display: grid; gap: 4px; }
+dl div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dotted var(--linea); padding: 2px 0; }
+dt { color: var(--suave); }
+dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; }
+dd.grande { font-size: 1.4rem; font-weight: 600; color: var(--acento); }
+.tabla { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; background: var(--papel); margin: 10px 0; font-size: .95rem; }
+th, td { border-bottom: 1px solid var(--linea); padding: 6px 10px; text-align: left; vertical-align: top; }
+thead th { background: var(--acento-suave); font-weight: 600; }
+tbody th { font-weight: 500; }
+td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.vacio { color: var(--suave); }
+tr.final th, tr.final td { background: var(--acento-suave); font-weight: 600; }
+.nota { color: var(--suave); font-size: .85em; font-weight: normal; }
+code { font-family: Consolas, "Courier New", monospace; font-size: .85em; color: var(--suave); }
+.glosario dt { font-weight: 600; color: var(--tinta); margin-top: 8px; }
+.glosario dd { text-align: left; margin: 0 0 4px; color: var(--tinta); }
+.glosario { display: block; }
+.ok { color: var(--bien); font-weight: 600; }
+footer { margin-top: 48px; color: var(--suave); font-size: .85rem; }
+@media print { body { background: #fff; } h2 { break-after: avoid; } .corpus, table { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Anonimizador de documentos: informe final de calidad</h1>
+  <p class=meta>Medición <strong>c4</strong> del <strong>19 de octubre de 2026</strong>, con el código del commit
+  <strong><code>f17292e</code></strong> del repositorio <code>document-anonymizer</code>.
+  Informe generado por <code>evaluation/informe_final.py</code>.</p>
+</header>
+
+<section class=resumen>
+<p><strong>En una frase:</strong> sobre 452 documentos de prueba con datos personales inventados, el
+anonimizador encuentra entre el 93 % y el
+99 % de los datos según el tipo de documento, y al
+abrir los PDF entregados el 98,7–99,1 %
+de los datos está efectivamente tapado. La media del F1 por valor de los tres tipos de documento es
+<strong>0,944</strong> (línea base: 0,839).</p>
+</section>
+
+<h2>Cómo leer las cifras</h2>
+<p>Los documentos de prueba son sintéticos: se generan con datos personales inventados y se sabe exactamente dónde
+está cada dato. Se pasan por el anonimizador y se compara lo que encuentra con lo que había.</p>
+<dl class=glosario>
+  <dt>Precisión</dt><dd>De todo lo que el anonimizador marca como dato personal, qué parte lo es de verdad. Baja si tacha texto que no hacía falta.</dd>
+  <dt>Recall (exhaustividad)</dt><dd>De todos los datos personales que hay en los documentos, qué parte encuentra. Baja si se le escapan datos.</dd>
+  <dt>F1</dt><dd>Un solo número que combina precisión y recall (su media armónica): solo es alto si las dos lo son. Va de 0 a 1.</dd>
+  <dt>Por valor y por aparición</dt><dd>«Por valor» cuenta cada dato distinto de un documento una vez (un DNI que sale tres veces es un dato), porque una vez detectado se tachan todas sus apariciones. «Por aparición» cuenta cada vez que aparece; es más estricta.</dd>
+  <dt>Falsos negativos (FN)</dt><dd>Datos personales que el anonimizador no ha detectado.</dd>
+  <dt>Falsos positivos (FP)</dt><dd>Detecciones que no son un dato personal: texto tachado de más.</dd>
+  <dt>Sobre-redacción</dt><dd>Barras que tapan el dato correcto pero se alargan sobre el texto de al lado (por ejemplo, el nombre y la palabra «NIF» que le sigue). No es un error de detección, pero estropea el documento; se cuenta aparte.</dd>
+  <dt>Lectura de barras</dt><dd>Comprobación independiente de las anteriores: se abre el PDF entregado y se intenta leer cada dato. «Tapado» es el porcentaje de datos que ya no se leen; una «fuga» es un dato que sigue legible.</dd>
+</dl>
+
+<h2>Resultados por tipo de documento</h2>
+<div class=corpus-fila>
+<section class=corpus>
+  <h3>Digital</h3>
+  <p class=desc>PDF generados por ordenador, con capa de texto.</p>
+  <p class=desc>400 documentos: 44 contratos laborales, 36 resoluciones universitarias, 34 acuerdos de adscripción, 33 formularios médicos, 33 notificaciones del ayuntamiento, 32 nóminas, 31 contratos de servicios, 31 solicitudes, 29 certificados de servicios, 29 resoluciones administrativas, 28 acuerdos modificativos, 21 notificaciones de sanción, 19 certificados de empadronamiento. Idioma: 188 en castellano, 128 en valenciano, 84 bilingües.</p>
+  <dl>
+    <div><dt>F1 por valor</dt><dd class=grande>0,950</dd></div>
+    <div><dt>F1 por aparición</dt><dd>0,947</dd></div>
+    <div><dt>Precisión</dt><dd>91,7 %</dd></div>
+    <div><dt>Recall</dt><dd>98,6 %</dd></div>
+    <div><dt>Datos detectados</dt><dd>6455</dd></div>
+    <div><dt>Falsos negativos</dt><dd>95</dd></div>
+    <div><dt>Falsos positivos</dt><dd>587</dd></div>
+    <div><dt>Sobre-redacción</dt><dd>381 barras (2897 caracteres)</dd></div>
+  </dl>
+</section>
+<section class=corpus>
+  <h3>Escaneado</h3>
+  <p class=desc>PDF que son imágenes de papel escaneado: el texto se lee por OCR.</p>
+  <p class=desc>28 documentos: 6 copias de DNI, 4 autoliquidaciones, 4 certificados de empadronamiento, 4 contratos laborales, 4 nóminas, 4 notificaciones del ayuntamiento, 2 solicitudes. Idioma: 12 en valenciano, 10 en castellano, 6 bilingües.</p>
+  <dl>
+    <div><dt>F1 por valor</dt><dd class=grande>0,947</dd></div>
+    <div><dt>F1 por aparición</dt><dd>0,915</dd></div>
+    <div><dt>Precisión</dt><dd>94,5 %</dd></div>
+    <div><dt>Recall</dt><dd>95,0 %</dd></div>
+    <div><dt>Datos detectados</dt><dd>378</dd></div>
+    <div><dt>Falsos negativos</dt><dd>20</dd></div>
+    <div><dt>Falsos positivos</dt><dd>22</dd></div>
+    <div><dt>Sobre-redacción</dt><dd>15 barras (78 caracteres)</dd></div>
+  </dl>
+</section>
+<section class=corpus>
+  <h3>Híbrido</h3>
+  <p class=desc>PDF que mezclan páginas digitales y escaneadas, o páginas con imágenes pegadas.</p>
+  <p class=desc>24 documentos: 6 expedientes con páginas escaneadas, 4 escaneados con páginas digitales, 4 impresos escaneados entre páginas digitales, 4 páginas con una copia pegada, 4 prosa densa escaneada, 2 con una página girada. Idioma: 15 bilingües, 6 en castellano, 3 en valenciano.</p>
+  <dl>
+    <div><dt>F1 por valor</dt><dd class=grande>0,934</dd></div>
+    <div><dt>F1 por aparición</dt><dd>0,903</dd></div>
+    <div><dt>Precisión</dt><dd>94,2 %</dd></div>
+    <div><dt>Recall</dt><dd>92,7 %</dd></div>
+    <div><dt>Datos detectados</dt><dd>599</dd></div>
+    <div><dt>Falsos negativos</dt><dd>47</dd></div>
+    <div><dt>Falsos positivos</dt><dd>37</dd></div>
+    <div><dt>Sobre-redacción</dt><dd>20 barras (197 caracteres)</dd></div>
+  </dl>
+</section></div>
+
+<h3 style="margin-top:22px">Media de los tres</h3>
+<p>F1 por valor: <strong>0,944</strong> · F1 por aparición: <strong>0,922</strong>.
+Es la <strong>media aritmética</strong> de los tres tipos de documento, cada uno con el mismo peso. No se suman
+los documentos: el corpus digital tiene 400 y los otros dos 28 y 24, así que una media ponderada por documentos
+diría casi lo mismo que el digital y ocultaría los escaneados y los híbridos, que son los casos difíciles y los
+que más abundan en los expedientes reales.</p>
+
+<h2>Evolución</h2>
+<p>F1 por valor en cada medición, con la misma forma de contar en todas (la línea base se ha vuelto a contar con
+ella).</p>
+<div class=tabla><table>
+<thead><tr><th>Medición</th><th>Fecha</th><th>Digital</th><th>Escaneado</th><th>Híbrido</th><th>Media</th><th>Qué cambió</th></tr></thead>
+<tbody><tr><th>Línea base</th><td>28-09-2026</td><td class=n>0,926</td><td class=n>0,872</td><td class=n>0,718</td><td class=n><strong>0,839</strong></td><td>Antes de los arreglos: los documentos híbridos iban por el camino digital.</td></tr><tr><th>c1</th><td>06-10-2026</td><td class=n>0,938</td><td class=n>0,882</td><td class=n>0,920</td><td class=n><strong>0,913</strong></td><td>Lectura de códigos QR y de barras, código seguro de verificación.</td></tr><tr><th>c2</th><td>07-10-2026</td><td class=n>0,937</td><td class=n>0,949</td><td class=n>0,927</td><td class=n><strong>0,937</strong></td><td>Arreglo del camino híbrido página a página y del tachado escaneado.</td></tr><tr><th>c3</th><td>14-10-2026</td><td class=n>0,950</td><td class=n>0,949</td><td class=n>0,933</td><td class=n><strong>0,944</strong></td><td>Barrido de todas las apariciones de un dato, filtro de contacto institucional, nombres en el pie.</td></tr><tr class=final><th>c4</th><td>19-10-2026</td><td class=n>0,950</td><td class=n>0,947</td><td class=n>0,934</td><td class=n><strong>0,944</strong></td><td>Imágenes pegadas leídas por separado, formularios, páginas giradas, dos columnas, firmas en fila.</td></tr></tbody></table></div>
+
+<h2>F1 por tipo de dato</h2>
+<p>F1 por valor de cada tipo, con el número de datos de ese tipo en el corpus entre paréntesis. «Sin datos» quiere
+decir que el corpus no tiene ninguno de ese tipo y lo detectado cuenta como falso positivo; el lugar de nacimiento,
+por ejemplo, se tacha pero el corpus no lo anota.</p>
+<div class=tabla><table>
+<thead><tr><th>Tipo de dato</th><th>Digital</th><th>Escaneado</th><th>Híbrido</th></tr></thead>
+<tbody><tr><th>Nombre de persona <code>PERSON</code></th><td class=n>0,86 <span class=nota>(857)</span></td><td class=n>0,78 <span class=nota>(50)</span></td><td class=n>0,83 <span class=nota>(96)</span></td></tr><tr><th>DNI / NIF <code>ES_DNI</code></th><td class=n>0,99 <span class=nota>(449)</span></td><td class=n>0,98 <span class=nota>(32)</span></td><td class=n>0,99 <span class=nota>(52)</span></td></tr><tr><th>NIE <code>ES_NIE</code></th><td class=n>0,96 <span class=nota>(135)</span></td><td class=n>0,86 <span class=nota>(4)</span></td><td class=n>1,00 <span class=nota>(11)</span></td></tr><tr><th>CIF de entidad <code>ES_CIF</code></th><td class=n>0,96 <span class=nota>(87)</span></td><td class=n>1,00 <span class=nota>(8)</span></td><td class=n>1,00 <span class=nota>(9)</span></td></tr><tr><th>Nº de la Seguridad Social <code>ES_NSS</code></th><td class=n>0,99 <span class=nota>(235)</span></td><td class=n>1,00 <span class=nota>(8)</span></td><td class=n>0,92 <span class=nota>(18)</span></td></tr><tr><th>Pasaporte <code>PASSPORT</code></th><td class=n>0,96 <span class=nota>(104)</span></td><td class=n>1,00 <span class=nota>(8)</span></td><td class=n>1,00 <span class=nota>(10)</span></td></tr><tr><th>Dirección postal <code>ADDRESS</code></th><td class=n>0,90 <span class=nota>(382)</span></td><td class=n>0,96 <span class=nota>(25)</span></td><td class=n>0,94 <span class=nota>(37)</span></td></tr><tr><th>Código postal <code>POSTAL_CODE</code></th><td class=n>0,96 <span class=nota>(382)</span></td><td class=n>0,98 <span class=nota>(25)</span></td><td class=n>0,97 <span class=nota>(37)</span></td></tr><tr><th>Teléfono <code>PHONE_NUMBER</code></th><td class=n>0,87 <span class=nota>(361)</span></td><td class=n>0,98 <span class=nota>(22)</span></td><td class=n>0,83 <span class=nota>(34)</span></td></tr><tr><th>Correo electrónico <code>EMAIL_ADDRESS</code></th><td class=n>0,98 <span class=nota>(310)</span></td><td class=n>1,00 <span class=nota>(10)</span></td><td class=n>0,98 <span class=nota>(24)</span></td></tr><tr><th>Cuenta bancaria (IBAN) <code>IBAN_CODE</code></th><td class=n>1,00 <span class=nota>(255)</span></td><td class=n>1,00 <span class=nota>(13)</span></td><td class=n>0,98 <span class=nota>(27)</span></td></tr><tr><th>Fecha de nacimiento <code>DATE_OF_BIRTH</code></th><td class=n>0,94 <span class=nota>(251)</span></td><td class=n>1,00 <span class=nota>(20)</span></td><td class=n>0,99 <span class=nota>(34)</span></td></tr><tr><th>Otras fechas <code>DATE_TIME</code></th><td class=n>0,96 <span class=nota>(939)</span></td><td class=n>1,00 <span class=nota>(45)</span></td><td class=n>0,95 <span class=nota>(88)</span></td></tr><tr><th>Lugar de nacimiento <code>PLACE_OF_BIRTH</code></th><td class='n vacio'>—</td><td class='n vacio'>sin datos · 3 FP</td><td class='n vacio'>sin datos · 4 FP</td></tr><tr><th>Número de expediente <code>CASE_NUMBER</code></th><td class=n>1,00 <span class=nota>(335)</span></td><td class=n>0,97 <span class=nota>(18)</span></td><td class=n>1,00 <span class=nota>(26)</span></td></tr><tr><th>Código seguro de verificación <code>CSV</code></th><td class=n>1,00 <span class=nota>(200)</span></td><td class=n>0,94 <span class=nota>(8)</span></td><td class=n>0,80 <span class=nota>(15)</span></td></tr><tr><th>Matrícula <code>LICENSE_PLATE</code></th><td class=n>0,92 <span class=nota>(59)</span></td><td class=n>0,91 <span class=nota>(6)</span></td><td class=n>0,89 <span class=nota>(9)</span></td></tr><tr><th>Dirección IP <code>IP_ADDRESS</code></th><td class=n>1,00 <span class=nota>(141)</span></td><td class=n>1,00 <span class=nota>(8)</span></td><td class=n>0,77 <span class=nota>(8)</span></td></tr><tr><th>Dirección web <code>URL</code></th><td class=n>1,00 <span class=nota>(355)</span></td><td class=n>1,00 <span class=nota>(18)</span></td><td class=n>0,88 <span class=nota>(29)</span></td></tr><tr><th>Código QR <code>QR_CODE</code></th><td class=n>1,00 <span class=nota>(333)</span></td><td class=n>0,81 <span class=nota>(16)</span></td><td class=n>1,00 <span class=nota>(12)</span></td></tr><tr><th>Importe <code>MONEY</code></th><td class=n>0,95 <span class=nota>(402)</span></td><td class=n>0,97 <span class=nota>(56)</span></td><td class=n>0,95 <span class=nota>(78)</span></td></tr><tr><th>Organización <code>ORGANIZATION</code></th><td class=n>0,90 <span class=nota>(11)</span></td><td class='n vacio'>—</td><td class=n>1,00 <span class=nota>(1)</span></td></tr><tr><th>Lugar (municipio, provincia) <code>LOCATION</code> <span class=nota>no se anonimiza</span></th><td class=n>0,00 <span class=nota>(113)</span></td><td class=n>0,00 <span class=nota>(14)</span></td><td class=n>0,00 <span class=nota>(5)</span></td></tr><tr><th>ROLE_TABLE_ROW <code>ROLE_TABLE_ROW</code> <span class=nota>no se anonimiza</span></th><td class='n vacio'>sin datos · 4 FP</td><td class='n vacio'>—</td><td class='n vacio'>—</td></tr></tbody></table></div>
+
+<h2>Lectura de barras</h2>
+<p>tapado_pct = tapados / (tapados + fugas); los no concluyentes (dato que la lectura no encuentra ni en la entrada, o tapado por una página en negro) quedan fuera.  Digital: muestra de 100 documentos (uno de cada cuatro).  Fuera de alcance (LOCATION, defectos del corpus) no cuenta.</p>
+<div class=tabla><table>
+<thead><tr><th>Tipo de documento</th><th>Documentos leídos</th><th>Tapado</th><th>Datos tapados</th><th>Fugas</th><th>No concluyentes</th></tr></thead>
+<tbody><tr><th>Digital</th><td class=n>100</td><td class=n>99,1 %</td><td class=n>1525</td><td class=n>14</td><td class=n>118</td></tr><tr><th>Escaneado</th><td class=n>28</td><td class=n>99,0 %</td><td class=n>308</td><td class=n>3</td><td class=n>88</td></tr><tr><th>Híbrido</th><td class=n>24</td><td class=n>98,7 %</td><td class=n>467</td><td class=n>6</td><td class=n>183</td></tr></tbody></table></div>
+<p>Qué son las fugas que quedan:</p>
+<h4>Digital: 14 fugas</h4><ul><li>9 × Domicilio social de la entidad empleadora (contacto institucional que el corpus etiqueta como dato personal)</li><li>4 × Domicilio de un particular dentro de la prosa («domiciliado/a en …»), con su código postal</li><li>1 × Nombre del secretario municipal que firma un certificado</li></ul><h4>Escaneado: 3 fugas</h4><ul><li>1 × Fecha de nacimiento en un certificado escaneado</li><li>1 × Fecha en un certificado escaneado</li><li>1 × Domicilio en un contrato escaneado (sin clasificar: el OCR no lo lee igual que la etiqueta)</li></ul><h4>Híbrido: 6 fugas</h4><ul><li>4 × Domicilio de un particular dentro de la prosa («domiciliado/a en …»), con su código postal</li><li>2 × Domicilio social de la entidad empleadora (contacto institucional que el corpus etiqueta como dato personal)</li></ul>
+
+<h2>Banco de teléfonos y direcciones</h2>
+<p>Una batería de formatos reales de teléfonos y direcciones (móviles con espacios, puntos o guiones, prefijos internacionales, direcciones abreviadas, en valenciano, partidas en dos líneas…) y de <em>trampas</em>: textos que se parecen pero no lo son (números de expediente, importes, códigos postales sueltos, «la calle estaba cortada»). Se fabrica en versión digital y escaneada y se lee el PDF entregado. Medido el 2026-10-20.</p><table><thead><tr><th>Versión</th><th>Formatos reales tapados</th><th>Siguen legibles</th><th>Trampas tomadas por dato</th></tr></thead><tbody><tr><td>Digital</td><td class=n>107 de 107</td><td class=n>0</td><td class=n>0 de 23</td></tr><tr><td>Escaneado</td><td class=n>107 de 107</td><td class=n>0</td><td class=n>0 de 23</td></tr></tbody></table>
+
+<h2>Casos difíciles</h2>
+<p>Documentos construidos a propósito con lo que el corpus no cubre. Se comprueba leyendo el PDF entregado.</p>
+<div class=tabla><table><thead><tr><th>Caso</th><th>Versiones</th><th>Resultado</th></tr></thead>
+<tbody><tr><td>Certificado bancario con el IBAN repetido en la prosa</td><td>digital y escaneada</td><td>sin datos a la vista</td></tr><tr><td>Formulario bilingüe a dos columnas</td><td>digital y escaneada</td><td>sin datos a la vista</td></tr><tr><td>Anexo en A3 apaisado</td><td>digital y escaneada</td><td>sin datos a la vista</td></tr><tr><td>Bloque de firmas en fila</td><td>digital y escaneada</td><td>sin datos a la vista</td></tr>
+<tr><td>Copias de un documento de identidad real pegadas en documentos: a tamaño real, a mitad de escala, girada, con un sello encima, dentro de un expediente y en un expediente escaneado. Viven fuera del repositorio.</td><td>—</td><td>sin datos a la vista en ningún caso</td></tr></tbody></table></div>
+
+<h2>Metadatos y contenido oculto</h2>
+<p>En el PDF entregado no queda nada oculto ni interactivo: todo lo que se ve ha pasado por el análisis y lo demás se quita.</p>
+<div class=tabla><table><thead><tr><th>Qué</th><th>Digital</th><th>Escaneado</th><th>Híbrido</th></tr></thead>
+<tbody><tr><th>Diccionario de información (autor, creador, productor, fechas, título, asunto, palabras clave)</th><td>se quita</td><td>se quita</td><td>se quita</td></tr><tr><th>XMP del documento, de cada página y de cada imagen</th><td>se quita</td><td>se quita</td><td>se quita</td></tr><tr><th>EXIF, GPS, XMP e IPTC de las fotos que se conservan</th><td>se quitan sin recomprimir la foto</td><td>la página se repinta</td><td>se quitan o se repinta</td></tr><tr><th>Versiones anteriores por guardado incremental</th><td>se quitan</td><td>se quitan</td><td>se quitan</td></tr><tr><th>Notas de comentario (autor y texto), adjuntos, enlaces</th><td>se quitan</td><td>se quitan</td><td>se quitan</td></tr><tr><th>Texto libre, sellos, dibujos y campos de formulario</th><td>pasan a la página y se analizan</td><td>pasan a la página y se analizan</td><td>pasan a la página y se analizan</td></tr><tr><th>Marcadores, JavaScript, miniaturas</th><td>se quitan</td><td>se quitan</td><td>se quitan</td></tr><tr><th>Etiquetas de estructura y copias de texto (ActualText, texto alternativo)</th><td>se quitan</td><td>se quitan</td><td>se quitan</td></tr></tbody></table></div>
+<p><span class=ok>Comprobado</span> con herramientas ajenas al anonimizador (evaluation/comprobar_metadatos.py (ExifTool 13.59 y qpdf 12.4.2) y tests/test_metadatos_salida.py). Los cuatro casos de prueba cargados de metadatos (PDF digital con autor, XMP y comentarios; foto de móvil con EXIF y GPS; documento mixto; PDF guardado de forma incremental con una versión anterior sin tachar), por los tres caminos, y los documentos reales de prueba: ExifTool y qpdf no encuentran nada en la salida.</p>
+
+<h2>Limitaciones conocidas</h2>
+<ul><li><strong>Corpus sintético.</strong> Las métricas se miden sobre documentos generados; el rendimiento sobre expedientes reales puede variar, sobre todo en escaneados de mala calidad.</li><li><strong>Tipos sin verdad de referencia.</strong> <code>CADASTRAL_REFERENCE</code>, <code>CASE_TABLE_ROW</code>, <code>CERT_SERIAL</code>, <code>CREDIT_CARD</code>, <code>MEDICAL_ID</code>, <code>POLICY_NUMBER</code>, <code>REGISTRY_NUMBER</code>, <code>ROLE_TABLE_ROW</code> y <code>USER_ID</code> no tienen ninguna anotación en ninguno de los dos corpus: se detectan, pero su calidad no está medida. La extensión, además, no anota correo, CIF, NSS, IP, matrícula, pasaporte, QR ni URL.</li><li><strong>Número de expediente, a la espera de decisión.</strong> Apagado por defecto en la interfaz y en la API; si se activa, se tacha en todos sus formatos. Falta que el ayuntamiento decida si es un dato a ocultar.</li><li><strong>Copias pegadas con texto encima.</strong> El corpus casi no las tiene (una en el híbrido); solo las cubren los casos difíciles con un DNI real, fuera del repositorio. La copia se tapa entera, incluido el texto que la cruza.</li><li><strong>Lugar de nacimiento.</strong> Se tacha solo con su etiqueta. El corpus no lo anota, así que cuenta como falso positivo en las métricas.</li><li><strong>Metadatos: lo que no se limpia.</strong><ul><li>No se limpian los metadatos de las imágenes JPEG 2000, de los JPEG guardados bajo otro filtro ni de las imágenes en línea dentro del contenido de la página. No se han visto en el corpus ni en los documentos reales.</li><li>El contenido de las capas opcionales desactivadas (OCG) no se ha comprobado.</li><li>Se conserva el perfil de color de las fotos, que puede nombrar el perfil del dispositivo.</li></ul></li><li><strong>Accesibilidad: el PDF entregado sale sin etiquetas</strong> (decisión de seguridad, ver Metadatos y contenido oculto). Pendiente: valorar si se puede conservar la estructura vaciando solo las copias de texto (<code>/Alt</code>, <code>/ActualText</code>, <code>/E</code>) y quitando los elementos que apuntan a contenido tachado. La normativa de accesibilidad también se aplica a los PDF que el ayuntamiento publique en su web.</li><li><strong>Rótulo seguido de un dato en la línea siguiente, sin dos puntos.</strong> En «NIF / DNI del titular» con el DNI debajo, el detector toma «NIF» por etiqueta y tacha también «/ DNI del titular» junto con el número: sobre-redacción del rótulo.</li><li><strong>Cargos que firman.</strong> El pie busca nombres, así que los cargos que firman (secretario, rector…) se tachan, como en el cuerpo. Si se decide dejarlos visibles, será con una regla que distinga cargo de particular, no por la posición en la página.</li><li><strong>Nombres seguidos en una fila.</strong> Si varios nombres van en la misma fila separados por un solo espacio, solo se detecta el último.</li><li><strong>Membrete en el escaneado.</strong> El teléfono de la centralita puede salir tachado aunque el filtro institucional lo aparta; pendiente de averiguar por qué. Y un código postal compartido por el destinatario y la institución se tacha en las dos apariciones.</li><li><strong>Filtrado de <code>PERSON</code> por gazetteer, incompleto.</strong> El gazetteer del INE refuerza nombres dudosos y descarta topónimos, pero no se aplica como filtro completo: parte de los falsos positivos de <code>PERSON</code> (frases institucionales, nombres de persona dentro de una dirección) siguen pasando.</li><li><strong>Artefacto de métrica en <code>PHONE_NUMBER</code>.</strong> Cuando el PDF tiene el número partido en varias líneas, se detecta y se tacha, pero el informe lo devuelve con saltos de línea («+34\n706\n206\n505»). El evaluador compara texto exacto y lo cuenta a la vez como falso negativo y falso positivo.</li><li><strong>O1 — Fecha de plano mal leída.</strong> En el cajetín de un plano, el OCR puede leer una fecha como «01703/2026». Pendiente de verificar con un plano real.</li><li><strong>O3 — Análisis repetido en páginas a dos columnas.</strong> Los trozos de zona se solapan y el mismo texto se analiza más de una vez. Los recuentos son correctos (se deduplica en el plan); el coste es tiempo de proceso.</li><li><strong>O4 — Marcas de agua.</strong> En algunos documentos con marca de agua (5 de 78 en el corpus) aparece un tachado gigante que tapa contenido no personal.</li><li><strong>Escaneos girados más lentos.</strong> Elegir el giro a resolución completa lleva unos 21 s de media por página girada; las páginas que no están giradas no pagan nada extra.</li><li><strong>Plano sin cajetín detectable</strong>: la página se entrega intacta, con aviso de revisión manual.</li><li><strong>Firmas y sellos por visión</strong>, desactivados: tachaban texto y logotipos legítimos.</li><li><strong>Sin autenticación</strong> y <strong>trabajos en memoria</strong> (se pierden al reiniciar): ver API.</li></ul>
+
+<footer>Generado a partir de <code>evaluation/reference/c4</code>,
+<code>evaluation/linea_base/transicion_contabilidad.json</code> y el README.
+Para regenerarlo: <code>python -m evaluation.informe_final</code>.</footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,2216 @@
+{
+ "fecha": "2026-10-20",
+ "codigo": "6a15efc",
+ "casos": {
+  "T001": {
+   "caso": {
+    "id": "T001",
+    "tipo": "PHONE_NUMBER",
+    "formato": "movil 6xx, 3-3-3, espacios",
+    "texto": "Datos facilitados: 653 464 097",
+    "valor": "653 464 097"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T002": {
+   "caso": {
+    "id": "T002",
+    "tipo": "PHONE_NUMBER",
+    "formato": "movil 6xx, 3-3-3, puntos",
+    "texto": "Datos facilitados: 630.246.633",
+    "valor": "630.246.633"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T003": {
+   "caso": {
+    "id": "T003",
+    "tipo": "PHONE_NUMBER",
+    "formato": "movil 6xx, 3-3-3, guiones",
+    "texto": "Datos facilitados: 662-992-312",
+    "valor": "662-992-312"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T004": {
+   "caso": {
+    "id": "T004",
+    "tipo": "PHONE_NUMBER",
+    "formato": "movil 6xx, 3-2-2-2, espacios",
+    "texto": "Datos facilitados: 697 36 69 46",
+    "valor": "697 36 69 46"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T005": {
+   "caso": {
+    "id": "T005",
+    "tipo": "PHONE_NUMBER",
+    "formato": "movil 6xx, 3-2-2-2, puntos",
+    "texto": "Datos facilitados: 616.48.08.94",
+    "valor": "616.48.08.94"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T006": {
+   "caso": {
+    "id": "T006",
+    "tipo": "PHONE_NUMBER",
+    "formato": "movil 6xx, 3-2-2-2, guiones",
+    "texto": "Datos facilitados: 619-72-22-33",
+    "valor": "619-72-22-33"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T007": {
+   "caso": {
+    "id": "T007",
+    "tipo": "PHONE_NUMBER",
+    "formato": "movil 6xx, sin separar",
+    "texto": "Datos facilitados: 681924865",
+    "valor": "681924865"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T008": {
+   "caso": {
+    "id": "T008",
+    "tipo": "PHONE_NUMBER",
+    "formato": "movil 7xx, 3-3-3, espacios",
+    "texto": "Datos facilitados: 722 633 920",
+    "valor": "722 633 920"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T009": {
+   "caso": {
+    "id": "T009",
+    "tipo": "PHONE_NUMBER",
+    "formato": "movil 7xx, 3-3-3, puntos",
+    "texto": "Datos facilitados: 759.081.935",
+    "valor": "759.081.935"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T010": {
+   "caso": {
+    "id": "T010",
+    "tipo": "PHONE_NUMBER",
+    "formato": "movil 7xx, 3-3-3, guiones",
+    "texto": "Datos facilitados: 788-220-482",
+    "valor": "788-220-482"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T011": {
+   "caso": {
+    "id": "T011",
+    "tipo": "PHONE_NUMBER",
+    "formato": "movil 7xx, 3-2-2-2, espacios",
+    "texto": "Datos facilitados: 717 78 44 83",
+    "valor": "717 78 44 83"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T012": {
+   "caso": {
+    "id": "T012",
+    "tipo": "PHONE_NUMBER",
+    "formato": "movil 7xx, 3-2-2-2, puntos",
+    "texto": "Datos facilitados: 778.10.68.71",
+    "valor": "778.10.68.71"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T013": {
+   "caso": {
+    "id": "T013",
+    "tipo": "PHONE_NUMBER",
+    "formato": "movil 7xx, 3-2-2-2, guiones",
+    "texto": "Datos facilitados: 738-81-63-02",
+    "valor": "738-81-63-02"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T014": {
+   "caso": {
+    "id": "T014",
+    "tipo": "PHONE_NUMBER",
+    "formato": "movil 7xx, sin separar",
+    "texto": "Datos facilitados: 715032582",
+    "valor": "715032582"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T015": {
+   "caso": {
+    "id": "T015",
+    "tipo": "PHONE_NUMBER",
+    "formato": "fijo 96x, 3-3-3, espacios",
+    "texto": "Datos facilitados: 961 535 642",
+    "valor": "961 535 642"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T016": {
+   "caso": {
+    "id": "T016",
+    "tipo": "PHONE_NUMBER",
+    "formato": "fijo 96x, 3-3-3, puntos",
+    "texto": "Datos facilitados: 968.202.938",
+    "valor": "968.202.938"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T017": {
+   "caso": {
+    "id": "T017",
+    "tipo": "PHONE_NUMBER",
+    "formato": "fijo 96x, 3-3-3, guiones",
+    "texto": "Datos facilitados: 966-126-116",
+    "valor": "966-126-116"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T018": {
+   "caso": {
+    "id": "T018",
+    "tipo": "PHONE_NUMBER",
+    "formato": "fijo 96x, 3-2-2-2, espacios",
+    "texto": "Datos facilitados: 969 37 58 36",
+    "valor": "969 37 58 36"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T019": {
+   "caso": {
+    "id": "T019",
+    "tipo": "PHONE_NUMBER",
+    "formato": "fijo 96x, 3-2-2-2, puntos",
+    "texto": "Datos facilitados: 962.30.12.41",
+    "valor": "962.30.12.41"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T020": {
+   "caso": {
+    "id": "T020",
+    "tipo": "PHONE_NUMBER",
+    "formato": "fijo 96x, 3-2-2-2, guiones",
+    "texto": "Datos facilitados: 962-17-52-94",
+    "valor": "962-17-52-94"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T021": {
+   "caso": {
+    "id": "T021",
+    "tipo": "PHONE_NUMBER",
+    "formato": "fijo 96x, sin separar",
+    "texto": "Datos facilitados: 963960310",
+    "valor": "963960310"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T022": {
+   "caso": {
+    "id": "T022",
+    "tipo": "PHONE_NUMBER",
+    "formato": "+34 con espacio, movil",
+    "texto": "Llame al +34 666 978 001",
+    "valor": "+34 666 978 001"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T023": {
+   "caso": {
+    "id": "T023",
+    "tipo": "PHONE_NUMBER",
+    "formato": "+34 con espacio, fijo",
+    "texto": "Llame al +34 967 933 677",
+    "valor": "+34 967 933 677"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T024": {
+   "caso": {
+    "id": "T024",
+    "tipo": "PHONE_NUMBER",
+    "formato": "+34 pegado, movil",
+    "texto": "Llame al +34685 893 910",
+    "valor": "+34685 893 910"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T025": {
+   "caso": {
+    "id": "T025",
+    "tipo": "PHONE_NUMBER",
+    "formato": "+34 pegado, fijo",
+    "texto": "Llame al +34966 616 417",
+    "valor": "+34966 616 417"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T026": {
+   "caso": {
+    "id": "T026",
+    "tipo": "PHONE_NUMBER",
+    "formato": "0034, movil",
+    "texto": "Llame al 0034 639 962 626",
+    "valor": "0034 639 962 626"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T027": {
+   "caso": {
+    "id": "T027",
+    "tipo": "PHONE_NUMBER",
+    "formato": "0034, fijo",
+    "texto": "Llame al 0034 964 641 177",
+    "valor": "0034 964 641 177"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T028": {
+   "caso": {
+    "id": "T028",
+    "tipo": "PHONE_NUMBER",
+    "formato": "(+34), movil",
+    "texto": "Llame al (+34) 694 212 661",
+    "valor": "(+34) 694 212 661"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T029": {
+   "caso": {
+    "id": "T029",
+    "tipo": "PHONE_NUMBER",
+    "formato": "(+34), fijo",
+    "texto": "Llame al (+34) 968 248 519",
+    "valor": "(+34) 968 248 519"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T030": {
+   "caso": {
+    "id": "T030",
+    "tipo": "PHONE_NUMBER",
+    "formato": "etiqueta 'Tel.'",
+    "texto": "Tel. 618 302 983",
+    "valor": "618 302 983"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T031": {
+   "caso": {
+    "id": "T031",
+    "tipo": "PHONE_NUMBER",
+    "formato": "etiqueta 'Tfno.'",
+    "texto": "Tfno. 687 457 446",
+    "valor": "687 457 446"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T032": {
+   "caso": {
+    "id": "T032",
+    "tipo": "PHONE_NUMBER",
+    "formato": "etiqueta 'Teléfono:'",
+    "texto": "Teléfono: 688 590 039",
+    "valor": "688 590 039"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T033": {
+   "caso": {
+    "id": "T033",
+    "tipo": "PHONE_NUMBER",
+    "formato": "etiqueta 'Telèfon:'",
+    "texto": "Telèfon: 663 241 552",
+    "valor": "663 241 552"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T034": {
+   "caso": {
+    "id": "T034",
+    "tipo": "PHONE_NUMBER",
+    "formato": "etiqueta 'Móvil:'",
+    "texto": "Móvil: 616 655 764",
+    "valor": "616 655 764"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T035": {
+   "caso": {
+    "id": "T035",
+    "tipo": "PHONE_NUMBER",
+    "formato": "etiqueta 'Mòbil:'",
+    "texto": "Mòbil: 639 673 100",
+    "valor": "639 673 100"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T036": {
+   "caso": {
+    "id": "T036",
+    "tipo": "PHONE_NUMBER",
+    "formato": "etiqueta 'Tel:'",
+    "texto": "Tel: 616 252 221",
+    "valor": "616 252 221"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T037": {
+   "caso": {
+    "id": "T037",
+    "tipo": "PHONE_NUMBER",
+    "formato": "etiqueta 'T.'",
+    "texto": "T. 684 714 297",
+    "valor": "684 714 297"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T038": {
+   "caso": {
+    "id": "T038",
+    "tipo": "PHONE_NUMBER",
+    "formato": "sin etiqueta, suelto",
+    "texto": "627 874 421",
+    "valor": "627 874 421"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T039": {
+   "caso": {
+    "id": "T039",
+    "tipo": "PHONE_NUMBER",
+    "formato": "fijo con extension 'ext.'",
+    "texto": "Tel. 968 87 07 00 ext. 214",
+    "valor": "968 87 07 00"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T040": {
+   "caso": {
+    "id": "T040",
+    "tipo": "PHONE_NUMBER",
+    "formato": "fijo con extension 'extensión'",
+    "texto": "Teléfono 966 255 890, extensión 31",
+    "valor": "966 255 890"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T041": {
+   "caso": {
+    "id": "T041",
+    "tipo": "PHONE_NUMBER",
+    "formato": "dos en la misma linea con '/' (primero)",
+    "texto": "Tel. 629 361 589 / 962 56 96 31",
+    "valor": "629 361 589"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T042": {
+   "caso": {
+    "id": "T042",
+    "tipo": "PHONE_NUMBER",
+    "formato": "dos en la misma linea con '/' (segundo)",
+    "texto": "Tel. 629 361 589 / 962 56 96 31",
+    "valor": "962 56 96 31"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T043": {
+   "caso": {
+    "id": "T043",
+    "tipo": "PHONE_NUMBER",
+    "formato": "dos sin separar con ' - ' (segundo)",
+    "texto": "Móvil 625809806 - 786626738",
+    "valor": "786626738"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T044": {
+   "caso": {
+    "id": "T044",
+    "tipo": "PHONE_NUMBER",
+    "formato": "partido por un salto de linea",
+    "texto": "puede llamar al teléfono 651 40\n37 29 en horario de mañana",
+    "valor": "651 40 37 29"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T045": {
+   "caso": {
+    "id": "T045",
+    "tipo": "PHONE_NUMBER",
+    "formato": "dentro de prosa",
+    "texto": "La persona interesada indica que puede ser localizada en el 685 196 458 durante la tarde.",
+    "valor": "685 196 458"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T046": {
+   "caso": {
+    "id": "T046",
+    "tipo": "PHONE_NUMBER",
+    "formato": "prosa en valenciano",
+    "texto": "La persona interessada pot ser localitzada al número 964 25 66 84 de vesprada.",
+    "valor": "964 25 66 84"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T047": {
+   "caso": {
+    "id": "T047",
+    "tipo": "PHONE_NUMBER",
+    "formato": "campo de formulario",
+    "texto": "Teléfono de contacto: ............ 623 83 19 03",
+    "valor": "623 83 19 03"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T048": {
+   "caso": {
+    "id": "T048",
+    "tipo": "PHONE_NUMBER",
+    "formato": "etiqueta 'Tfno.:' y numero en la linea siguiente",
+    "texto": "Tfno.:\n+34 688 061 052",
+    "valor": "+34 688 061 052"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T049": {
+   "caso": {
+    "id": "T049",
+    "tipo": "PHONE_NUMBER",
+    "formato": "nomina: telefono tras el centro de trabajo",
+    "texto": "Centro de trabajo\nUniversitat Mediterrània d'Elx\nDomicilio fiscal:\nCalle Mayor, 5, 1º A, 18001 Granada\nTfno.:\n686665755",
+    "valor": "686665755"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T050": {
+   "caso": {
+    "id": "T050",
+    "tipo": "FP_TELEFONO",
+    "formato": "expediente con 9 cifras",
+    "texto": "Expediente nº 2023/612345678",
+    "valor": "612345678"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   }
+  },
+  "T051": {
+   "caso": {
+    "id": "T051",
+    "tipo": "FP_TELEFONO",
+    "formato": "importe",
+    "texto": "Importe total: 612.345,67 euros",
+    "valor": "612.345,67"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   }
+  },
+  "T052": {
+   "caso": {
+    "id": "T052",
+    "tipo": "FP_TELEFONO",
+    "formato": "importe con espacio",
+    "texto": "Importe: 961 234 euros",
+    "valor": "961 234"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "tapado"
+   }
+  },
+  "T053": {
+   "caso": {
+    "id": "T053",
+    "tipo": "FP_TELEFONO",
+    "formato": "codigo postal",
+    "texto": "Código postal 46001 Valencia",
+    "valor": "46001"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   }
+  },
+  "T054": {
+   "caso": {
+    "id": "T054",
+    "tipo": "FP_TELEFONO",
+    "formato": "referencia catastral",
+    "texto": "Referencia catastral 9634567YJ2793S0001AB",
+    "valor": "9634567"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   }
+  },
+  "T055": {
+   "caso": {
+    "id": "T055",
+    "tipo": "FP_TELEFONO",
+    "formato": "registro de entrada (9 cifras)",
+    "texto": "Registro de entrada núm. 963456781 de 12/03/2024",
+    "valor": "963456781"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   }
+  },
+  "T056": {
+   "caso": {
+    "id": "T056",
+    "tipo": "FP_TELEFONO",
+    "formato": "cuenta CCC",
+    "texto": "CCC 2100 0418 45 0200051332",
+    "valor": "2100 0418 45"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "tapado"
+   }
+  },
+  "T057": {
+   "caso": {
+    "id": "T057",
+    "tipo": "FP_TELEFONO",
+    "formato": "fecha",
+    "texto": "Fecha 06/12/2024, hora 10:30",
+    "valor": "06/12/2024"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "tapado"
+   }
+  },
+  "T058": {
+   "caso": {
+    "id": "T058",
+    "tipo": "FP_TELEFONO",
+    "formato": "superficies",
+    "texto": "Superficie 612 m2 y 345 m2 de terraza",
+    "valor": "612"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   }
+  },
+  "D059": {
+   "caso": {
+    "id": "D059",
+    "tipo": "ADDRESS",
+    "formato": "via 'C/', con etiqueta",
+    "texto": "Domicilio: C/ Major, 11, 46022 València",
+    "valor": "C/ Major, 11, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D060": {
+   "caso": {
+    "id": "D060",
+    "tipo": "ADDRESS",
+    "formato": "via 'C/', sin etiqueta",
+    "texto": "C/ Major Literato, 18, 46022 València",
+    "valor": "C/ Major Literato, 18, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D061": {
+   "caso": {
+    "id": "D061",
+    "tipo": "ADDRESS",
+    "formato": "via 'C/.', con etiqueta",
+    "texto": "Domicilio: C/. Major, 25, 46022 València",
+    "valor": "C/. Major, 25, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D062": {
+   "caso": {
+    "id": "D062",
+    "tipo": "ADDRESS",
+    "formato": "via 'C/.', sin etiqueta",
+    "texto": "C/. Major Sueca, 32, 46022 València",
+    "valor": "C/. Major Sueca, 32, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D063": {
+   "caso": {
+    "id": "D063",
+    "tipo": "ADDRESS",
+    "formato": "via 'Calle', con etiqueta",
+    "texto": "Domicilio: Calle Mayor, 39, 46022 València",
+    "valor": "Calle Mayor, 39, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D064": {
+   "caso": {
+    "id": "D064",
+    "tipo": "ADDRESS",
+    "formato": "via 'Calle', sin etiqueta",
+    "texto": "Calle Mayor Cuba, 46, 46022 València",
+    "valor": "Calle Mayor Cuba, 46, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D065": {
+   "caso": {
+    "id": "D065",
+    "tipo": "ADDRESS",
+    "formato": "via 'Carrer', con etiqueta",
+    "texto": "Domicilio: Carrer de la Pau, 53, 46022 València",
+    "valor": "Carrer de la Pau, 53, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D066": {
+   "caso": {
+    "id": "D066",
+    "tipo": "ADDRESS",
+    "formato": "via 'Carrer', sin etiqueta",
+    "texto": "Carrer de la Pau Denia, 60, 46022 València",
+    "valor": "Carrer de la Pau Denia, 60, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D067": {
+   "caso": {
+    "id": "D067",
+    "tipo": "ADDRESS",
+    "formato": "via 'Avda.', con etiqueta",
+    "texto": "Domicilio: Avda. del Puerto, 67, 46022 València",
+    "valor": "Avda. del Puerto, 67, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D068": {
+   "caso": {
+    "id": "D068",
+    "tipo": "ADDRESS",
+    "formato": "via 'Avda.', sin etiqueta",
+    "texto": "Avda. del Puerto Cádiz, 74, 46022 València",
+    "valor": "Avda. del Puerto Cádiz, 74, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D069": {
+   "caso": {
+    "id": "D069",
+    "tipo": "ADDRESS",
+    "formato": "via 'Avda', con etiqueta",
+    "texto": "Domicilio: Avda del Puerto, 81, 46022 València",
+    "valor": "Avda del Puerto, 81, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D070": {
+   "caso": {
+    "id": "D070",
+    "tipo": "ADDRESS",
+    "formato": "via 'Avda', sin etiqueta",
+    "texto": "Avda del Puerto Burriana, 88, 46022 València",
+    "valor": "Avda del Puerto Burriana, 88, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D071": {
+   "caso": {
+    "id": "D071",
+    "tipo": "ADDRESS",
+    "formato": "via 'Av.', con etiqueta",
+    "texto": "Domicilio: Av. Blasco Ibáñez, 95, 46022 València",
+    "valor": "Av. Blasco Ibáñez, 95, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D072": {
+   "caso": {
+    "id": "D072",
+    "tipo": "ADDRESS",
+    "formato": "via 'Av.', sin etiqueta",
+    "texto": "Av. Blasco Ibáñez Puerto, 102, 46022 València",
+    "valor": "Av. Blasco Ibáñez Puerto, 102, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D073": {
+   "caso": {
+    "id": "D073",
+    "tipo": "ADDRESS",
+    "formato": "via 'Avinguda', con etiqueta",
+    "texto": "Domicilio: Avinguda del Port, 109, 46022 València",
+    "valor": "Avinguda del Port, 109, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D074": {
+   "caso": {
+    "id": "D074",
+    "tipo": "ADDRESS",
+    "formato": "via 'Avinguda', sin etiqueta",
+    "texto": "Avinguda del Port Doctor, 116, 46022 València",
+    "valor": "Avinguda del Port Doctor, 116, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D075": {
+   "caso": {
+    "id": "D075",
+    "tipo": "ADDRESS",
+    "formato": "via 'Pza.', con etiqueta",
+    "texto": "Domicilio: Pza. de la Reina, 123, 46022 València",
+    "valor": "Pza. de la Reina, 123, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D076": {
+   "caso": {
+    "id": "D076",
+    "tipo": "ADDRESS",
+    "formato": "via 'Pza.', sin etiqueta",
+    "texto": "Pza. de la Reina Matías, 130, 46022 València",
+    "valor": "Pza. de la Reina Matías, 130, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D077": {
+   "caso": {
+    "id": "D077",
+    "tipo": "ADDRESS",
+    "formato": "via 'Pza', con etiqueta",
+    "texto": "Domicilio: Pza de la Reina, 137, 46022 València",
+    "valor": "Pza de la Reina, 137, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D078": {
+   "caso": {
+    "id": "D078",
+    "tipo": "ADDRESS",
+    "formato": "via 'Pza', sin etiqueta",
+    "texto": "Pza de la Reina Pintor, 144, 46022 València",
+    "valor": "Pza de la Reina Pintor, 144, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D079": {
+   "caso": {
+    "id": "D079",
+    "tipo": "ADDRESS",
+    "formato": "via 'Plaça', con etiqueta",
+    "texto": "Domicilio: Plaça de la Mare de Déu, 151, 46022 València",
+    "valor": "Plaça de la Mare de Déu, 151, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D080": {
+   "caso": {
+    "id": "D080",
+    "tipo": "ADDRESS",
+    "formato": "via 'Plaça', sin etiqueta",
+    "texto": "Plaça de la Mare de Déu Carlos, 158, 46022 València",
+    "valor": "Plaça de la Mare de Déu Carlos, 158, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D081": {
+   "caso": {
+    "id": "D081",
+    "tipo": "ADDRESS",
+    "formato": "via 'Pg.', con etiqueta",
+    "texto": "Domicilio: Pg. de l'Albereda, 165, 46022 València",
+    "valor": "Pg. de l'Albereda, 165, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D082": {
+   "caso": {
+    "id": "D082",
+    "tipo": "ADDRESS",
+    "formato": "via 'Pg.', sin etiqueta",
+    "texto": "Pg. de l'Albereda Maestro, 172, 46022 València",
+    "valor": "Pg. de l'Albereda Maestro, 172, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D083": {
+   "caso": {
+    "id": "D083",
+    "tipo": "ADDRESS",
+    "formato": "via 'Passeig', con etiqueta",
+    "texto": "Domicilio: Passeig de l'Albereda, 179, 46022 València",
+    "valor": "Passeig de l'Albereda, 179, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D084": {
+   "caso": {
+    "id": "D084",
+    "tipo": "ADDRESS",
+    "formato": "via 'Passeig', sin etiqueta",
+    "texto": "Passeig de l'Albereda Conde, 186, 46022 València",
+    "valor": "Passeig de l'Albereda Conde, 186, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D085": {
+   "caso": {
+    "id": "D085",
+    "tipo": "ADDRESS",
+    "formato": "via 'Ctra.', con etiqueta",
+    "texto": "Domicilio: Ctra. de Barcelona, 193, 46022 València",
+    "valor": "Ctra. de Barcelona, 193, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D086": {
+   "caso": {
+    "id": "D086",
+    "tipo": "ADDRESS",
+    "formato": "via 'Ctra.', sin etiqueta",
+    "texto": "Ctra. de Barcelona Císcar, 200, 46022 València",
+    "valor": "Ctra. de Barcelona Císcar, 200, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D087": {
+   "caso": {
+    "id": "D087",
+    "tipo": "ADDRESS",
+    "formato": "via 'Ctra', con etiqueta",
+    "texto": "Domicilio: Ctra de Barcelona, 207, 46022 València",
+    "valor": "Ctra de Barcelona, 207, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D088": {
+   "caso": {
+    "id": "D088",
+    "tipo": "ADDRESS",
+    "formato": "via 'Ctra', sin etiqueta",
+    "texto": "Ctra de Barcelona Salamanca, 214, 46022 València",
+    "valor": "Ctra de Barcelona Salamanca, 214, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D089": {
+   "caso": {
+    "id": "D089",
+    "tipo": "ADDRESS",
+    "formato": "via 'Camí', con etiqueta",
+    "texto": "Domicilio: Camí de Vera, 221, 46022 València",
+    "valor": "Camí de Vera, 221, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D090": {
+   "caso": {
+    "id": "D090",
+    "tipo": "ADDRESS",
+    "formato": "via 'Camí', sin etiqueta",
+    "texto": "Camí de Vera Jorge, 228, 46022 València",
+    "valor": "Camí de Vera Jorge, 228, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D091": {
+   "caso": {
+    "id": "D091",
+    "tipo": "ADDRESS",
+    "formato": "via 'Partida', con etiqueta",
+    "texto": "Domicilio: Partida de la Torre, 235, 46022 València",
+    "valor": "Partida de la Torre, 235, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D092": {
+   "caso": {
+    "id": "D092",
+    "tipo": "ADDRESS",
+    "formato": "via 'Partida', sin etiqueta",
+    "texto": "Partida de la Torre Ciscar, 242, 46022 València",
+    "valor": "Partida de la Torre Ciscar, 242, 46022 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D093": {
+   "caso": {
+    "id": "D093",
+    "tipo": "ADDRESS",
+    "formato": "numero 'nº'",
+    "texto": "Domicilio: Calle Colón nº 249, 46004 Valencia",
+    "valor": "Calle Colón nº 249, 46004 Valencia"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D094": {
+   "caso": {
+    "id": "D094",
+    "tipo": "ADDRESS",
+    "formato": "numero 'núm.'",
+    "texto": "Domicilio: Carrer de Russafa, núm. 256, 46006 València",
+    "valor": "Carrer de Russafa, núm. 256, 46006 València"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D095": {
+   "caso": {
+    "id": "D095",
+    "tipo": "ADDRESS",
+    "formato": "sin numero 's/n'",
+    "texto": "Domicilio: Avda. de la Constitución s/n, 46009 Valencia",
+    "valor": "Avda. de la Constitución s/n, 46009 Valencia"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D096": {
+   "caso": {
+    "id": "D096",
+    "tipo": "ADDRESS",
+    "formato": "numero sin coma",
+    "texto": "Domicilio: Calle Sueca 263 46006 Valencia",
+    "valor": "Calle Sueca 263 46006 Valencia"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D097": {
+   "caso": {
+    "id": "D097",
+    "tipo": "ADDRESS",
+    "formato": "piso/puerta '3º B'",
+    "texto": "Domicilio: Calle de Pizarro, 270, 3º B, 46006 Valencia",
+    "valor": "Calle de Pizarro, 270, 3º B, 46006 Valencia"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D098": {
+   "caso": {
+    "id": "D098",
+    "tipo": "ADDRESS",
+    "formato": "piso/puerta '2ª'",
+    "texto": "Domicilio: Calle de Hernán Cortés, 277, 2ª, 46006 Valencia",
+    "valor": "Calle de Hernán Cortés, 277, 2ª, 46006 Valencia"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D099": {
+   "caso": {
+    "id": "D099",
+    "tipo": "ADDRESS",
+    "formato": "piso/puerta 'pta. 4'",
+    "texto": "Domicilio: Calle de Martínez Cubells, 284, pta. 4, 46006 Valencia",
+    "valor": "Calle de Martínez Cubells, 284, pta. 4, 46006 Valencia"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D100": {
+   "caso": {
+    "id": "D100",
+    "tipo": "ADDRESS",
+    "formato": "piso/puerta 'esc. A, 5º 9ª'",
+    "texto": "Domicilio: Calle de Barcas, 291, esc. A, 5º 9ª, 46006 Valencia",
+    "valor": "Calle de Barcas, 291, esc. A, 5º 9ª, 46006 Valencia"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D101": {
+   "caso": {
+    "id": "D101",
+    "tipo": "ADDRESS",
+    "formato": "piso/puerta 'bajo'",
+    "texto": "Domicilio: Calle de Moratín, 298, bajo, 46006 Valencia",
+    "valor": "Calle de Moratín, 298, bajo, 46006 Valencia"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D102": {
+   "caso": {
+    "id": "D102",
+    "tipo": "ADDRESS",
+    "formato": "piso/puerta 'entresuelo'",
+    "texto": "Domicilio: Calle de Ribera, 305, entresuelo, 46006 Valencia",
+    "valor": "Calle de Ribera, 305, entresuelo, 46006 Valencia"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D103": {
+   "caso": {
+    "id": "D103",
+    "tipo": "ADDRESS",
+    "formato": "sin CP ni municipio",
+    "texto": "Domicilio: Calle de Xàtiva, 312, 4º C",
+    "valor": "Calle de Xàtiva, 312, 4º C"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D104": {
+   "caso": {
+    "id": "D104",
+    "tipo": "ADDRESS",
+    "formato": "solo via y numero",
+    "texto": "Domicilio: Calle de Colón, 319",
+    "valor": "Calle de Colón, 319"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D105": {
+   "caso": {
+    "id": "D105",
+    "tipo": "ADDRESS",
+    "formato": "repartida en tres lineas",
+    "texto": "Calle del Doctor Sumsi, 326, 2º\n46005 Valencia\n(Valencia)",
+    "valor": "Calle del Doctor Sumsi, 326, 2º 46005 Valencia"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D106": {
+   "caso": {
+    "id": "D106",
+    "tipo": "ADDRESS",
+    "formato": "en prosa, castellano",
+    "texto": "El interesado reside en la calle Ruzafa número 333, piso tercero, de esta ciudad, según consta en el padrón.",
+    "valor": "calle Ruzafa número 333, piso tercero"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D107": {
+   "caso": {
+    "id": "D107",
+    "tipo": "ADDRESS",
+    "formato": "en prosa, valenciano",
+    "texto": "La persona interessada té el domicili en el carrer de Cuba, número 340, porta 7, de València, segons el padró.",
+    "valor": "carrer de Cuba, número 340, porta 7"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D108": {
+   "caso": {
+    "id": "D108",
+    "tipo": "ADDRESS",
+    "formato": "campo etiquetado 'Domicilio:'",
+    "texto": "Domicilio: Calle Sorní, 347, 46006 Valencia",
+    "valor": "Calle Sorní, 347, 46006 Valencia"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D109": {
+   "caso": {
+    "id": "D109",
+    "tipo": "ADDRESS",
+    "formato": "campo etiquetado 'Dirección:'",
+    "texto": "Dirección: Calle Grabador Esteve, 354, 46006 Valencia",
+    "valor": "Calle Grabador Esteve, 354, 46006 Valencia"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D110": {
+   "caso": {
+    "id": "D110",
+    "tipo": "ADDRESS",
+    "formato": "campo etiquetado 'Adreça:'",
+    "texto": "Adreça: Calle Joaquín Costa, 361, 46006 Valencia",
+    "valor": "Calle Joaquín Costa, 361, 46006 Valencia"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D111": {
+   "caso": {
+    "id": "D111",
+    "tipo": "ADDRESS",
+    "formato": "campo etiquetado 'Domicili:'",
+    "texto": "Domicili: Calle Almirante Cadarso, 368, 46006 Valencia",
+    "valor": "Calle Almirante Cadarso, 368, 46006 Valencia"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D112": {
+   "caso": {
+    "id": "D112",
+    "tipo": "ADDRESS",
+    "formato": "campo etiquetado 'Dom.:'",
+    "texto": "Dom.: Calle Isabel la Católica, 375, 46006 Valencia",
+    "valor": "Calle Isabel la Católica, 375, 46006 Valencia"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D113": {
+   "caso": {
+    "id": "D113",
+    "tipo": "ADDRESS",
+    "formato": "etiqueta 'Domicilio fiscal:' y valor en la linea siguiente",
+    "texto": "Domicilio fiscal:\nPaseo de Félix Pizcueta, 382, 2º B, 18001 Granada",
+    "valor": "Paseo de Félix Pizcueta, 382, 2º B, 18001 Granada"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D114": {
+   "caso": {
+    "id": "D114",
+    "tipo": "ADDRESS",
+    "formato": "nomina: domicilio tras el centro de trabajo",
+    "texto": "Centro de trabajo\nUniversitat Mediterrània d'Elx\nAntigüedad\n12 de febrer de 2015\nDomicilio fiscal:\nCalle de Játiva, 389, 4º A, 03003 Alicante",
+    "valor": "Calle de Játiva, 389, 4º A, 03003 Alicante"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "D115": {
+   "caso": {
+    "id": "D115",
+    "tipo": "FP_DIRECCION",
+    "formato": "'calle' en prosa",
+    "texto": "La calle estaba cortada por obras durante la mañana.",
+    "valor": "calle estaba cortada"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   }
+  },
+  "D116": {
+   "caso": {
+    "id": "D116",
+    "tipo": "FP_DIRECCION",
+    "formato": "lugar publico",
+    "texto": "Se celebró en la Plaza de Toros de Valencia.",
+    "valor": "Plaza de Toros"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   }
+  },
+  "D117": {
+   "caso": {
+    "id": "D117",
+    "tipo": "FP_DIRECCION",
+    "formato": "nombre propio con 'Camino'",
+    "texto": "Recorrió el Camino de Santiago en 2019.",
+    "valor": "Camino de Santiago"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   }
+  },
+  "D118": {
+   "caso": {
+    "id": "D118",
+    "tipo": "FP_DIRECCION",
+    "formato": "titulo",
+    "texto": "Avenida de la Constitución es una película de 1950.",
+    "valor": "Avenida de la Constitución"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   }
+  },
+  "D119": {
+   "caso": {
+    "id": "D119",
+    "tipo": "FP_DIRECCION",
+    "formato": "'Partida' presupuestaria",
+    "texto": "Partida presupuestaria 2024/4410/22699",
+    "valor": "Partida presupuestaria"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   }
+  },
+  "D120": {
+   "caso": {
+    "id": "D120",
+    "tipo": "FP_DIRECCION",
+    "formato": "'calle Mayor' en prosa",
+    "texto": "La calle Mayor está cortada por obras desde el lunes.",
+    "valor": "calle Mayor"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   }
+  },
+  "D121": {
+   "caso": {
+    "id": "D121",
+    "tipo": "FP_DIRECCION",
+    "formato": "'Camino' + 'número'",
+    "texto": "Recorrió el Camino de Santiago, etapa número 12.",
+    "valor": "Camino de Santiago"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   }
+  },
+  "D122": {
+   "caso": {
+    "id": "D122",
+    "tipo": "FP_DIRECCION",
+    "formato": "via + año",
+    "texto": "El Paseo de Gracia, 2023, fue el lugar elegido.",
+    "valor": "Paseo de Gracia"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   }
+  },
+  "D123": {
+   "caso": {
+    "id": "D123",
+    "tipo": "FP_DIRECCION",
+    "formato": "'avenida número' sin nombre",
+    "texto": "Según la avenida número 4 del plan urbanístico",
+    "valor": "avenida número 4"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   }
+  },
+  "D124": {
+   "caso": {
+    "id": "D124",
+    "tipo": "FP_DIRECCION",
+    "formato": "'Pg.' de pagina",
+    "texto": "Para el detalle, ver Pg. 12 del informe adjunto.",
+    "valor": "Pg. 12"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   }
+  },
+  "D125": {
+   "caso": {
+    "id": "D125",
+    "tipo": "FP_DIRECCION",
+    "formato": "'Pg.' de pagina + cifra",
+    "texto": "como se indica en la Pg. 46, 46002 ejemplares impresos",
+    "valor": "Pg. 46"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   }
+  },
+  "D126": {
+   "caso": {
+    "id": "D126",
+    "tipo": "FP_DIRECCION",
+    "formato": "'Partida' + cifra",
+    "texto": "Partida 3 del presupuesto: 46100 euros",
+    "valor": "Partida 3"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   }
+  },
+  "T127": {
+   "caso": {
+    "id": "T127",
+    "tipo": "FP_TELEFONO",
+    "formato": "carta: telefono del membrete",
+    "texto": "(en la carta de la primera pagina)",
+    "valor": "96 170 05 00"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "LEGIBLE"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "tapado"
+   }
+  },
+  "D128": {
+   "caso": {
+    "id": "D128",
+    "tipo": "FP_DIRECCION",
+    "formato": "carta: direccion del membrete",
+    "texto": "(en la carta de la primera pagina)",
+    "valor": "Plaça Major, 1, 46410 Sueca"
+   },
+   "digital": {
+    "detectado": "no",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "no",
+    "legible": "tapado"
+   }
+  },
+  "D129": {
+   "caso": {
+    "id": "D129",
+    "tipo": "ADDRESS",
+    "formato": "carta: direccion del destinatario",
+    "texto": "(en la carta de la primera pagina)",
+    "valor": "C/ Sant Josep, 14, 46410 Sueca"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  },
+  "T130": {
+   "caso": {
+    "id": "T130",
+    "tipo": "PHONE_NUMBER",
+    "formato": "carta: telefono del destinatario",
+    "texto": "(en la carta de la primera pagina)",
+    "valor": "655 214 873"
+   },
+   "digital": {
+    "detectado": "si",
+    "legible": "tapado"
+   },
+   "escaneado": {
+    "detectado": "si",
+    "legible": "tapado"
+   }
+  }
+ }
+}

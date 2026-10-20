@@ -1,0 +1,149 @@
+{
+ "fecha": "2026-10-19",
+ "codigo": "f17292e (híbrido releído con ea502de: copias pegadas con texto encima tapadas enteras)",
+ "nota": "tapado_pct = tapados / (tapados + fugas); los no concluyentes (dato que la lectura no encuentra ni en la entrada, o tapado por una página en negro) quedan fuera.  Digital: muestra de 100 documentos (uno de cada cuatro).  Fuera de alcance (LOCATION, defectos del corpus) no cuenta.",
+ "corpus": {
+  "digital": {
+   "documentos": 100,
+   "tapados": 1525,
+   "fugas": 14,
+   "no_concluyentes": 118,
+   "tapado_pct": 99.1,
+   "fugas_detalle": [
+    {
+     "documento": "certificado_empadronamiento_0019",
+     "tipo": "PERSON",
+     "que_es": "Nombre del secretario municipal que firma un certificado"
+    },
+    {
+     "documento": "contrato_laboral_0003",
+     "tipo": "ADDRESS",
+     "que_es": "Domicilio social de la entidad empleadora (contacto institucional que el corpus etiqueta como dato personal)"
+    },
+    {
+     "documento": "contrato_laboral_0011",
+     "tipo": "ADDRESS",
+     "que_es": "Domicilio social de la entidad empleadora (contacto institucional que el corpus etiqueta como dato personal)"
+    },
+    {
+     "documento": "contrato_laboral_0015",
+     "tipo": "ADDRESS",
+     "que_es": "Domicilio social de la entidad empleadora (contacto institucional que el corpus etiqueta como dato personal)"
+    },
+    {
+     "documento": "contrato_laboral_0019",
+     "tipo": "ADDRESS",
+     "que_es": "Domicilio social de la entidad empleadora (contacto institucional que el corpus etiqueta como dato personal)"
+    },
+    {
+     "documento": "contrato_laboral_0027",
+     "tipo": "ADDRESS",
+     "que_es": "Domicilio social de la entidad empleadora (contacto institucional que el corpus etiqueta como dato personal)"
+    },
+    {
+     "documento": "contrato_laboral_0031",
+     "tipo": "ADDRESS",
+     "que_es": "Domicilio social de la entidad empleadora (contacto institucional que el corpus etiqueta como dato personal)"
+    },
+    {
+     "documento": "contrato_laboral_0035",
+     "tipo": "ADDRESS",
+     "que_es": "Domicilio social de la entidad empleadora (contacto institucional que el corpus etiqueta como dato personal)"
+    },
+    {
+     "documento": "contrato_laboral_0039",
+     "tipo": "ADDRESS",
+     "que_es": "Domicilio social de la entidad empleadora (contacto institucional que el corpus etiqueta como dato personal)"
+    },
+    {
+     "documento": "contrato_laboral_0043",
+     "tipo": "ADDRESS",
+     "que_es": "Domicilio social de la entidad empleadora (contacto institucional que el corpus etiqueta como dato personal)"
+    },
+    {
+     "documento": "contrato_prestacion_servicios_0007",
+     "tipo": "ADDRESS",
+     "que_es": "Domicilio de un particular dentro de la prosa («domiciliado/a en …»), con su código postal"
+    },
+    {
+     "documento": "contrato_prestacion_servicios_0007",
+     "tipo": "POSTAL_CODE",
+     "que_es": "Domicilio de un particular dentro de la prosa («domiciliado/a en …»), con su código postal"
+    },
+    {
+     "documento": "contrato_prestacion_servicios_0031",
+     "tipo": "ADDRESS",
+     "que_es": "Domicilio de un particular dentro de la prosa («domiciliado/a en …»), con su código postal"
+    },
+    {
+     "documento": "contrato_prestacion_servicios_0031",
+     "tipo": "POSTAL_CODE",
+     "que_es": "Domicilio de un particular dentro de la prosa («domiciliado/a en …»), con su código postal"
+    }
+   ]
+  },
+  "escaneado": {
+   "documentos": 28,
+   "tapados": 308,
+   "fugas": 3,
+   "no_concluyentes": 88,
+   "tapado_pct": 99.0,
+   "fugas_detalle": [
+    {
+     "documento": "certificado_empadronamiento_0006",
+     "tipo": "DATE_OF_BIRTH",
+     "que_es": "Fecha de nacimiento en un certificado escaneado"
+    },
+    {
+     "documento": "certificado_empadronamiento_0006",
+     "tipo": "DATE_TIME",
+     "que_es": "Fecha en un certificado escaneado"
+    },
+    {
+     "documento": "contrato_laboral_0007",
+     "tipo": "ADDRESS",
+     "que_es": "Domicilio en un contrato escaneado (sin clasificar: el OCR no lo lee igual que la etiqueta)"
+    }
+   ]
+  },
+  "hibrido": {
+   "documentos": 24,
+   "tapados": 467,
+   "fugas": 6,
+   "no_concluyentes": 183,
+   "tapado_pct": 98.7,
+   "fugas_detalle": [
+    {
+     "documento": "hibrido_pagina_mixta_0020",
+     "tipo": "ADDRESS",
+     "que_es": "Domicilio social de la entidad empleadora (contacto institucional que el corpus etiqueta como dato personal)"
+    },
+    {
+     "documento": "hibrido_pagina_mixta_0041",
+     "tipo": "ADDRESS",
+     "que_es": "Domicilio social de la entidad empleadora (contacto institucional que el corpus etiqueta como dato personal)"
+    },
+    {
+     "documento": "hibrido_expediente_con_escaneo_0047",
+     "tipo": "ADDRESS",
+     "que_es": "Domicilio de un particular dentro de la prosa («domiciliado/a en …»), con su código postal"
+    },
+    {
+     "documento": "hibrido_expediente_con_escaneo_0047",
+     "tipo": "POSTAL_CODE",
+     "que_es": "Domicilio de un particular dentro de la prosa («domiciliado/a en …»), con su código postal"
+    },
+    {
+     "documento": "hibrido_prosa_densa_escaneada_0038",
+     "tipo": "ADDRESS",
+     "que_es": "Domicilio de un particular dentro de la prosa («domiciliado/a en …»), con su código postal"
+    },
+    {
+     "documento": "hibrido_prosa_densa_escaneada_0038",
+     "tipo": "POSTAL_CODE",
+     "que_es": "Domicilio de un particular dentro de la prosa («domiciliado/a en …»), con su código postal"
+    }
+   ]
+  }
+ }
+}
