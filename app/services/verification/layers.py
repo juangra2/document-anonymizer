@@ -284,12 +284,21 @@ def check_metadata(
             warnings.append(f"{embedded_count} embedded file(s) remain in the document.")
 
         # 6. Objetos: JavaScript, XMP de pagina o imagen, metadatos dentro de los JPEG
-        js = xmp_objetos = imagenes_con_metadatos = 0
+        js = xmp_objetos = imagenes_con_metadatos = copias_texto = 0
+        contenidos = {x for page in doc for x in page.get_contents()}
         for xref in range(1, doc.xref_length()):
             try:
                 objeto = doc.xref_object(xref)
             except Exception:
                 continue
+            if "/ActualText" in objeto or "/StructTreeRoot" in objeto:
+                copias_texto += 1
+            elif doc.xref_is_stream(xref) and (xref in contenidos or "/Subtype /Form" in objeto):
+                try:
+                    if b"/ActualText" in (doc.xref_stream(xref) or b""):
+                        copias_texto += 1
+                except Exception:
+                    pass
             if "/JS" in objeto or "/JavaScript" in objeto:
                 js += 1
             if "/Metadata" in objeto and xref != doc.pdf_catalog():
@@ -304,6 +313,9 @@ def check_metadata(
             warnings.append(f"JavaScript present in {js} object(s).")
         if xmp_objetos:
             warnings.append(f"XMP metadata in {xmp_objetos} page or image object(s).")
+        if copias_texto:
+            warnings.append(
+                f"Text copies (ActualText or structure tags) in {copias_texto} object(s).")
         if imagenes_con_metadatos:
             warnings.append(
                 f"{imagenes_con_metadatos} image(s) carry EXIF/XMP/IPTC or encoder metadata.")

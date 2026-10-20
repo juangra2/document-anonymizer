@@ -44,3 +44,9 @@ def test_format_no_es_un_aviso(tmp_path, analyzer):
 def test_la_nota_con_un_dato_cuenta_como_residuo(tmp_path, analyzer):
     tipos = {e.entity_type for e in check_metadata(digital_cargado(tmp_path / "d.pdf"), analyzer).entities_found}
     assert "ES_DNI" in tipos
+
+
+def test_avisa_de_copias_de_texto(tmp_path, analyzer):
+    from tests.test_metadatos_salida import _pdf_etiquetado
+
+    assert "Text copies" in _avisos(_pdf_etiquetado(tmp_path / "e.pdf"), analyzer)

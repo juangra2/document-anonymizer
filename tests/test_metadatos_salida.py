@@ -25,7 +25,7 @@ import pytest
 from PIL import Image
 
 from app.services.ocr.models import OcrPage
-from app.services.pdf.limpieza import limpiar_jpeg
+from app.services.pdf.limpieza import limpiar_jpeg, quitar_copias_de_texto
 from app.services.pii.analyzer import PiiAnalyzer
 from tests.casos_metadatos import CASOS, OCULTOS, VISIBLE_CAMPO, VISIBLE_LIBRE, foto_movil, presentes
 
@@ -240,3 +240,50 @@ def test_la_imagen_suelta_sale_sin_segmentos_de_metadatos(tmp_path):
              if "/DCTDecode" in doc.xref_object(x)]
     assert jpegs and all(limpiar_jpeg(j) == j for j in jpegs)
     assert _sin_nada_oculto(salida) == []
+
+
+def _pdf_etiquetado(destino):
+    """Como lo escribe un generador etiquetado: la linea del DNI va marcada con un
+    /ActualText (copia del texto) y la estructura lleva un texto alternativo."""
+    doc = fitz.open()
+    p = doc.new_page(width=595, height=842)
+    p.insert_text((72, 100), "Interesada: Marta Ferrer Soler, vecina de Valencia", fontsize=12)
+    p.insert_text((72, 120), "Resolucion del expediente de licencia de obra menor", fontsize=12)
+    contenido = p.get_contents()[0]
+    flujo = doc.xref_stream(contenido)
+    fuente = re.search(rb"/(\w+) [\d.]+ Tf", flujo).group(1)
+    doc.update_stream(contenido, flujo + b"\n/Span <</ActualText (DNI: 48291736K) /Alt <48291736> /Lang (es)>> BDC BT /"
+                      + fuente + b" 12 Tf 72 692 Td (DNI: 48291736K) Tj ET EMC\n")
+    elemento = doc.get_new_xref()
+    doc.update_object(elemento, "<</Type/StructElem/S/Figure/Alt (Foto del DNI 48291736K)>>")
+    raiz = doc.get_new_xref()
+    doc.update_object(raiz, f"<</Type/StructTreeRoot/K {elemento} 0 R>>")
+    doc.xref_set_key(doc.pdf_catalog(), "StructTreeRoot", f"{raiz} 0 R")
+    doc.save(destino)
+    return destino
+
+
+@pytest.mark.parametrize("camino", ["digital", "hibrido"])
+def test_el_actualtext_no_guarda_una_copia_del_dato_tachado(camino, caminos, tmp_path):
+    """El /ActualText del contenido marcado sobrevivia al tachado: los glifos se
+    iban, pero copiar el texto o un lector de pantalla devolvian el DNI."""
+    entrada = _pdf_etiquetado(tmp_path / "etiquetado.pdf")
+    salida = tmp_path / "salida.pdf"
+    caminos[camino](entrada, salida)
+    assert "48291736K" not in fitz.open(salida)[0].get_text()
+    todo = presentes(salida, ["48291736K", "ActualText", "StructTreeRoot"])
+    assert todo == []
+    assert "Resolucion del expediente" in fitz.open(salida)[0].get_text()
+
+
+
+def test_quitar_copias_de_texto_respeta_el_resto_del_flujo():
+    flujo = (b"q /Span <</Lang (es) /ActualText (DNI \\) (anidado) 48291736K) /MCID 3>> BDC "
+             b"BT (x) Tj ET EMC /P <</Alt <FEFF0034>>> BDC EMC "
+             b"/E 12 Tf <</ActualText (no es BDC)>> Q")
+    limpio = quitar_copias_de_texto(flujo)
+    assert b"48291736K" not in limpio and b"FEFF0034" not in limpio
+    assert b"/Lang (es)" in limpio and b"/MCID 3" in limpio
+    assert b"/E 12 Tf" in limpio, "un nombre de recurso /E fuera de un BDC no se toca"
+    assert b"(no es BDC)" in limpio, "un diccionario que no es de contenido marcado no se toca"
+    assert quitar_copias_de_texto(b"BT (sin marcado) Tj ET") == b"BT (sin marcado) Tj ET"

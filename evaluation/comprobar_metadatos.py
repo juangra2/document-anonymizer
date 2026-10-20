@@ -11,6 +11,7 @@ queda de lo que no deberia estar en un PDF publicado:
   - miniaturas de pagina
   - EXIF, GPS, XMP, IPTC, comentarios y marcas del codificador dentro de las
     imagenes (el perfil de color y la marca de Adobe se conservan a proposito)
+  - copias de texto: /ActualText del contenido marcado y estructura de etiquetas
   - versiones anteriores por guardado incremental
 
 Solo imprime nombres de campo y recuentos, nunca valores: sirve tambien para los
@@ -174,7 +175,19 @@ def comprobar(ruta: Path, exiftool: str, qpdf: str) -> list[str]:
     if encontrados:
         queda.append("dentro de las imagenes: " + ", ".join(f"{g} ({n})" for g, n in sorted(encontrados.items())))
 
-    # 4. Versiones anteriores
+    # 4. Copias de texto: /ActualText en el contenido marcado y estructura de etiquetas
+    if "/StructTreeRoot" in raiz:
+        queda.append("catalogo: estructura de etiquetas")
+    with tempfile.TemporaryDirectory() as tmp:
+        qdf = Path(tmp) / "q.pdf"
+        subprocess.run([qpdf, "--qdf", "--object-streams=disable", str(ruta), str(qdf)],
+                       capture_output=True)
+        if qdf.exists():
+            n = qdf.read_bytes().count(b"/ActualText")
+            if n:
+                queda.append(f"ActualText (copias de texto) x{n}")
+
+    # 5. Versiones anteriores
     crudo = ruta.read_bytes()
     revisiones = crudo.count(b"%%EOF")
     if revisiones > 1 or re.search(rb"/Prev\s+\d+", crudo):

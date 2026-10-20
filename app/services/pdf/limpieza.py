@@ -92,15 +92,93 @@ def limpiar_para_entregar(doc: fitz.Document) -> None:
     except Exception:
         pass
     _quitar_claves(doc, doc.pdf_catalog(), _CATALOGO)
+    contenidos = {x for page in doc for x in page.get_contents()}
     for xref in range(1, doc.xref_length()):
         try:
-            _limpiar_objeto(doc, xref)
+            _limpiar_objeto(doc, xref, contenidos)
         except Exception:  # un objeto roto no impide entregar el resto limpio
             logger.debug("objeto %d sin limpiar", xref, exc_info=True)
 
 
-def _limpiar_objeto(doc: fitz.Document, xref: int) -> None:
+# Copias de texto en el contenido marcado (/Span <</ActualText (...)>> BDC): el
+# tachado quita los glifos pero no estas propiedades, y copiar el texto o un
+# lector de pantalla las devuelven.  Tambien el texto alternativo y la expansion
+# de abreviaturas.
+_COPIAS_DE_TEXTO = (b"/ActualText", b"/Alt", b"/E")
+
+
+def _fin_de_cadena(datos: bytes, i: int) -> int:
+    """Indice tras la cadena PDF (literal o hexadecimal) que empieza en i, o -1."""
+    if datos[i:i + 1] == b"<":
+        fin = datos.find(b">", i)
+        return -1 if fin < 0 else fin + 1
+    if datos[i:i + 1] != b"(":
+        return -1
+    profundidad, j = 0, i
+    while j < len(datos):
+        c = datos[j:j + 1]
+        if c == b"\\":
+            j += 2
+            continue
+        if c == b"(":
+            profundidad += 1
+        elif c == b")":
+            profundidad -= 1
+            if profundidad == 0:
+                return j + 1
+        j += 1
+    return -1
+
+
+def quitar_copias_de_texto(flujo: bytes) -> bytes:
+    """Quita /ActualText, /Alt y /E de las propiedades del contenido marcado.
+
+    Solo dentro de un diccionario en linea seguido de BDC; el resto del flujo,
+    byte a byte igual.
+    """
+    if b"BDC" not in flujo or not any(c in flujo for c in _COPIAS_DE_TEXTO):
+        return flujo
+    salida = bytearray()
+    i = 0
+    for m in re.finditer(rb"<<(?:[^<>]|<[0-9A-Fa-f\s]*>|\((?:\\.|[^\\)])*\))*?>>\s*BDC", flujo, re.S):
+        salida += flujo[i:m.start()]
+        dic = m.group(0)
+        limpio = bytearray()
+        j = 0
+        while j < len(dic):
+            clave = next((c for c in _COPIAS_DE_TEXTO
+                          if dic.startswith(c, j) and not dic[j + len(c):j + len(c) + 1].isalnum()), None)
+            if clave is None:
+                limpio += dic[j:j + 1]
+                j += 1
+                continue
+            k = j + len(clave)
+            while k < len(dic) and dic[k:k + 1] in b" \t\r\n":
+                k += 1
+            fin = _fin_de_cadena(dic, k)
+            if fin < 0:
+                limpio += dic[j:j + 1]
+                j += 1
+                continue
+            j = fin
+        salida += limpio
+        i = m.end()
+    salida += flujo[i:]
+    return bytes(salida)
+
+
+def _limpiar_objeto(doc: fitz.Document, xref: int, contenidos: set[int]) -> None:
     objeto = doc.xref_object(xref)
+    # Propiedades con nombre (/Properties del recurso) y elementos de estructura
+    if "/ActualText" in objeto or ("/Alt" in objeto and "/Type /StructElem" in objeto):
+        _quitar_claves(doc, xref, ("ActualText", "Alt", "E"))
+        objeto = doc.xref_object(xref)
+    # Flujos de contenido: los de pagina y los formularios XObject
+    if doc.xref_is_stream(xref) and ("/Subtype /Form" in objeto or xref in contenidos):
+        flujo = doc.xref_stream(xref)
+        limpio = quitar_copias_de_texto(flujo) if flujo else flujo
+        if limpio != flujo:
+            doc.update_stream(xref, limpio)
     if "/Metadata" in objeto:
         _quitar_claves(doc, xref, ("Metadata",))
     # Acciones JavaScript sueltas (de un campo o un enlace ya quitados quedan

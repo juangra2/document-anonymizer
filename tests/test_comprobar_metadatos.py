@@ -24,3 +24,10 @@ def test_la_salida_queda_limpia(caso, camino, caminos, tmp_path):  # noqa: F811
     salida = tmp_path / f"{caso}_{camino}.pdf"
     caminos[camino](entrada, salida)
     assert comprobar(salida, *herramientas()) == []
+
+
+def test_ve_las_copias_de_texto(tmp_path):
+    from tests.test_metadatos_salida import _pdf_etiquetado
+
+    queda = " | ".join(comprobar(_pdf_etiquetado(tmp_path / "e.pdf"), *herramientas()))
+    assert "ActualText" in queda and "estructura de etiquetas" in queda
