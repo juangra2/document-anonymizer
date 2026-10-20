@@ -22,9 +22,11 @@ su F1 no dice lo que parece decir.
 
 Uso:
     python -m evaluation.agregado \\
-        --digital evaluation/resultados_digital.json \\
-        --escaneado evaluation/resultados_escaneado.json \\
-        --hibrido evaluation/resultados_hibrido.json
+        --digital evaluation/reference/c4/resultados_digital.json \\
+        --escaneado evaluation/reference/c4/resultados_escaneado.json \\
+        --hibrido evaluation/reference/c4/resultados_hibrido.json
+
+Sin argumentos usa los de la medicion final (c4).
 """
 from __future__ import annotations
 
@@ -230,11 +232,11 @@ def main() -> None:
         description="Junta las metricas de los tres corpus por camino.",
     )
     parser.add_argument("--digital", type=Path,
-                        default=Path("evaluation/resultados_digital.json"))
+                        default=Path("evaluation/reference/c4/resultados_digital.json"))
     parser.add_argument("--escaneado", type=Path,
-                        default=Path("evaluation/resultados_escaneado.json"))
+                        default=Path("evaluation/reference/c4/resultados_escaneado.json"))
     parser.add_argument("--hibrido", type=Path,
-                        default=Path("evaluation/resultados_hibrido.json"))
+                        default=Path("evaluation/reference/c4/resultados_hibrido.json"))
     parser.add_argument("--json", type=Path, default=None,
                         help="Guardar el resumen combinado en este fichero")
     args = parser.parse_args()

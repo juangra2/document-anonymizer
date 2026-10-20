@@ -1,7 +1,7 @@
 """Compara dos corridas de evaluación: métricas globales y por tipo.
 
 Uso:
-    python -m evaluation.comparar_eval evaluation/reference/results_main.json evaluation/results.json
+    python -m evaluation.comparar_eval evaluation/reference/c4/resultados_digital.json evaluation/results.json
     python -m evaluation.comparar_eval REF NUEVA --umbral 0.01
 
 Marca los tipos cuyo F1 se mueve al menos `--umbral`.  Solo lee los JSON que

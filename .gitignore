@@ -60,6 +60,14 @@ evaluation/report*.html
 evaluation/checkpoint*.jsonl
 evaluation/*.pdf
 evaluation/work*/
+# Salidas, puntos de control, resultados e informes de cada corrida, en la raiz de
+# evaluation/.  La medicion final esta en evaluation/reference/c4/ (bajo
+# seguimiento) y el informe final, que si se sube, se regenera desde ahi.
+evaluation/salidas_*/
+evaluation/*.jsonl
+evaluation/*.json
+evaluation/*.html
+!evaluation/informe_final.html
 input/
 
 # Model weights (large binary files — download separately)

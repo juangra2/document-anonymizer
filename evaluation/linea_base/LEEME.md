@@ -26,7 +26,8 @@ diferencia ya deciden, y habria que repetirla despues del arreglo igualmente.
 
 El evaluador compara listas de entidades; no abre el PDF de salida. Una barra
 negra pintada al lado del dato cuenta como acierto. El desplazamiento de barras
-del camino hibrido esta documentado a mano (samples/mixtos), no en estas cifras.
+del camino hibrido se documento a mano con unos documentos mixtos fabricados (ya retirados:
+los cubren el corpus hibrido y los casos dificiles), no en estas cifras.
 
 ## Contabilidad nueva (06-10-2026): por valor y con paginas en negro
 

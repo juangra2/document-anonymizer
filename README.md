@@ -621,6 +621,12 @@ dirección.
 
 ## Limitaciones conocidas y pendientes
 
+- **Domicilios de particulares en prosa.** Un domicilio dentro de una frase («domiciliado/a en
+  Ctra. de España, 60, Entresuelo Centro, 08002 Barcelona») puede quedar sin detectar, con su código
+  postal. Son 8 de las 23 fugas de la lectura de barras de c4 (4 domicilios, en el digital y en el
+  híbrido) y las únicas que son datos personales de verdad: las demás son el domicilio social de la
+  entidad empleadora, que es contacto institucional, el nombre del secretario que firma un
+  certificado y fechas de un certificado escaneado.
 - **Corpus sintético.** Las métricas se miden sobre documentos generados; el rendimiento sobre
   expedientes reales puede variar, sobre todo en escaneados de mala calidad.
 - **Tipos sin verdad de referencia.** `CADASTRAL_REFERENCE`, `CASE_TABLE_ROW`, `CERT_SERIAL`,

@@ -1,7 +1,7 @@
 """Regenera el HTML de un informe desde su results-JSON ya guardado.
 
 Uso:
-    python -m evaluation.rebuild_report evaluation/reference/results_main.json evaluation/report_main.html
+    python -m evaluation.rebuild_report evaluation/reference/c4/resultados_digital.json evaluation/report_digital.html
 """
 import json
 import sys
