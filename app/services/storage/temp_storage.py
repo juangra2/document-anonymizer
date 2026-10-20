@@ -6,6 +6,30 @@ from app.core.config import settings
 from app.services.storage import propiedad
 
 
+def comprobar_carpeta_de_trabajos() -> None:
+    """Al arrancar: que se pueda escribir donde van los documentos.
+
+    El error tipico del primer despliegue es montar en /data/trabajos una
+    carpeta del servidor que pertenece a root: el servicio, que no corre como
+    root (UID 10001), arrancaba y fallaba con el primer documento.  Ahora se
+    para al arrancar y dice como arreglarlo.
+    """
+    root = Path(settings.temp_root)
+    prueba = root / f".prueba_escritura_{uuid4().hex}"
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        prueba.write_bytes(b"ok")
+        prueba.unlink()
+    except OSError as exc:
+        raise RuntimeError(
+            f"No se puede escribir en la carpeta de trabajos {root} ({exc.__class__.__name__}).  "
+            "El servicio corre con el usuario 10001, no como root.  Si se ha montado una carpeta "
+            f"del servidor en {root}, hay que darle permiso: en el servidor, "
+            "'sudo chown -R 10001:10001 <carpeta>' (y 'chmod 700 <carpeta>').  Con el volumen "
+            "con nombre del docker-compose no hace falta.  Se configura con TEMP_ROOT."
+        ) from exc
+
+
 def scratch_dir(prefix: str) -> "TemporaryDirectory[str]":
     """Carpeta temporal de trabajo, bajo el directorio del servicio.
 

@@ -1,3 +1,5 @@
+import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -9,7 +11,9 @@ from app.api.query_normalization import DisabledTypesQueryMiddleware
 from app.api.jobs import router as jobs_router
 from app.api.routes import router as anonymize_router
 from app.core.config import settings
+from app.core.dispositivo import avisar_al_arrancar
 from app.core.logging import configure_logging
+from app.services.storage.temp_storage import comprobar_carpeta_de_trabajos
 from app.services.jobs import job_store
 
 
@@ -18,6 +22,17 @@ configure_logging()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    # Antes de nada: si no se puede escribir en la carpeta de trabajos, parar
+    # aqui con el motivo, no con el primer documento.
+    try:
+        comprobar_carpeta_de_trabajos()
+    except RuntimeError as exc:
+        # Salida directa: con SystemExit, uvicorn imprimia 50 lineas de traza
+        # y el motivo quedaba enterrado en medio.
+        logging.getLogger("app").critical("%s", exc)
+        logging.shutdown()
+        os._exit(1)
+    avisar_al_arrancar()
     # Lo que quedó de una ejecución anterior son documentos que nadie puede ya
     # descargar —sus identificadores murieron con el proceso— pero que siguen
     # en disco con datos personales dentro.

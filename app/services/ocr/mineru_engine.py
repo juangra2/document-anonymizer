@@ -31,6 +31,7 @@ from typing import Any
 import fitz
 from PIL import Image
 
+from app.core.dispositivo import usar_gpu
 from app.services.ocr.base import OcrEngine
 from app.services.ocr.models import OcrPage, OcrToken
 
@@ -230,13 +231,17 @@ class MinerUEngine(OcrEngine):
     # Internals
     # ------------------------------------------------------------------
 
+    def _dispositivo(self) -> str:
+        # "cuda" sin CUDA reventaba al primer escaneado: sin tarjeta, CPU.
+        return "cuda" if usar_gpu(self._use_gpu) else "cpu"
+
     def _get_client(self) -> Any:
         """Lazily initialise and cache the MinerUClient."""
         if self._client is not None:
             return self._client
 
         model_path = self._resolve_model_path()
-        device = "cuda" if self._use_gpu else "cpu"
+        device = self._dispositivo()
 
         logger.info(
             "Loading MinerU2.5-Pro model from '%s' (backend=%s, device=%s)...",

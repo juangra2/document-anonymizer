@@ -53,7 +53,9 @@ def _gpu_state() -> dict[str, Any]:
     state["torch"] = torch.__version__
     state["cuda"] = torch.version.cuda
     try:
-        if torch.cuda.is_available():
+        from app.core.dispositivo import cuda_disponible
+
+        if cuda_disponible():
             state["available"] = True
             state["devices"] = torch.cuda.device_count()
             state["name"] = torch.cuda.get_device_name(0)

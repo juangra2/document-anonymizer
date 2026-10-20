@@ -5,9 +5,11 @@ from app.core.config import settings
 # Presidio reads PRESIDIO_DEVICE at import time to pick the NER device.  Drive it
 # from settings so the transformer NER can use the GPU when available; spaCy
 # degrades to CPU automatically if GPU support (cupy) is absent.
+from app.core.dispositivo import usar_gpu  # noqa: E402
+
 os.environ.setdefault(
     "PRESIDIO_DEVICE",
-    "cuda" if settings.ner_use_gpu else "cpu",
+    "cuda" if usar_gpu(settings.ner_use_gpu) else "cpu",
 )
 
 import logging
