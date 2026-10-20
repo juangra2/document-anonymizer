@@ -1,0 +1,13 @@
+# Lista de PERMITIDOS: se excluye todo y solo entra lo que la imagen necesita.
+# Asi nada de samples/ (y menos samples/real/, con datos personales), del
+# corpus, de las salidas de evaluacion, de .git ni de .venv puede colarse por
+# descuido al anadir ficheros nuevos al repositorio.
+*
+!app/
+!docker/requirements.txt
+!model/MinerU2.5-Pro-2604-1.2B/
+!model/easyocr/
+
+# Dentro de lo permitido, fuera las caches.
+**/__pycache__
+**/*.pyc

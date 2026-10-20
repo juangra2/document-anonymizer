@@ -1,25 +1,42 @@
+# Arranque del anonimizador con Docker Compose:   docker compose up -d
+# Parar:                                          docker compose down
+# Ver el registro:                                docker compose logs -f
+#
+# Todo lo configurable va por variables.  Se pueden poner en un fichero .env
+# junto a este (GPU_DEVICE=1, HOST_PORT=8080...) o en el propio entorno.
 services:
-  anonymizer-api:
-    build: .
+  anonimizador:
+    image: anonimizador:1.0
+    container_name: anonimizador
+    restart: unless-stopped
     ports:
-      - "8000:8000"
+      # puerto del servidor : puerto dentro del contenedor (no cambiar el segundo)
+      - "${HOST_PORT:-8000}:8000"
     environment:
-      TEMP_ROOT: /tmp/anonymizer
-      MAX_UPLOAD_MB: 200
-      MAX_PDF_PAGES: 300
-      STORE_ORIGINAL: "false"
-      STORE_REDACTED_TEMP: "true"
-      DELETE_TEMP_FILES: "true"
-      LOG_PII: "false"
-      PRESIDIO_SCORE_THRESHOLD: 0.55
-      MIN_DIGITAL_TEXT_CHARS: 30
-      # Un documento a la vez: es el limite de acceso a la GPU.
-      MAX_CONCURRENT_DOCUMENTS: 1
-      JOB_QUEUE_MAX: 20
-      RESULT_TTL_MINUTES: 360
-    # Los trabajos viven aqui hasta caducar: con 200 MB por documento y 20 en
-    # cola, los 512 MB de antes se llenaban con tres expedientes.  Es memoria,
-    # no disco, asi que el tamano se revisa al montar el despliegue definitivo.
-    tmpfs:
-      - /tmp/anonymizer:size=8g,mode=0700
-    read_only: false
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-200}
+      MAX_PDF_PAGES: ${MAX_PDF_PAGES:-300}
+      RESULT_TTL_MINUTES: ${RESULT_TTL_MINUTES:-360}
+      JOB_QUEUE_MAX: ${JOB_QUEUE_MAX:-20}
+      # Un documento a la vez: es el limite de la memoria de la GPU.
+      MAX_CONCURRENT_DOCUMENTS: ${MAX_CONCURRENT_DOCUMENTS:-1}
+      LOG_PII: ${LOG_PII:-false}
+      OCR_USE_GPU: ${OCR_USE_GPU:-true}
+      # spaCy en CPU (es como se midio; en GPU necesitaria CuPy).
+      NER_USE_GPU: ${NER_USE_GPU:-false}
+      ROOT_PATH: ${ROOT_PATH:-}
+    volumes:
+      # Volumen con nombre: Docker lo crea con el dueno correcto (UID 10001).
+      # Para usar una carpeta del servidor, ver README ("Carpeta de trabajos").
+      - trabajos:/data/trabajos
+    deploy:
+      resources:
+        reservations:
+          devices:
+            # UNA tarjeta, la que diga GPU_DEVICE (0 por defecto).  En un
+            # servidor compartido con varias, nunca todas.
+            - driver: nvidia
+              device_ids: ["${GPU_DEVICE:-0}"]
+              capabilities: [gpu]
+
+volumes:
+  trabajos:
