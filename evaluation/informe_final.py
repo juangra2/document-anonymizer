@@ -7,7 +7,7 @@ Todo sale de ficheros bajo seguimiento, asi que se regenera tras cada medicion:
   evaluation/reference/c4/banco_contacto.json                          banco de telefonos y direcciones
   evaluation/reference/c4/comprobaciones.json                          casos dificiles y metadatos
   evaluation/linea_base/transicion_contabilidad.json                   evolucion (linea base a c4)
-  README.md, seccion "Limitaciones conocidas y pendientes"
+  docs/memoria.md, seccion "Limitaciones conocidas y pendientes"
 
 El HTML es autocontenido: sin librerias ni fuentes de internet.
 
@@ -100,7 +100,7 @@ def _idiomas(resultados: dict) -> str:
 
 
 def _markdown_simple(md: str) -> str:
-    """Lista de viñetas del README a HTML (negritas, código y enlaces internos como texto)."""
+    """Lista de viñetas de la memoria a HTML (negritas, código y enlaces internos como texto)."""
     salida, item = [], None
     nivel_anterior = 0
 
@@ -135,9 +135,9 @@ def _markdown_simple(md: str) -> str:
 
 
 def _limitaciones() -> str:
-    readme = (RAIZ / "README.md").read_text(encoding="utf-8")
-    m = re.search(r"^## Limitaciones conocidas y pendientes\n(.*?)(?=^---|^## )", readme, re.S | re.M)
-    return _markdown_simple(m.group(1)) if m else "<p>(sin sección de limitaciones en el README)</p>"
+    memoria = (RAIZ / "docs/memoria.md").read_text(encoding="utf-8")
+    m = re.search(r"^## Limitaciones conocidas y pendientes\n(.*?)(?=^---|^## )", memoria, re.S | re.M)
+    return _markdown_simple(m.group(1)) if m else "<p>(sin sección de limitaciones en la memoria)</p>"
 
 
 def _banco(ruta: Path) -> str:
@@ -388,7 +388,7 @@ por ejemplo, se tacha pero el corpus no lo anota.</p>
 {_limitaciones()}
 
 <footer>Generado a partir de <code>{_e(ref.relative_to(RAIZ).as_posix())}</code>,
-<code>evaluation/linea_base/transicion_contabilidad.json</code> y el README.
+<code>evaluation/linea_base/transicion_contabilidad.json</code> y la memoria técnica (<code>docs/memoria.md</code>).
 Para regenerarlo: <code>python -m evaluation.informe_final</code>.</footer>
 </main>
 </body>
