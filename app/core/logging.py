@@ -25,16 +25,35 @@ PII_PATTERNS = [
 ]
 
 
+def _tachar(texto: str) -> str:
+    for pattern in PII_PATTERNS:
+        texto = pattern.sub("[REDACTED]", texto)
+    return texto
+
+
 class NoPIIFilter(logging.Filter):
+    """Tacha los datos reconocibles en el mensaje y en cada argumento.
+
+    Los argumentos se tachan uno a uno, sin juntarlos en el mensaje: el
+    formateador de accesos de uvicorn los lee por posicion (cliente, metodo,
+    ruta...) y con los argumentos vaciados fallaba en cada peticion.
+    """
+
     def filter(self, record: logging.LogRecord) -> bool:
-        message = record.getMessage()
-
-        for pattern in PII_PATTERNS:
-            message = pattern.sub("[REDACTED]", message)
-
-        record.msg = message
-        record.args = ()
-
+        if isinstance(record.msg, str):
+            record.msg = _tachar(record.msg)
+        if isinstance(record.args, tuple):
+            record.args = tuple(_tachar(a) if isinstance(a, str) else a for a in record.args)
+        elif isinstance(record.args, dict):
+            record.args = {k: _tachar(v) if isinstance(v, str) else v for k, v in record.args.items()}
+        # Un dato partido entre el mensaje y un argumento (o que solo se forma
+        # al juntarlos): se comprueba tambien el resultado final.
+        try:
+            final = record.getMessage()
+        except Exception:  # noqa: BLE001 — un mensaje mal formado no se toca
+            return True
+        if _tachar(final) != final:
+            record.msg, record.args = _tachar(final), ()
         return True
 
 
