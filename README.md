@@ -101,6 +101,8 @@ recordarlo. En una carpeta propia del servicio (por ejemplo `/opt/anonimizador`)
 contenido:
 
 ```yaml
+name: anonimizador
+
 services:
   anonimizador:
     image: anonimizador:1.0
@@ -309,7 +311,7 @@ pip install -e ".[test,mineru]"
 python -m spacy download es_core_news_md
 
 # Pesos de MinerU (≈2,2 GB)
-hf download opendatalab/MinerU2.5-Pro-2604-1.2B --local-dir model/MinerU2.5-Pro-2604-1.2B
+hf download opendatalab/MinerU2.5-Pro-2604-1.2B --local-dir data/model/MinerU2.5-Pro-2604-1.2B
 
 cp .env.example .env
 uvicorn app.main:app --host 127.0.0.1 --port 8000
@@ -332,16 +334,18 @@ Los tests de metadatos con ExifTool y qpdf se saltan si esas herramientas no est
 ## Preparar la imagen
 
 Para quien la construye y la envía. Hace falta el repositorio con los pesos de los modelos en
-`model/`: MinerU en `model/MinerU2.5-Pro-2604-1.2B` (ver arriba) y EasyOCR en `model/easyocr`
+`data/model/`: MinerU en `data/model/MinerU2.5-Pro-2604-1.2B` (ver arriba) y EasyOCR en `data/model/easyocr`
 (`craft_mlt_25k.pth` y `latin_g2.pth`, que EasyOCR deja en `~/.EasyOCR/model` la primera vez).
 
 ```bash
-docker build -t anonimizador:1.0 .
+docker build -f docker/Dockerfile -t anonimizador:1.0 .
 docker save anonimizador:1.0 | gzip > anonimizador-1.0.tar.gz
 sha256sum anonimizador-1.0.tar.gz > anonimizador-1.0.tar.gz.sha256
 ```
 
-Se envían esos dos ficheros y `docker-compose.yml`.
+Se ejecuta desde la raíz del repositorio, que es el contexto de la construcción; todo lo de Docker
+está en `docker/`. Se envían esos dos ficheros y `docker/docker-compose.yml`. Para probarla en el
+propio equipo: `docker compose -f docker/docker-compose.yml up -d`.
 
 `docker save` ya guarda las capas comprimidas: el `.tar` sale de 6,6 GB y gzip apenas lo reduce. Se
 comprime igualmente para que el nombre y la orden de carga sean siempre los mismos.

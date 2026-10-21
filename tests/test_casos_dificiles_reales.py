@@ -1,6 +1,6 @@
 """Casos dificiles 1-6 con un documento de identidad REAL.
 
-Los ficheros viven solo en samples/real/casos_dificiles/ (fuera de git; los
+Los ficheros viven solo en data/samples/real/casos_dificiles/ (fuera de git; los
 genera un script que tambien vive alli).  Si no estan, el test se salta.  Ningun
 valor se escribe aqui ni sale en un mensaje: se leen en memoria, con OCR, de las
 caras de la tarjeta, y las salidas se guardan junto a los originales.
@@ -20,14 +20,14 @@ from pathlib import Path
 import fitz
 import pytest
 
-BASE = Path(__file__).resolve().parents[1] / "samples" / "real" / "casos_dificiles"
+BASE = Path(__file__).resolve().parents[1] / "data" / "samples" / "real" / "casos_dificiles"
 CASOS = [("c1_dni_real", False), ("c2_dni_mitad", False), ("c3_dni_girado", True),
          ("c4_dni_sello", False), ("c5_expediente", False), ("c6_expediente_escaneado", False)]
 
 pytestmark = [
     pytest.mark.lento,
     pytest.mark.skipif(not (BASE / "dni_anverso.png").exists(),
-                       reason="sin los casos con datos reales en samples/real/casos_dificiles"),
+                       reason="sin los casos con datos reales en data/samples/real/casos_dificiles"),
 ]
 
 

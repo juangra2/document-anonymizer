@@ -7,11 +7,11 @@ Integration
 -----------
   pip install "mineru-vl-utils[transformers]"
   hf download opendatalab/MinerU2.5-Pro-2604-1.2B \\
-      --local-dir model/MinerU2.5-Pro-2604-1.2B
+      --local-dir data/model/MinerU2.5-Pro-2604-1.2B
   # In .env:
   OCR_ENGINE=mineru
   OCR_MINERU_BACKEND=transformers
-  OCR_MINERU_MODEL_PATH=model/MinerU2.5-Pro-2604-1.2B
+  OCR_MINERU_MODEL_PATH=data/model/MinerU2.5-Pro-2604-1.2B
 
 ContentBlock type → zone_hint mapping
 --------------------------------------

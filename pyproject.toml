@@ -30,7 +30,7 @@ test = [
     "reportlab>=4.0",
 ]
 # MinerU 2.5-Pro (motor OCR principal, VLM).  El motor importa mineru_vl_utils.
-# Pesos: hf download opendatalab/MinerU2.5-Pro-2604-1.2B --local-dir model/MinerU2.5-Pro-2604-1.2B
+# Pesos: hf download opendatalab/MinerU2.5-Pro-2604-1.2B --local-dir data/model/MinerU2.5-Pro-2604-1.2B
 mineru = [
     "mineru-vl-utils[transformers]>=0.2.7",
 ]
@@ -65,4 +65,4 @@ markers = [
 
 [tool.setuptools.packages.find]
 include = ["app*"]
-exclude = ["samples*", "tests*"]
+exclude = ["data*", "docker*", "samples*", "tests*"]

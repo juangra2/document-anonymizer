@@ -17,7 +17,7 @@ from PIL import Image
 
 from app.services.vision.code_detector import detect_redactable_codes
 
-_DIR = Path(__file__).resolve().parents[1] / "samples" / "qr"
+_DIR = Path(__file__).resolve().parents[1] / "data" / "samples" / "qr"
 
 
 def _pagina_con(recorte: str, donde: tuple[int, int]) -> Image.Image:

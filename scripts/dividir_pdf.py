@@ -7,7 +7,7 @@ Uso:
 Pensado para los expedientes del ayuntamiento, que llegan como tomos de
 cientos de páginas: cada trozo se llama `<nombre>_parte_001_pag_1-10.pdf`.
 Si el PDF contiene datos reales, la carpeta de salida debe estar en
-`samples/real/` (ignorada por git).
+`data/samples/real/` (ignorada por git).
 """
 from __future__ import annotations
 

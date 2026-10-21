@@ -97,7 +97,7 @@ resolver solapes, para que un tipo apagado no oculte ni sustituya a otro activo.
   Presidio, para nombres de persona y organizaciones. Un motor `transformers` existe
   (`NER_ENGINE=transformers`) pero empeoraba `PERSON` y el valenciano.
 - **Gazetteers del INE** (`pii/gazetteer.py`, artefactos en `pii/gazetteers/`, se regeneran con
-  `scripts/build_gazetteers.py`): nombres, apellidos, municipios y provincias. Validan direcciones
+  `scripts/build_gazetteers.py` desde las descargas en `data/ine_raw/`): nombres, apellidos, municipios y provincias. Validan direcciones
   (código postal ↔ provincia ↔ municipio), refuerzan nombres dudosos y alimentan un detector de
   nombres en prosa. **Regla del padrón**: un nombre detectado sin dos puntos («NOMBRE / PEDRO»)
   tiene que llevar un nombre o un apellido del padrón; se midió que no descarta ningún nombre real.
@@ -476,14 +476,20 @@ Pasos en el [README](../README.md#despliegue-con-docker). Decisiones:
   el paquete `mineru` (solo se usa `mineru-vl-utils`) y con él `opencv-python` (basta `headless`);
   lo del generador del corpus, los tests y lo de Windows. Sistema: `libzbar0`, `libglib2.0-0`,
   `libgomp1`.
-- **Modelos dentro** (`/opt/modelos`): MinerU 2,2 GB, EasyOCR 94 MB, spaCy. `HF_HUB_OFFLINE`,
+- **Modelos dentro** (`/opt/modelos`, copiados de `data/model/`): MinerU 2,2 GB, EasyOCR 94 MB,
+  spaCy. `HF_HUB_OFFLINE`,
   `TRANSFORMERS_OFFLINE` y `EASYOCR_ALLOW_DOWNLOAD=false`.
 - **spaCy en CPU** (`NER_USE_GPU=false`): en GPU necesitaría CuPy; en CPU es como se midió.
 - **Ficheros de trabajo en disco** (`/data/trabajos`, volumen): en memoria serían 5-8 GB de RAM con
   la cola llena. El disco de los volúmenes tiene que estar cifrado.
 - **Usuario 10001**, sin root; solo escribe en `/data/trabajos`.
 - **`HEALTHCHECK`** contra `/health/ready` y `restart: unless-stopped`.
-- **`.dockerignore` como lista de permitidos**: solo `app/`, las dependencias y los modelos.
+- **Lista de permitidos** (`docker/Dockerfile.dockerignore`, que Docker lee por estar junto al
+  Dockerfile): solo `app/`, las dependencias y los modelos.
+- **Nombre fijo del proyecto de compose** (`name: anonimizador`): el del volumen de trabajos no
+  depende de la carpeta donde esté el fichero.
+- **Ficheros**: todo en `docker/` (`Dockerfile`, su lista de permitidos, `docker-compose.yml`,
+  `requirements.txt`). Se construye desde la raíz: `docker build -f docker/Dockerfile .`
 
 Pruebas del contenedor (RTX 4060 de 8 GB, driver 572.61):
 
@@ -502,15 +508,16 @@ Tamaños: fichero de transporte 6,6 GB; imagen cargada unos 11 GB.
 ## Documentos reales de prueba
 
 Los documentos reales con datos personales que se usan para probar van **siempre** en
-`samples/real/`, que está ignorada por git entera (con dos reglas más de red por si alguno se deja
+`data/samples/real/`, que está ignorada por git entera (con dos reglas más de red por si alguno se deja
 fuera). Un documento que llega a un commit queda en el historial aunque se borre después.
 
 La convención:
 
-- nada derivado de esos documentos sale de `samples/real/`: ni salidas, ni imágenes, ni volcados;
+- nada derivado de esos documentos sale de `data/samples/real/`: ni salidas, ni imágenes, ni volcados;
 - ningún test, comentario, registro ni commit lleva sus datos; un test que los usa lee el fichero
   por ruta y se salta si no está;
-- ningún guion recorre `samples/real/`: el único recorrido de `samples/` es `scripts/muestras.py`,
+- ningún guion recorre `data/samples/real/`: el único recorrido de `data/samples/` es
+  `scripts/muestras.py`,
   que la deja fuera, y lo comprueba un test.
 
 Herramientas: `scripts/dividir_pdf.py` parte un PDF grande en trozos; `scripts/debug_ocr_image.py`

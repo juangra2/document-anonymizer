@@ -1,6 +1,7 @@
 # Imagen del anonimizador: lleva dentro el codigo, las librerias y los modelos,
 # para que funcione en un servidor sin salida a internet.  Se construye con
-#     docker build -t anonimizador:1.0 .
+#     docker build -f docker/Dockerfile -t anonimizador:1.0 .
+# (desde la raiz del repositorio, que es el contexto)
 # y se transporta como fichero (ver README, "Despliegue con Docker").
 #
 # CUDA y torch.  torch 2.11.0 para CUDA 12.8, la combinacion con la que se ha
@@ -37,8 +38,8 @@ RUN pip install --no-deps -r /tmp/requirements.txt \
     && rm /tmp/requirements.txt
 
 # Modelos dentro de la imagen, de solo lectura para el servicio.
-COPY model/MinerU2.5-Pro-2604-1.2B /opt/modelos/mineru
-COPY model/easyocr /opt/modelos/easyocr
+COPY data/model/MinerU2.5-Pro-2604-1.2B /opt/modelos/mineru
+COPY data/model/easyocr /opt/modelos/easyocr
 
 WORKDIR /app
 COPY app /app/app

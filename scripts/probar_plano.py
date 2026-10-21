@@ -1,11 +1,11 @@
 """Prueba de un plano real: que hace el pipeline con el, pagina a pagina.
 
-Solo abre el fichero que se le pasa POR RUTA (nunca lista samples/real/), y todo
+Solo abre el fichero que se le pasa POR RUTA (nunca lista data/samples/real/), y todo
 lo que genera —el PDF anonimizado y las imagenes para revisarlo a ojo— va junto
-al original, dentro de samples/real/.  Por pantalla solo salen recuentos y
+al original, dentro de data/samples/real/.  Por pantalla solo salen recuentos y
 tipos, nunca valores: el plano es un documento real.
 
-    python scripts/probar_plano.py samples/real/TOMO_PLANO.pdf
+    python scripts/probar_plano.py data/samples/real/TOMO_PLANO.pdf
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ))
-PRIVADA = (RAIZ / "samples" / "real").resolve()
+PRIVADA = (RAIZ / "data" / "samples" / "real").resolve()
 
 
 def _mm(puntos: float) -> int:
@@ -25,14 +25,14 @@ def _mm(puntos: float) -> int:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("plano", type=Path, help="ruta del PDF, dentro de samples/real/")
+    ap.add_argument("plano", type=Path, help="ruta del PDF, dentro de data/samples/real/")
     ap.add_argument("--dpi-previa", type=int, default=40,
                     help="resolucion de las imagenes de revision (baja: solo para ver las barras)")
     args = ap.parse_args()
 
     entrada = args.plano.resolve()
     if entrada.parent != PRIVADA:
-        sys.exit("El plano tiene que estar en samples/real/: ahi van tambien sus derivados.")
+        sys.exit("El plano tiene que estar en data/samples/real/: ahi van tambien sus derivados.")
 
     import fitz
     from app.services.pdf.pipeline import PdfAnonymizationPipeline
@@ -70,7 +70,7 @@ def main() -> None:
     with fitz.open(salida) as doc:
         for i, p in enumerate(doc):
             p.get_pixmap(dpi=args.dpi_previa).save(PRIVADA / f"{entrada.stem}_previa_p{i + 1}.png")
-    print(f"\nDerivados en samples/real/: {salida.name} y {entrada.stem}_previa_p*.png")
+    print(f"\nDerivados en data/samples/real/: {salida.name} y {entrada.stem}_previa_p*.png")
 
 
 if __name__ == "__main__":

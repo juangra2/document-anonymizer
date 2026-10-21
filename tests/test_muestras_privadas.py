@@ -1,9 +1,9 @@
-"""samples/real/ no se recorre nunca por defecto.
+"""data/samples/real/ no se recorre nunca por defecto.
 
-Guarda datos personales reales.  Un prototipo que recorrio samples/ entero llego
+Guarda datos personales reales.  Un prototipo que recorrio data/samples/ entero llego
 a analizar —en memoria, sin escribir nada— el DNI real del usuario.  La regla:
 solo se toca por ruta explicita.  Aqui se fija que el recorrido comun la deje
-fuera y que nadie recorra samples/ por su cuenta.
+fuera y que nadie recorra data/samples/ por su cuenta.
 """
 import re
 from pathlib import Path
@@ -32,4 +32,4 @@ def test_nadie_recorre_samples_por_su_cuenta():
             for n, linea in enumerate(py.read_text(encoding="utf-8").splitlines(), 1):
                 if _RECORRE.search(linea):
                     sueltos.append(f"{py.relative_to(RAIZ)}:{n}")
-    assert not sueltos, f"recorren samples/ sin scripts/muestras.py: {sueltos}"
+    assert not sueltos, f"recorren data/samples/ sin scripts/muestras.py: {sueltos}"

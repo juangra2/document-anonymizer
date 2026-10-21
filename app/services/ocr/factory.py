@@ -108,7 +108,7 @@ def _auto_detect(
         logger.warning(
             "OCR engine: auto → %s (MinerU model not found at '%s'). "
             "Download: hf download opendatalab/MinerU2.5-Pro-2604-1.2B "
-            "--local-dir model/MinerU2.5-Pro-2604-1.2B",
+            "--local-dir data/model/MinerU2.5-Pro-2604-1.2B",
             fallback_name, engine._resolve_model_path(),
         )
         return create_ocr_engine(fallback_name, use_gpu, "easyocr", mineru_backend)
@@ -137,7 +137,7 @@ def _try_mineru(
         logger.warning(
             "MinerU requested but model not found at '%s' — falling back to %r. "
             "Download: hf download opendatalab/MinerU2.5-Pro-2604-1.2B "
-            "--local-dir model/MinerU2.5-Pro-2604-1.2B",
+            "--local-dir data/model/MinerU2.5-Pro-2604-1.2B",
             engine._resolve_model_path(), fallback_name,
         )
         return create_ocr_engine(fallback_name, use_gpu, "easyocr", mineru_backend)

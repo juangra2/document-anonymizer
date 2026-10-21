@@ -15,7 +15,7 @@ Cada caso deja <caso>_digital.pdf, <caso>_escaneado.pdf y <caso>.json con lo que
 debe quedar tachado ("tachar") y lo que no ("conservar").  Lo usa
 tests/test_casos_dificiles.py.
 
-    python scripts/casos_dificiles.py [destino]      # por defecto samples/casos_dificiles
+    python scripts/casos_dificiles.py [destino]      # por defecto data/samples/casos_dificiles
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from pathlib import Path
 import fitz
 from PIL import Image, ImageFilter
 
-_OUT = Path("samples/casos_dificiles")
+_OUT = Path("data/samples/casos_dificiles")
 
 
 def escanear(origen: Path, destino: Path) -> None:

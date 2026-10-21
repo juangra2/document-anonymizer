@@ -16,7 +16,7 @@ def main() -> None:
         raise SystemExit(1)
 
     image_path = Path(sys.argv[1])
-    output_dir = Path("samples/debug_ocr")
+    output_dir = Path("data/samples/debug_ocr")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     image = Image.open(image_path).convert("RGB")

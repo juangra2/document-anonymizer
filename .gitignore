@@ -40,15 +40,19 @@ htmlcov/
 coverage.xml
 
 # Samples / debug output
-samples/debug_ocr/
+data/samples/debug_ocr/
 
 # DOCUMENTOS REALES CON DATOS PERSONALES — NO SUBIR NUNCA.
 # Los documentos reales de prueba (DNI, expedientes y tomos del ayuntamiento)
 # contienen datos personales de personas identificables.  Subirlos al
 # repositorio, aunque se borren después, los deja para siempre en el
-# historial de git.  Convención: cualquier documento real va en samples/real/,
+# historial de git.  Convención: cualquier documento real va en data/samples/real/,
 # que está ignorada entera.  Las otras dos líneas son una red por si alguno
-# se deja fuera de esa carpeta.  No quites estas reglas.
+# se deja fuera de esa carpeta.  Las tres de samples/ son la ruta antigua: se
+# quedan por si alguien la vuelve a crear por costumbre.  No quites estas reglas.
+data/samples/real/
+data/samples/*real*
+data/samples/DNI*
 samples/real/
 samples/*real*
 samples/DNI*
@@ -71,7 +75,7 @@ evaluation/*.html
 input/
 
 # Model weights (large binary files — download separately)
-model/
+data/model/
 
 # Claude Code internal memory
 .claude/
@@ -80,4 +84,4 @@ model/
 data/ine_raw/
 
 # Casos dificiles inventados: se regeneran con scripts/casos_dificiles.py
-samples/casos_dificiles/
+data/samples/casos_dificiles/

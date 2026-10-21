@@ -1,9 +1,13 @@
-# Arranque del anonimizador con Docker Compose:   docker compose up -d
-# Parar:                                          docker compose down
-# Ver el registro:                                docker compose logs -f
+# Arranque del anonimizador con Docker Compose, desde la carpeta de este fichero:
+#     docker compose up -d        (parar: docker compose down; registro: docker compose logs -f)
+# Desde la raiz del repositorio: docker compose -f docker/docker-compose.yml up -d
 #
 # Todo lo configurable va por variables.  Se pueden poner en un fichero .env
 # junto a este (GPU_DEVICE=1, HOST_PORT=8080...) o en el propio entorno.
+# Nombre fijo del proyecto: no depende de la carpeta donde este el fichero, y
+# con el, tampoco el del volumen de trabajos (anonimizador_trabajos).
+name: anonimizador
+
 services:
   anonimizador:
     image: anonimizador:1.0

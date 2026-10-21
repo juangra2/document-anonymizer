@@ -8,7 +8,7 @@ codigos postales, texto que parece direccion) para medir falsos positivos.
 
 Solo diagnostico.  Datos inventados.
 
-    python scripts/banco_contacto.py               # fabrica samples/banco/
+    python scripts/banco_contacto.py               # fabrica data/samples/banco/
     python scripts/banco_contacto.py --medir       # y mide (usa la GPU)
 """
 from __future__ import annotations
@@ -26,7 +26,7 @@ from PIL import Image, ImageFilter
 
 RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ))
-SALIDA = RAIZ / "samples" / "banco"
+SALIDA = RAIZ / "data" / "samples" / "banco"
 
 
 @dataclass

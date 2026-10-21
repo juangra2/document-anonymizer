@@ -159,8 +159,8 @@ class Settings(BaseSettings):
 
     # Local path to the downloaded MinerU2.5-Pro model weights.
     # Download: hf download opendatalab/MinerU2.5-Pro-2604-1.2B \
-    #               --local-dir model/MinerU2.5-Pro-2604-1.2B
-    ocr_mineru_model_path: str = "model/MinerU2.5-Pro-2604-1.2B"
+    #               --local-dir data/model/MinerU2.5-Pro-2604-1.2B
+    ocr_mineru_model_path: str = "data/model/MinerU2.5-Pro-2604-1.2B"
 
     # Tipos de bloque cuyo CONTENIDO no se pide al VLM de MinerU.  Un bloque
     # "image" no aporta texto util —el texto ya lo da EasyOCR— y en cambio
