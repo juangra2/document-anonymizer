@@ -7,7 +7,7 @@ Todo sale de ficheros bajo seguimiento, asi que se regenera tras cada medicion:
   evaluation/reference/c4/banco_contacto.json                          banco de telefonos y direcciones
   evaluation/reference/c4/comprobaciones.json                          casos dificiles y metadatos
   evaluation/linea_base/transicion_contabilidad.json                   evolucion (linea base a c4)
-  docs/memoria.md, seccion "Limitaciones conocidas y pendientes"
+  docs/memoria.md, seccion "Limitaciones conocidas"
 
 El HTML es autocontenido: sin librerias ni fuentes de internet.
 
@@ -136,7 +136,8 @@ def _markdown_simple(md: str) -> str:
 
 def _limitaciones() -> str:
     memoria = (RAIZ / "docs/memoria.md").read_text(encoding="utf-8")
-    m = re.search(r"^## Limitaciones conocidas y pendientes\n(.*?)(?=^---|^## )", memoria, re.S | re.M)
+    # Por su nombre, lleve numero o no ("## 11. Limitaciones conocidas").
+    m = re.search(r"^## (?:\d+\.\s*)?Limitaciones conocidas[^\n]*\n(.*?)(?=^---|^## |\Z)", memoria, re.S | re.M)
     return _markdown_simple(m.group(1)) if m else "<p>(sin sección de limitaciones en la memoria)</p>"
 
 

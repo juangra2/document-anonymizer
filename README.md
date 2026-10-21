@@ -10,8 +10,9 @@ lo que conviene revisar a mano.
 Admite documentos digitales, escaneados o mezclados, desde una página hasta expedientes de
 cientos. Se usa desde una **página web** propia o desde su **API**.
 
-Cómo está hecho, por qué y cómo se ha evaluado: [memoria técnica](docs/memoria.md). Las cifras de
-calidad, para quien no ha seguido el trabajo: [`evaluation/informe_final.html`](evaluation/informe_final.html).
+Qué hace, cómo lo hace y cómo sabemos que funciona: [memoria](docs/memoria.md). El detalle para
+mantener el código: [referencia técnica](docs/referencia_tecnica.md). Las cifras de calidad, para
+quien no ha seguido el trabajo: [`evaluation/informe_final.html`](evaluation/informe_final.html).
 
 ---
 
@@ -345,18 +346,5 @@ Se envían esos dos ficheros y `docker-compose.yml`.
 `docker save` ya guarda las capas comprimidas: el `.tar` sale de 6,6 GB y gzip apenas lo reduce. Se
 comprime igualmente para que el nombre y la orden de carga sean siempre los mismos.
 
-Qué lleva la imagen y por qué:
-
-- **CUDA 12.8 y torch 2.11.0**, fijados: es la combinación con la que se ha medido la calidad.
-  CUDA 12.8 funciona con drivers 570 o posteriores. Un driver nuevo ejecuta versiones de CUDA más
-  antiguas, no al revés: con CUDA 13 la imagen no arrancaría en drivers de la serie 570.
-- **Base `python:3.12-slim`**: el paquete de torch para CUDA 12.8 ya trae las librerías de CUDA y
-  cuDNN, y el driver lo pone el servidor a través de nvidia-container-toolkit.
-- **Librerías con versiones exactas** (`docker/requirements.txt`): las del entorno con el que se
-  midió la calidad.
-- **Modelos dentro**: MinerU, EasyOCR y spaCy. Con `HF_HUB_OFFLINE`, `TRANSFORMERS_OFFLINE` y
-  `EASYOCR_ALLOW_DOWNLOAD=false` no intenta descargar nada: si faltara algo, `/health/ready` lo
-  diría.
-- **Sin root**: el servicio corre con el usuario 10001, que solo puede escribir en `/data/trabajos`.
-- **Lista de permitidos** (`.dockerignore`): solo entran `app/`, las dependencias y los modelos.
-  Nada de `samples/`, del corpus, de la evaluación ni de `.git`.
+Qué lleva la imagen y por qué (versiones de CUDA y torch, base, dependencias, modelos, usuario sin
+privilegios): [referencia técnica](docs/referencia_tecnica.md#despliegue).
