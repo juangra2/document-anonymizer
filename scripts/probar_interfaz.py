@@ -188,13 +188,13 @@ def flujo_documento_completo(p, pagina, tmp: Path) -> None:
 
 
 def flujo_expediente(p, pagina, tmp: Path) -> None:
-    print("\n1b) El numero de expediente empieza desmarcado y la casilla manda")
+    print("\n1b) El numero de expediente empieza marcado y la casilla manda")
     abrir(pagina)
     pagina.click("#grupos .grp-head:has-text('Empresas y documentos') .spacer")
     fila = pagina.locator(".grp-body .row:has-text('Número de expediente')")
-    p.comprobar("off" in (fila.get_attribute("class") or ""),
-                "la casilla del numero de expediente sale desmarcada")
-    pagina.set_input_files("#ficheros", str(pdf_simple(tmp / "exp_desmarcado.pdf")))
+    p.comprobar("off" not in (fila.get_attribute("class") or ""),
+                "la casilla del numero de expediente sale marcada")
+    pagina.set_input_files("#ficheros", str(pdf_simple(tmp / "exp_marcado.pdf")))
     with pagina.expect_request("**/jobs*") as peticion:
         pagina.click("#anonimizar")
     p.comprobar("CASE_NUMBER" not in peticion.value.url,
@@ -203,11 +203,11 @@ def flujo_expediente(p, pagina, tmp: Path) -> None:
     abrir(pagina)
     pagina.click("#grupos .grp-head:has-text('Empresas y documentos') .spacer")
     pagina.locator(".grp-body .row:has-text('Número de expediente')").click()
-    pagina.set_input_files("#ficheros", str(pdf_simple(tmp / "exp_marcado.pdf")))
+    pagina.set_input_files("#ficheros", str(pdf_simple(tmp / "exp_desmarcado.pdf")))
     with pagina.expect_request("**/jobs*") as peticion:
         pagina.click("#anonimizar")
-    p.comprobar("enabled_types=CASE_NUMBER" in peticion.value.url,
-                "marcada, el documento se envia pidiendo tachar el expediente")
+    p.comprobar("disabled_types=CASE_NUMBER" in peticion.value.url,
+                "desmarcada, el documento se envia con el expediente sin tachar")
 
 
 def flujo_tanda(p, pagina, tmp: Path) -> None:

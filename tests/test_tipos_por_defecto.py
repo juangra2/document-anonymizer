@@ -1,10 +1,13 @@
 """Un solo valor por defecto, el del catalogo, en la pantalla y en la API.
 
-El numero de expediente salia desmarcado en pantalla, pero la API llamada sin
-lista lo tachaba: quien usara la API directamente obtenia algo distinto a la
-web.  Ahora la API parte del catalogo (`default_enabled`); `disabled_types`
-apaga tipos y `enabled_types` enciende los que vienen apagados.  La evaluacion
-pide todos los tipos de forma explicita para seguir siendo comparable con c4.
+La API parte del catalogo (`default_enabled`), igual que la pantalla;
+`disabled_types` apaga tipos y `enabled_types` enciende los que vienen apagados.
+La evaluacion pide todos los tipos de forma explicita.
+
+Decision del ayuntamiento (22-10): el numero de expediente se tacha por defecto,
+en todos sus formatos, tambien el municipal; si se desmarca, no se tacha.  Hoy el
+catalogo no trae ningun tipo apagado: el mecanismo de `enabled_types` se prueba
+simulando uno.
 """
 import json
 import zipfile
@@ -12,6 +15,7 @@ from io import BytesIO
 
 import fitz
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -46,19 +50,41 @@ def _desactivados_y_texto(response) -> tuple[list[str], str]:
     return informe["entity_types_disabled"], texto
 
 
-def test_el_catalogo_tiene_algun_tipo_apagado():
-    assert APAGADOS_DEL_CATALOGO == ["CASE_NUMBER"]
+@pytest.fixture
+def expediente_apagado(monkeypatch):
+    """Un catalogo con el expediente apagado, para probar `enabled_types`."""
+    import app.api.routes as routes
+
+    monkeypatch.setattr(routes, "default_disabled_ids", lambda: frozenset({"CASE_NUMBER"}))
 
 
-def test_sin_listas_la_api_aplica_el_catalogo():
+def test_el_catalogo_trae_todo_activado():
+    assert APAGADOS_DEL_CATALOGO == []
+
+
+def test_sin_listas_el_expediente_se_tacha_tambien_el_municipal():
     response = _anonimizar()
     assert response.status_code == 200
     desactivados, texto = _desactivados_y_texto(response)
-    assert desactivados == APAGADOS_DEL_CATALOGO
-    assert "E-03001-2022-000074-00" in texto, "como en la pantalla: el expediente no se tacha"
+    assert desactivados == []
+    assert "E-03001-2022-000074-00" not in texto
 
 
-def test_enabled_types_enciende_un_tipo_apagado():
+def test_desmarcado_el_expediente_no_se_tacha():
+    response = _anonimizar("&disabled_types=CASE_NUMBER")
+    assert response.status_code == 200
+    desactivados, texto = _desactivados_y_texto(response)
+    assert desactivados == ["CASE_NUMBER"]
+    assert "E-03001-2022-000074-00" in texto
+
+
+def test_sin_listas_se_aplica_un_tipo_apagado_del_catalogo(expediente_apagado):
+    desactivados, texto = _desactivados_y_texto(_anonimizar())
+    assert desactivados == ["CASE_NUMBER"]
+    assert "E-03001-2022-000074-00" in texto
+
+
+def test_enabled_types_enciende_un_tipo_apagado(expediente_apagado):
     response = _anonimizar("&enabled_types=case_number")
     assert response.status_code == 200
     desactivados, texto = _desactivados_y_texto(response)

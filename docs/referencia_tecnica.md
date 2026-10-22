@@ -51,7 +51,7 @@ agrupación de la interfaz está en `app/web/js/categorias.js`; un tipo sin grup
 | `CADASTRAL_REFERENCE` | Referencia catastral |
 | `ORGANIZATION` | Razón social de empresa **privada** |
 | `ES_CIF` | CIF de empresas y entidades |
-| `CASE_NUMBER` | Referencias de expediente, también las municipales (`E-03001-2022-000074-00`). Apagado por defecto |
+| `CASE_NUMBER` | Referencias de expediente, también las municipales (`E-03001-2022-000074-00`) |
 | `REGISTRY_NUMBER` | Número de registro de entrada o salida |
 | `CSV` | Código seguro de verificación |
 | `CERT_SERIAL` | Número de serie del certificado de firma electrónica |
@@ -68,7 +68,8 @@ agrupación de la interfaz está en `app/web/js/categorias.js`; un tipo sin grup
 Reglas:
 
 - **Valor por defecto único, el del catálogo**, en la interfaz y en la API. Cada petición apaga
-  tipos con `disabled_types` y enciende los apagados con `enabled_types` (ver [API](#api)). Lo que
+  tipos con `disabled_types` y enciende los apagados con `enabled_types` (ver [API](#api)); hoy el
+  catálogo trae todos activos, y `enabled_types` queda para el tipo que se decida apagar. Lo que
   queda apagado se escribe en `entity_types_disabled` del informe.
 - **Número de colegiado** (`PROFESSIONAL_LICENSE`): se detecta pero nunca se tacha. No está en el
   catálogo. La regla se aplica en un único sitio, el plan de tachado.

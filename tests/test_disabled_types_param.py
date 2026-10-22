@@ -1,8 +1,7 @@
 """Contrato del parámetro disabled_types (F12, F13).
 
 El frontend serializa la lista de tipos desmarcados: sin ninguno envía cadena
-vacía.  Eso tiene que equivaler a no enviar nada: se aplica el catálogo, que
-trae apagado el número de expediente.  Mayúsculas y espacios se
+vacía.  Eso tiene que equivaler a no enviar nada: se aplica el catálogo.  Mayúsculas y espacios se
 normalizan; lo inexistente o lo obligatorio sigue dando 422 sin procesar.
 """
 import json
@@ -54,7 +53,7 @@ def _job_dirs() -> set:
 def test_empty_list_is_the_same_as_omitting_the_parameter(query):
     response = _anonymize(query)
     assert response.status_code == 200
-    assert _disabled(response) == ["CASE_NUMBER"]
+    assert _disabled(response) == []
 
 
 def test_empty_list_is_accepted_by_jobs_too():
@@ -71,13 +70,13 @@ def test_empty_list_is_accepted_by_jobs_too():
 def test_case_and_surrounding_spaces_are_normalized(value):
     response = _anonymize(f"&disabled_types={value}")
     assert response.status_code == 200
-    assert _disabled(response) == ["CASE_NUMBER", "DATE_TIME"]
+    assert _disabled(response) == ["DATE_TIME"]
 
 
 def test_an_empty_value_next_to_a_valid_one_is_ignored():
     response = _anonymize("&disabled_types=&disabled_types=url")
     assert response.status_code == 200
-    assert _disabled(response) == ["CASE_NUMBER", "URL"]
+    assert _disabled(response) == ["URL"]
 
 
 # --- lo que sigue rechazándose ---------------------------------------------------

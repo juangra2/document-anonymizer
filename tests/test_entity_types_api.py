@@ -68,7 +68,7 @@ def test_several_types_are_disabled_with_repeated_parameters():
     assert response.status_code == 200
     with zipfile.ZipFile(BytesIO(response.content)) as zf:
         report = json.loads(zf.read("report.json"))
-    assert set(report["entity_types_disabled"]) == {"DATE_TIME", "URL", "CASE_NUMBER"}
+    assert set(report["entity_types_disabled"]) == {"DATE_TIME", "URL"}
 
 
 def test_swagger_offers_the_valid_values():
@@ -103,15 +103,15 @@ def test_disabling_a_type_leaves_it_in_the_document():
 
 def test_without_configuration_the_catalog_applies():
     # Sin configuracion, lo mismo que la interfaz al empezar: todo salvo lo que
-    # el catalogo trae apagado (el numero de expediente).
+    # el catalogo trae apagado (hoy, nada).
     response = client.post(
         "/anonymize?output=zip",
         files={"file": ("in.pdf", BytesIO(_sample_pdf()), "application/pdf")},
     )
     with zipfile.ZipFile(BytesIO(response.content)) as zf:
         report = json.loads(zf.read("report.json"))
-    assert report["entity_types_disabled"] == ["CASE_NUMBER"]
-    assert set(report["entity_types_applied"]) == set(ALL_PII_TYPES) - {"CASE_NUMBER"}
+    assert report["entity_types_disabled"] == []
+    assert set(report["entity_types_applied"]) == set(ALL_PII_TYPES)
 
 
 # --- C3: resumen de lo aplicado ----------------------------------------------
@@ -162,9 +162,9 @@ def test_the_catalog_does_not_impose_any_type():
         "el catalogo ya no marca tipos obligatorios"
     )
     apagados = {item["id"] for item in items if not item["default_enabled"]}
-    assert apagados == {"CASE_NUMBER"}, (
-        "todo activado por defecto salvo el numero de expediente, a la espera de "
-        "la decision del ayuntamiento"
+    assert apagados == set(), (
+        "todo activado por defecto, tambien el numero de expediente (decision del "
+        "ayuntamiento, 22-10)"
     )
 
 
@@ -186,7 +186,7 @@ def test_unmarking_is_recorded_in_the_report():
     assert response.status_code == 200
     with zipfile.ZipFile(BytesIO(response.content)) as zf:
         report = json.loads(zf.read("report.json"))
-    assert report["entity_types_disabled"] == ["CASE_NUMBER", "ES_DNI", "PERSON"]
+    assert report["entity_types_disabled"] == ["ES_DNI", "PERSON"]
     assert "ES_DNI" not in report["entity_types_applied"]
 
 

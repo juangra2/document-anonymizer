@@ -61,7 +61,7 @@ export const TEXTOS = {
 
   paso2: {
     titulo: "Qué se va a ocultar",
-    ayuda: "Casi todo viene marcado; lo que queda visible se indica abajo. Despliega un grupo para elegir tipos sueltos.",
+    ayuda: "Todo está marcado por defecto. Despliega un grupo para elegir tipos sueltos.",
     activos: (activos, total) => `${activos} de ${total} tipos activos`,
     seAplica: (n) =>
       n === 1

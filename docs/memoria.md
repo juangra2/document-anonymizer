@@ -52,8 +52,8 @@ Unos treinta tipos de dato, agrupados como los ve el usuario en la pantalla:
 | Datos técnicos | Dirección web, dirección IP, usuario | «192.168.10.4» |
 | Filas de tabla | Filas enteras de tablas de interesados o de cargos | una fila «expediente – interesado» |
 
-**Todo viene activado salvo el número de expediente**, y el usuario puede desmarcar cualquier tipo
-antes de procesar un documento (por ejemplo, dejar visibles las fechas). Lo que se deja sin tachar
+**Todo viene activado**, y el usuario puede desmarcar cualquier tipo antes de procesar un
+documento (por ejemplo, dejar visibles las fechas). Lo que se deja sin tachar
 queda escrito en el informe.
 
 **Decisiones de criterio:**
@@ -65,8 +65,9 @@ queda escrito en el informe.
   se puede desmarcar cuando deba quedar a la vista.
 - **Fechas**: se tachan todas, no solo la de nacimiento.
 - **Instituciones públicas**: su nombre no se tacha, ni su teléfono o dirección en el membrete.
-- **Pendientes de decisión del ayuntamiento**: el **número de expediente** (hoy desmarcado; si se
-  marca, se tacha en todos sus formatos) y **los cargos que firman** (hoy el nombre de un
+- **Número de expediente**: se tacha, en todos sus formatos, también el municipal
+  («E-03001-2022-000074-00»). Si el usuario lo desmarca, no se tacha ninguno.
+- **Pendiente de decisión del ayuntamiento**: **los cargos que firman** (hoy el nombre de un
   secretario o un rector se tacha como el de cualquiera).
 
 La lista completa de tipos y sus reglas: [referencia técnica](referencia_tecnica.md#catálogo-de-tipos-y-reglas).
@@ -382,9 +383,9 @@ las decisiones técnicas del despliegue, en la [referencia técnica](referencia_
 - **Tipos sin medir.** Algunos tipos se detectan pero no aparecen en los documentos de prueba, así
   que su calidad no está medida: referencia catastral, filas de tabla, número de serie de
   certificado, tarjeta de crédito, tarjeta sanitaria, póliza, número de registro y usuario.
-- **Decisiones pendientes.** El número de expediente (hoy no se tacha si no se marca) y los cargos
-  que firman (hoy se tachan como cualquier nombre). Si se decide dejar visibles los cargos, tendrá
-  que ser con una regla que distinga cargo de particular, no por la posición en la página.
+- **Cargos que firman, pendiente de decisión.** Hoy se tachan como cualquier nombre. Si se decide
+  dejarlos visibles, tendrá que ser con una regla que distinga cargo de particular, no por la
+  posición en la página.
 - **Lugar de nacimiento.** Solo se reconoce cuando va tras su etiqueta («Lugar de nacimiento:»).
 - **Rótulos tachados de más.** Cuando un rótulo sin dos puntos va seguido del dato en la línea de
   debajo («NIF / DNI del titular» y el número debajo), puede tacharse también parte del rótulo. Se
