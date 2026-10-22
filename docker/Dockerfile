@@ -43,6 +43,8 @@ COPY data/model/easyocr /opt/modelos/easyocr
 
 WORKDIR /app
 COPY app /app/app
+# Las licencias viajan con la imagen: la del anonimizador y las de terceros.
+COPY LICENSE THIRD_PARTY_LICENSES.md /app/
 
 # El servicio no corre como root: usuario sin privilegios con UID fijo (10001),
 # dueno solo de la carpeta de trabajos.  Un volumen con nombre de Docker hereda

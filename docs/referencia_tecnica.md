@@ -486,7 +486,8 @@ Pasos en el [README](../README.md#despliegue-con-docker). Decisiones:
 - **Usuario 10001**, sin root; solo escribe en `/data/trabajos`.
 - **`HEALTHCHECK`** contra `/health/ready` y `restart: unless-stopped`.
 - **Lista de permitidos** (`docker/Dockerfile.dockerignore`, que Docker lee por estar junto al
-  Dockerfile): solo `app/`, las dependencias y los modelos.
+  Dockerfile): solo `app/`, las dependencias, los modelos y las licencias (`LICENSE` y
+  `THIRD_PARTY_LICENSES.md`, que se copian a `/app`).
 - **Nombre fijo del proyecto de compose** (`name: anonimizador`): el del volumen de trabajos no
   depende de la carpeta donde esté el fichero.
 - **Ficheros**: todo en `docker/` (`Dockerfile`, su lista de permitidos, `docker-compose.yml`,

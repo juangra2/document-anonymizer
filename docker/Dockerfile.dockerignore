@@ -6,6 +6,8 @@
 *
 !app/
 !docker/requirements.txt
+!LICENSE
+!THIRD_PARTY_LICENSES.md
 !data/model/MinerU2.5-Pro-2604-1.2B/
 !data/model/easyocr/
 
