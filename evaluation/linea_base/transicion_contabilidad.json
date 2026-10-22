@@ -106,7 +106,7 @@
     "media_f1_por_aparicion": 0.9096
   },
   "c3_2026_10_14": {
-    "fuente": "evaluation/resultados_c3_{c}.json (exacto). Todo lo de c2 y ademas: texto de menos de 2 puntos fuera de la salida, barrido de todas las apariciones en el digital, etiquetas de dato personal en el filtro institucional, pasaporte con la etiqueta pegada, cabecera y pie con CSV/IP/URL/documentos/importes/nombres, salto de linea a mitad de direccion. (El arreglo del barrido para nombres de institucion, 5ddb8b8, es posterior y solo cambia lo que se pinta, no lo que se detecta.)",
+    "fuente": "evaluation/resultados_c3_{c}.json (exacto). Todo lo de c2 y ademas: texto de menos de 2 puntos fuera de la salida, barrido de todas las apariciones en el digital, etiquetas de dato personal en el filtro institucional, pasaporte con la etiqueta pegada, cabecera y pie con CSV/IP/URL/documentos/importes/nombres, salto de linea a mitad de direccion. (El arreglo del barrido para nombres de institucion, 1bd9ee7, es posterior y solo cambia lo que se pinta, no lo que se detecta.)",
     "digital": {
       "documentos": 400,
       "f1_por_valor": 0.9499,
@@ -141,7 +141,7 @@
     "media_f1_por_aparicion": 0.9171
   },
   "c4_2026_10_19": {
-    "fuente": "evaluation/resultados_c4_{c}.json (exacto), codigo f17292e. Todo lo de c3 y ademas: imagenes pegadas leidas recortadas y tachadas en su sitio (la pagina con texto ya no va entera al OCR por la suma de sus imagenes; la copia de identidad se tapa entera y el oficio se conserva), fondo de formulario no es copia pegada, firma pegada no se tapa entera, registro/recibo/CSV/importe/lugar de nacimiento en formularios, rotulo y valor despegados en celdas de MinerU, barra por anchura de caracter en el escaneado, paginas giradas, bilingue a dos columnas, firmas en fila, telefono partido en dos lineas, cajas de letra ajustadas al aplicar, regla del padron en nombres sin dos puntos.  Contabilidad: PLACE_OF_BIRTH (tipo nuevo) cuenta como FP porque el corpus no lo etiqueta; los trozos de un telefono partido entre zonas cuentan como FP aunque el telefono se tacha entero.",
+    "fuente": "evaluation/resultados_c4_{c}.json (exacto), codigo 1213fb2. Todo lo de c3 y ademas: imagenes pegadas leidas recortadas y tachadas en su sitio (la pagina con texto ya no va entera al OCR por la suma de sus imagenes; la copia de identidad se tapa entera y el oficio se conserva), fondo de formulario no es copia pegada, firma pegada no se tapa entera, registro/recibo/CSV/importe/lugar de nacimiento en formularios, rotulo y valor despegados en celdas de MinerU, barra por anchura de caracter en el escaneado, paginas giradas, bilingue a dos columnas, firmas en fila, telefono partido en dos lineas, cajas de letra ajustadas al aplicar, regla del padron en nombres sin dos puntos.  Contabilidad: PLACE_OF_BIRTH (tipo nuevo) cuenta como FP porque el corpus no lo etiqueta; los trozos de un telefono partido entre zonas cuentan como FP aunque el telefono se tacha entero.",
     "digital": {
       "documentos": 400,
       "f1_por_valor": 0.9498,

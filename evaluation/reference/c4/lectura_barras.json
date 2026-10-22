@@ -1,6 +1,6 @@
 {
  "fecha": "2026-10-19",
- "codigo": "f17292e (híbrido releído con ea502de: copias pegadas con texto encima tapadas enteras)",
+ "codigo": "1213fb2 (híbrido releído con 3988373: copias pegadas con texto encima tapadas enteras)",
  "nota": "tapado_pct = tapados / (tapados + fugas); los no concluyentes (dato que la lectura no encuentra ni en la entrada, o tapado por una página en negro) quedan fuera.  Digital: muestra de 100 documentos (uno de cada cuatro).  Fuera de alcance (LOCATION, defectos del corpus) no cuenta.",
  "corpus": {
   "digital": {
