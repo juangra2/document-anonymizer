@@ -23,8 +23,8 @@ def _scan(card_box=(600, 400, 1200, 800), speckle=False) -> Image.Image:
     if card_box:
         draw.rectangle(card_box, fill=(90, 90, 90))
     if speckle:
-        # Moteado de ruido que abarca la hoja: reproduce el caso real en que el
-        # componente MAYOR era la página entera con relleno 0.007.
+        # Moteado de ruido que abarca la hoja: el componente MAYOR es la página
+        # entera, con un relleno muy bajo.
         rng = np.random.default_rng(7)
         arr = np.array(image)
         ys = rng.integers(0, arr.shape[0], 4000)

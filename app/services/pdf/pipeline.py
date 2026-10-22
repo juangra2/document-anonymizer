@@ -118,14 +118,12 @@ class PdfAnonymizationPipeline:
 
         # pdf_hybrid: PAGINA A PAGINA CON UN CRITERIO DE SUPERFICIE.
         #
-        # Aqui habia una decision POR DOCUMENTO: si la media llegaba a 200
-        # caracteres por pagina, el documento entero iba por el camino digital
-        # sin pasar ni una pagina por OCR.  Dos folios de texto tapaban veinte
-        # paginas escaneadas, y una copia de DNI pegada en un expediente salia
-        # intacta, con el informe diciendo "pdf_digital" y sin un solo aviso.
+        # No se decide POR DOCUMENTO: con una media de caracteres por pagina,
+        # dos folios de texto tapan veinte paginas escaneadas, y una copia de
+        # DNI pegada en un expediente sale intacta sin un solo aviso.
         #
-        # Pero lo contrario —toda pagina con imagen al OCR— tampoco: la mitad
-        # de las paginas del corpus digital llevan el logo del membrete.  Cada
+        # Pero lo contrario —toda pagina con imagen al OCR— tampoco: la mayoria
+        # de las paginas digitales llevan el logo del membrete.  Cada
         # pagina entera solo va al OCR si no tiene texto o si es un escaneo
         # pegado; las imagenes menores se leen recortadas en el pase digital
         # (ver ocr_imagen_pagina_completa en la config).

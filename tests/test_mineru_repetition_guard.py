@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from app.services.ocr.mineru_engine import _blocks_to_tokens, _is_degenerate_content
 
 
-# Real page-3 garbage: "α₁ 与 α₂ 与 …" repeated for hundreds of terms.
+# Runaway VLM output: "α₁ 与 α₂ 与 …" repeated for hundreds of terms.
 _LOOP = " ".join(r"\( \alpha_{%d} \) 与" % i for i in range(1, 60))
 
 _NORMAL = (

@@ -90,7 +90,7 @@ def test_ner_organization_with_company_context_is_kept():
 
 def test_ner_organization_without_evidence_is_dropped():
     # Sin contexto de empresa, un ORGANIZATION del NER nombra casi siempre una
-    # unidad del propio organismo público (741 FP frente a 9 TP en el corpus).
+    # unidad del propio organismo público, no una empresa.
     assert _orgs("Instituto de Robótica Aplicada y Digital") == []
     assert _orgs("Unidad de Proyectos Europeos") == []
 

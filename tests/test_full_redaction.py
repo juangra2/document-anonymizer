@@ -1,4 +1,4 @@
-"""Bloque B — páginas de redacción total: copia de DNI y autoliquidación."""
+"""Páginas de redacción total: copia de DNI y autoliquidación."""
 import pytest
 
 from app.core.config import settings
@@ -81,7 +81,7 @@ def test_resolution_granting_aid_is_not_a_form():
 # --- alcance por página y propagación ----------------------------------------
 
 def test_scope_is_per_page_in_a_concatenated_file():
-    # Expediente real: autoliquidación + notificación + plano en el mismo PDF.
+    # Expediente con autoliquidación + notificación + plano en el mismo PDF.
     pages = [_TAX, "NOTIFICACIÓN de la resolución del expediente.", "PLANO 03"]
     result = classify_pages(pages)
     assert result == {0: TAX_FORM}, "no debe arrastrar las páginas ajenas"
@@ -91,13 +91,11 @@ _TAX_CON_REFERENCIA = _TAX + "\nReferencia: 600-2023-362396\n"
 
 
 def test_propagation_requires_shared_form_reference():
-    # CAMBIADO a proposito: compartir el numero de modelo ya NO propaga.
-    #
-    # Medido sobre un documento real: una notificacion que solo decia «en
-    # relacion con el modelo 600 presentado» salia ENTERA EN NEGRO.  El numero
-    # de modelo identifica un TIPO de impreso, no un expediente; para arrastrar
-    # a una pagina vecina hace falta el justificante o la referencia, que si
-    # identifican el documento.
+    # Compartir el numero de modelo NO propaga: una notificacion que solo dice
+    # «en relacion con el modelo 600 presentado» saldria ENTERA EN NEGRO.  El
+    # numero de modelo identifica un TIPO de impreso, no un expediente; para
+    # arrastrar a una pagina vecina hace falta el justificante o la referencia,
+    # que si identifican el documento.
     solo_menciona = "MODELO 600 — Instrucciones de cumplimentacion del impreso."
     assert classify_pages([_TAX, solo_menciona]) == {0: TAX_FORM}
 
@@ -117,7 +115,7 @@ def test_dni_copies_do_not_propagate():
 
 
 def test_form_references_extracted():
-    # El numero de modelo ya no cuenta como referencia (ver el test de
+    # El numero de modelo no cuenta como referencia (ver el test de
     # propagacion); lo que identifica al expediente es el justificante.
     assert form_references(_TAX) == set()
     assert "ref:600-2023-362396" in form_references(_TAX_CON_REFERENCIA)

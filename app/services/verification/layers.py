@@ -76,13 +76,12 @@ def analizar_por_trozos(analyzer: PiiAnalyzer, texto: str, mode: str,
 def _entidades_de_la_pagina(page: fitz.Page, analyzer: PiiAnalyzer, mode: str) -> list[PiiEntity]:
     """La pagina ENTERA, con todos los tipos, y los mismos filtros que el tachado.
 
-    Sin limitar tipos por zona: las fugas de estas semanas (telefonos y
-    direcciones en las franjas de cabecera y pie, nombres en el pie, el texto
-    del QR) estaban justo en esas limitaciones, y el verificador las vio porque
-    no las tiene.  Pero con el MISMO texto que el tachado (las lineas en su
-    orden): ordenada con sort=True, la pagina juntaba palabras de celdas
-    distintas ("Acero Guantes") que el detector de nombres tomaba por un
-    nombre.  Y con el mismo filtro institucional: el contacto del membrete no
+    Sin limitar tipos por zona: las fugas tipicas (telefonos y direcciones en
+    las franjas de cabecera y pie, nombres en el pie, el texto del QR) estan
+    justo en esas limitaciones, y el verificador las ve porque no las tiene.
+    Pero con el MISMO texto que el tachado (las lineas en su orden): ordenada
+    con sort=True, la pagina junta palabras de celdas distintas que el detector
+    de nombres tomaria por un nombre.  Y con el mismo filtro institucional: el contacto del membrete no
     es un residuo.  Los filtros de etiquetas y de nombres estan dentro del
     analizador, que es el mismo.
     """

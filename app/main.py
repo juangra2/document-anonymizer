@@ -78,5 +78,5 @@ if _WEB_DIR.is_dir():
     app.mount("/", _SinCache(directory=_WEB_DIR, html=True), name="web")
 
 # Normaliza disabled_types (mayúsculas, espacios, lista vacía) antes de que el
-# Enum lo valide: hecha dentro de la ruta, la normalización llegaba tarde.
+# Enum lo valide: hecha dentro de la ruta, llegaría tarde.
 app.add_middleware(DisabledTypesQueryMiddleware)

@@ -1,7 +1,7 @@
 """El verificador comprueba en la salida todo lo que la limpieza quita.
 
 Sobre la entrada cargada avisa de cada cosa; sobre la salida limpia, de nada.  Y
-ya no avisa por "format", que es la version del PDF y no un metadato guardado.
+no avisa por "format", que es la version del PDF y no un metadato guardado.
 """
 import fitz
 import pytest

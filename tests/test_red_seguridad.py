@@ -1,9 +1,9 @@
 """La red de seguridad: lo que la segunda pasada todavia lee, no se entrega.
 
-Antes, lo que la segunda pasada encontraba tras tachar se contaba como residuo,
-se pedia revision manual y el documento se entregaba igual.  El sistema sabia
-que un dato seguia a la vista y lo entregaba.  La respuesta es la misma que con
-las paginas ilegibles —tachar, no solo avisar—, pero proporcional:
+Si lo que la segunda pasada encuentra tras tachar solo se contara como residuo
+y se pidiera revision, el sistema sabria que un dato sigue a la vista y lo
+entregaria igual.  La respuesta es la misma que con las paginas ilegibles
+—tachar, no solo avisar—, pero proporcional:
 
   - dentro de una imagen pegada en una pagina con texto, la imagen entera;
   - en cualquier otro sitio, solo la zona del residuo.
@@ -119,9 +119,8 @@ def test_con_segunda_pasada_no_hay_aviso():
 
 
 # --- el aviso de "siguen legibles tras la red" -------------------------------------
-# Saltaba sobre todo por falsos positivos de la segunda pasada (medido: 11 avisos,
-# ninguno con una fuga real en la lectura de barras).  Un aviso que pide revision
-# manual y casi nunca acierta acaba ignorado.  Solo lo dan los tipos fiables; lo
+# Con todos los tipos saltaria sobre todo por falsos positivos de la segunda
+# pasada.  Un aviso que pide revision manual y casi nunca acierta acaba ignorado.  Solo lo dan los tipos fiables; lo
 # demas se sigue tapando igual y se sigue contando, pero no pide revision.
 
 def test_un_nombre_que_sigue_legible_no_pide_revision():

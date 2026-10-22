@@ -5,7 +5,7 @@ lo que genera —el PDF anonimizado y las imagenes para revisarlo a ojo— va ju
 al original, dentro de data/samples/real/.  Por pantalla solo salen recuentos y
 tipos, nunca valores: el plano es un documento real.
 
-    python scripts/probar_plano.py data/samples/real/TOMO_PLANO.pdf
+    python scripts/probar_plano.py data/samples/real/plano.pdf
 """
 from __future__ import annotations
 

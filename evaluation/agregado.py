@@ -2,14 +2,13 @@
 
 Por que tres y no una
 ---------------------
-Una sola cifra global escondio durante meses que el camino escaneado no se
-estaba midiendo: el 30 % del corpus marcado como "escaneado" eran PDF
-digitales, asi que el 0,924 medía el camino digital casi en exclusiva.  Con un
-numero por camino, siempre se sabe donde se esta flojo.
+Una sola cifra global esconde donde se esta flojo: el corpus digital es el
+grande y dominaria la media, aunque el camino escaneado no se estuviera
+midiendo bien.  Con un numero por camino, siempre se sabe donde se esta flojo.
 
 La cifra global es la MEDIA ARITMETICA de los tres F1, no ponderada por
 documentos.  Ponderar volveria a esconder el camino escaneado, que es el corpus
-pequeno, y es justo el error que se esta corrigiendo.  Por eso nunca se imprime
+pequeno.  Por eso nunca se imprime
 sola: esta funcion solo la muestra con las tres al lado.
 
 Comprobacion de camino
@@ -43,9 +42,8 @@ CAMINO_ESPERADO = {
     "hibrido": "pdf_hybrid",
 }
 
-# El corpus hibrido va a salir entero desviado hasta que se arregle el reparto
-# por documento: hoy un mixto con texto suficiente se manda entero al camino
-# digital.  Es la linea base que se quiere medir, no un fallo de la medicion.
+# Desvios de camino que se dan por esperados en un corpus, con su motivo: se
+# imprimen como tales en vez de contarse como fallo.
 DESVIO_ESPERADO = {
     "hibrido": (
         "ESPERADO hasta el arreglo del reparto: hoy un documento mixto con una "
@@ -76,7 +74,7 @@ class Corpus:
 
     @property
     def f1_por_aparicion(self) -> float | None:
-        """F1 con la cuenta antigua; None en resultados anteriores al cambio."""
+        """F1 por aparicion; None en resultados que no lo guardan."""
         antigua = self.datos["summary"].get("por_aparicion")
         return antigua["f1"] if antigua else None
 

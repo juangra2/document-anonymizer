@@ -1,8 +1,8 @@
 """Corrección de orientación en escaneos girados y aviso de OCR ilegible.
 
-Los umbrales se fijaron midiendo sobre el corpus: páginas escaneadas normales
-dan 14.2–35.1 caracteres por token; la misma página girada, 2.1–2.8; corregida,
-10.5–12.0.  Estos tests usan un OCR simulado para ser rápidos y deterministas.
+Una página escaneada normal da muchos caracteres por token; girada, muy pocos;
+enderezada, vuelve a dar muchos.  Estos tests usan un OCR simulado para ser
+rápidos y deterministas.
 """
 import fitz
 from PIL import Image
@@ -97,10 +97,9 @@ def test_restore_returns_the_original_geometry():
 def test_choice_between_rotations_uses_confidence_not_only_length():
     """Elegir 90° o 270° no puede decidirse por longitud de token.
 
-    A 270° el texto sale invertido y produce tokens IGUAL de largos que a 90°
-    (medido sobre un DNI real: 10.5 frente a 9.8 caracteres por token), de modo
-    que la página se leía al revés y las señales del documento no disparaban.
-    La confianza del OCR sí los separa (0.21 frente a 0.39).
+    A 270° el texto sale invertido y produce tokens casi igual de largos que a
+    90°, de modo que la página se leería al revés y las señales del documento no
+    dispararían.  La confianza del OCR sí los separa.
     """
     from app.services.ocr.orientation import orientation_score
 
@@ -125,9 +124,8 @@ def test_choice_between_rotations_uses_confidence_not_only_length():
 def test_opposite_rotations_are_decided_at_full_resolution():
     """90° y 270° dejan la página apaisada: los separa la confianza a tamaño completo.
 
-    Medido en el corpus de extensión (correcto = 270°): una copia reducida de
-    1000 px elegía mal en 5 de 7 páginas porque en pequeño el texto de un A4 no
-    se lee y la confianza salía igual en ambos giros.  Aquí una franja negra
+    Una copia reducida no sirve: en pequeño el texto de un A4 no se lee y la
+    confianza sale igual en ambos giros.  Aquí una franja negra
     marca el sentido: tras girar 270° queda a la derecha y el OCR simulado lee
     texto derecho; tras girar 90° queda a la izquierda y lee texto invertido,
     con tokens más largos pero confianza baja.

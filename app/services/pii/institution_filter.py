@@ -69,9 +69,9 @@ INSTITUTION_NAME_RE = re.compile(
     r")\b"
 )
 
-# Company legal forms (S.L., S.A., S.L.U., S.Coop).  Kept for reference but no
-# longer used as a proximity anchor: on this corpus it produced only false
-# negatives (and bare-letter matches), never a correct suppression.
+# Company legal forms (S.L., S.A., S.L.U., S.Coop).  Not used as a proximity
+# anchor: it produces false negatives (and bare-letter matches), never a
+# correct suppression.
 COMPANY_FORM_RE = re.compile(
     r"(?i)\bS\.?\s?(?:L\.?(?:U\.?)?|A\.?|Coop\.?|L\.?L\.?)\b"
 )
@@ -112,9 +112,9 @@ _TRATAMIENTO_RE = re.compile(
     r"|\bA/A\b|\bAtt?\.\s"
     r"|(?i:\bdestinatari[oa]?\b|\binteresad[oa]\b|\binteressad[ae]\b)"
     # Etiquetas de dato PERSONAL: dicen de quien es lo que viene detras aunque
-    # no se haya detectado ninguna persona (nomina_0007: "Centro de trabajo:
-    # Universitat… / Domicilio fiscal: Paseo del Sol…" se tomaba por la
-    # direccion de la universidad).  "Domicilio social" NO: es el de una entidad.
+    # no se haya detectado ninguna persona (en una nomina, "Centro de trabajo:
+    # <universidad> / Domicilio fiscal: <calle>" no es la direccion de la
+    # universidad).  "Domicilio social" NO: es el de una entidad.
     r"|(?i:\bdomicili(?:o|)(?![^\S\r\n]+social)(?:[^\S\r\n]+(?:fiscal|habitual|particular))?[^\S\r\n]*:"
     r"|\bresid[eè]ncia\b|\badre[çc]a\b|\bnombre[^\S\r\n]+y[^\S\r\n]+apellidos\b"
     r"|\bnom[^\S\r\n]+i[^\S\r\n]+cognoms\b|\bpersona[^\S\r\n]+(?:trabajadora|treballadora)\b))"
@@ -350,7 +350,7 @@ def filter_institutional(
     # La prueba de "hay una persona en medio" puede venir de fuera: el redactor
     # la calcula sin filtrar cuando PERSON está desactivado.  Si se sacara de
     # las entidades ya filtradas, desactivar PERSON haría pasar por
-    # institucional el teléfono de un particular (F5).
+    # institucional el teléfono de un particular.
     if person_spans is None:
         person_spans = [(e.start, e.end) for e in entities if e.entity_type == "PERSON"]
     person_spans = sorted(person_spans)
@@ -365,9 +365,8 @@ def filter_institutional(
             suppress.add(i)
 
     # El codigo postal de una direccion ya apartada como institucional va con
-    # ella: si no, se tachaba solo el CP del membrete ("Calle del Consistorio,
-    # 14, 30201 Cartagena" a la vista y "30201" tachado), porque el CP empieza
-    # mas lejos del nombre de la institucion y se salia de la ventana.
+    # ella: si no, se tacharia solo el CP del membrete, porque empieza mas lejos
+    # del nombre de la institucion y se sale de la ventana.
     direcciones = [(entities[i].start, entities[i].end) for i in suppress
                    if entities[i].entity_type == "ADDRESS"]
     for i, e in enumerate(entities):

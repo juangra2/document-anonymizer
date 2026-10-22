@@ -1,11 +1,10 @@
 """El verificador no se salta paginas en silencio y numera desde 1.
 
-Prueba del plano real: la capa textual extrae con get_text(sort=True), que en
-una pagina de fragmentos sueltos rellena los huecos con espacios (69.000
-caracteres reales dieron 20 millones).  spaCy rechaza mas de un millon, la
-capa fallaba, y la pagina quedaba sin verificar: solo un aviso en el registro,
-nada en el informe.  Y el aviso de residuos decia "pages [2]" contando desde 0,
-cuando los avisos en vivo cuentan desde 1.
+En una pagina de fragmentos sueltos (un plano), get_text(sort=True) rellena los
+huecos con espacios y el texto puede pasar del millon de caracteres que admite
+spaCy.  La pagina se verifica por trozos, y si alguna queda sin verificar lo dice
+el informe, no solo el registro.  Las paginas se numeran desde 1, como los
+avisos en vivo.
 """
 import fitz
 

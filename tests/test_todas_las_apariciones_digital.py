@@ -1,15 +1,12 @@
 """En el digital se tachan TODAS las apariciones de un dato detectado.
 
-La lectura de barras de c2 sobre 100 documentos digitales encontro datos que el
-sistema ya habia detectado y seguian a la vista: el dato se detectaba en un sitio
-y sus otras apariciones se quedaban.  El camino escaneado ya tacha todas las
-apariciones de un valor detectado; el digital solo tachaba la que habia detectado.
-Los tres casos reales:
+Un dato se detecta en un sitio y vuelve a aparecer en otros donde por si solo
+no se detectaria: tambien ahi se tacha, como en el camino escaneado.  Los tres
+casos tipicos:
 
-  - el nombre en el cuerpo ("Nombre y apellidos: David Álvarez Suárez") y otra
-    vez solo en el bloque de firma, en la franja del pie;
-  - la misma direccion en la otra columna, partida en dos lineas ("…Sanitàries,
-    Calle de" / "Cervantes, 96, 5º C, 28013 Madrid.");
+  - el nombre en el cuerpo ("Nombre y apellidos: <nombre>") y otra vez solo en
+    el bloque de firma, en la franja del pie;
+  - la misma direccion en la otra columna, partida en dos lineas;
   - el importe de la nomina en la pagina 1 y repetido en la 2.
 """
 import fitz
@@ -61,9 +58,8 @@ def test_un_valor_corto_solo_se_tacha_como_palabra_entera(tmp_path):
 
 
 def test_un_valor_corto_pegado_a_su_etiqueta_si_se_tacha():
-    """solicitud_generica_0016: "Código postal:41001" (la extraccion pega
-    etiqueta y valor).  "41001" es una pieza entera de la palabra, no parte de
-    otro numero."""
+    """"Código postal:41001" (la extraccion pega etiqueta y valor): "41001" es
+    una pieza entera de la palabra, no parte de otro numero."""
     from app.services.pdf.redactor import tachar_todas_las_apariciones
     from app.services.pii.models import PiiEntity
 
@@ -79,10 +75,9 @@ def test_un_valor_corto_pegado_a_su_etiqueta_si_se_tacha():
 
 
 # --- el barrido no multiplica un nombre de institucion mal detectado ----------------
-# Medicion c3: el analizador toma a veces por PERSON "Universitat Politècnica de
-# Llevant", "Ajuntament de Sueca" o "La persona".  Antes se tachaban donde se
-# detectaban; el barrido los tachaba en todo el documento, membrete incluido: 163
-# barras de mas en 72 de 400 documentos.
+# El analizador toma a veces por PERSON un nombre de institucion o "La persona".
+# Donde se detecta se tacha; el barrido no lo multiplica por todo el documento,
+# membrete incluido.
 
 def test_el_barrido_no_multiplica_un_nombre_de_institucion():
     from app.services.pdf.redactor import tachar_todas_las_apariciones

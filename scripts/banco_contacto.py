@@ -107,7 +107,7 @@ def casos() -> list[Caso]:
     n = _agrupa(nuevo("6"), (3, 2, 2, 2), " ")
     out.append(Caso("", "PHONE_NUMBER", "campo de formulario", f"Teléfono de contacto: ............ {n}", n))
 
-    # etiqueta en una linea y el valor en la siguiente (lectura de barras de c2)
+    # etiqueta en una linea y el valor en la siguiente
     n = _agrupa(nuevo("6"), (3, 3, 3), " ")
     out.append(Caso("", "PHONE_NUMBER", "etiqueta 'Tfno.:' y numero en la linea siguiente",
                     f"Tfno.:\n+34 {n}", f"+34 {n}"))
@@ -180,7 +180,7 @@ def casos() -> list[Caso]:
         d = f"Calle {next(calles)}, {next(num)}, 46006 Valencia"
         out.append(Caso("", "ADDRESS", f"campo etiquetado '{et}'", f"{et} {d}", d))
 
-    # etiqueta en una linea y el valor en la siguiente (lectura de barras de c2)
+    # etiqueta en una linea y el valor en la siguiente
     d = f"Paseo de {next(calles)}, {next(num)}, 2º B, 18001 Granada"
     out.append(Caso("", "ADDRESS", "etiqueta 'Domicilio fiscal:' y valor en la linea siguiente",
                     f"Domicilio fiscal:\n{d}", d))
@@ -221,8 +221,9 @@ def casos() -> list[Caso]:
     return out
 
 
-# La carta de la primera pagina: todo en el 12 % superior (< 101 pt), que es donde
-# la zona de cabecera excluia antes el telefono y la direccion.
+# La carta de la primera pagina: todo en el 12 % superior (< 101 pt), que es la
+# zona de cabecera, donde el filtro institucional decide si el telefono y la
+# direccion son de la institucion o del destinatario.
 _CARTA = ["Ajuntament de Sueca", "Plaça Major, 1, 46410 Sueca", "Tel. 96 170 05 00",
           "Sra. Xelo Brufau Ivars", "C/ Sant Josep, 14, 46410 Sueca", "Tel. 655 214 873"]
 

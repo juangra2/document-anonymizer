@@ -1,7 +1,7 @@
-"""Bloque 5b — cortar el valor de un campo donde termina, sin perder cobertura.
+"""Cortar el valor de un campo donde termina, sin perder cobertura.
 
-Coordenadas reales medidas en el corpus (nomina_0001, nomina_0005,
-acuerdo_adscripcion_0001).  El invariante que se fija en todos los casos: toda
+Coordenadas tomadas de documentos del corpus (nominas y acuerdos).  El
+invariante que se fija en todos los casos: toda
 palabra de valor original sigue tapada salvo las que se reconocen como
 etiqueta.
 """
@@ -131,7 +131,7 @@ def test_no_gutter_on_a_single_column_page():
     assert detect_column_gutter(_page_rows(False), page_width=595) is None
 
 
-# --- etiqueta de varias palabras tras el canal (caso dificil 12) -------------------
+# --- etiqueta de varias palabras tras el canal -------------------------------------
 
 def test_bilingue_a_dos_columnas_la_etiqueta_de_la_derecha_no_se_tacha():
     """Solicitud bilingue a dos columnas: tras el canal, "Nombre y apellidos:" no
@@ -154,11 +154,10 @@ def test_una_frase_con_cifras_no_es_una_etiqueta():
 
 
 def test_un_nombre_antes_de_otra_etiqueta_no_se_toma_por_etiqueta():
-    """Lectura de barras c4 (nomina del hibrido): "Nombre | Eva González Domínguez |
-    Doc. identitat: | 89650526E".  La etiqueta de varias palabras terminada en dos
-    puntos se usaba tambien para BUSCAR el corte, y "González Domínguez Doc.
-    identitat:" pasaba por etiqueta: se cortaba tras "Eva" y los apellidos
-    quedaban a la vista."""
+    """En una fila corrida "Nombre | <nombre> <apellidos> | Doc. identitat: |
+    <documento>", la etiqueta de varias palabras no sirve para BUSCAR el corte:
+    "<apellidos> Doc. identitat:" pasaria por etiqueta, se cortaria tras el
+    nombre de pila y los apellidos quedarian a la vista."""
     words = row(("Nombre", 67, 103), ("Eva", 164, 181), ("González", 183, 225), ("Domínguez", 227, 270),
                 ("Doc.", 337, 358), ("identitat:", 360, 400), ("89650526E", 424, 472))
     segments = split_labeled_row(words[:1], words[1:], find_label=find_label, height=H)

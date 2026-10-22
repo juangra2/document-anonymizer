@@ -1,16 +1,11 @@
 """La capa binaria no lee datos donde solo hay bytes codificados.
 
-Dos fallos intermitentes de la suite (test_table_layout_redaction, residuo en la
-capa binaria).  La causa: el /ID del trailer son 64 cifras hexadecimales
-aleatorias en cada salida, y en un 4,6 % de los casos (medido: 138 de 3.000)
-llevan nueve cifras seguidas que empiezan por 6, 7 o 9: un "telefono".  En
-produccion, el mismo aviso binario falso en uno de cada veintitantos documentos.
+El /ID del trailer son 64 cifras hexadecimales aleatorias en cada salida, y a
+menudo llevan nueve cifras seguidas que empiezan por 6, 7 o 9: un "telefono".
+Y en latin-1 casi todo byte alto es "imprimible", asi que un flujo comprimido
+escaneado como texto da datos falsos.
 
-Ademas, un flujo comprimido solo se apartaba en sus primeros 250 bytes (se
-buscaba la palabra "stream" justo antes), y en latin-1 casi todo byte alto es
-"imprimible": el resto del flujo se escaneaba como si fuera texto.
-
-Ahora se apartan las cadenas hexadecimales y los flujos con /Filter (su
+Por eso se apartan las cadenas hexadecimales y los flujos con /Filter (su
 contenido lo leen ya descomprimido la capa textual y la de OCR).  Los flujos sin
 comprimir y el resto del fichero se siguen escaneando enteros.
 """
@@ -48,7 +43,7 @@ def test_un_dni_fuera_de_los_flujos_se_detecta(tmp_path):
 
 
 def test_los_anchos_de_una_fuente_no_son_telefonos(tmp_path):
-    """Plano real: 111 "telefonos" en /Widths y /W ("667 722 611")."""
+    """Un plano lleva arrays numericos (/Widths, /W) que parecen telefonos."""
     ruta = _pdf(tmp_path, b"5 0 obj\n<< /Type /Font /FirstChar 32 /Widths [278 667 722 611 556 278]"
                 b" /W [1 [667 722 611] 10 20 556] >>\nendobj")
     assert check_binary(ruta, analyzer).entities_found == []

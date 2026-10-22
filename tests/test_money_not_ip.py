@@ -1,9 +1,8 @@
-"""Una dirección IP no es un importe (O2).
+"""Una dirección IP no es un importe.
 
 `_MONEY_RE` acepta el formato de miles con puntos, y una IPv4 tiene esa forma:
-«90.241.195.223» casaba entera y «10.217.195.85» casaba en «10.217.195».  En
-una página con señales financieras (nómina, cuenta) el gate de contexto la
-dejaba pasar como MONEY.  Los textos son del corpus.
+casaría entera, o en sus tres primeros grupos.  En una página con señales
+financieras (nómina, cuenta) el gate de contexto la dejaría pasar como MONEY.
 """
 import pytest
 

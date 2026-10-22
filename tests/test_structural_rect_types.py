@@ -1,7 +1,7 @@
-"""Bloque 5a — cada rect de redacción estructural sabe de qué tipo es (F9).
+"""Cada rect de redacción estructural sabe de qué tipo es.
 
 La redacción estructural tacha el valor tras una etiqueta sin analizarlo, así
-que ningún disabled_types podía liberarlo.  Aquí se fija que el tipo sale de la
+que sin su tipo ningún disabled_types podría liberarlo.  Aquí se fija que el tipo sale de la
 etiqueta, en los dos caminos, y que dos valores de tipos distintos en la misma
 fila no se funden en un único rect sin tipo.
 """

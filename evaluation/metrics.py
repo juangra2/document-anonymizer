@@ -146,15 +146,15 @@ class AggregatedMetrics:
 # P/R/F1 so they do not distort the overall score; still visible per-type.
 OUT_OF_SCOPE_GT_TYPES: frozenset[str] = frozenset({
     "LOCATION",
-    # ORGANIZATION ya no esta fuera de alcance: el corpus anota la razon social
-    # de empresa privada como PII (requisito del ayuntamiento), asi que debe
-    # contar en la metrica global.
+    # ORGANIZATION no esta aqui: el corpus anota la razon social de empresa
+    # privada como PII (requisito del ayuntamiento), asi que cuenta en la
+    # metrica global.
     "PROFESSIONAL_LICENSE",
     "ROLE_TABLE_ROW",
-    # Importes de presupuesto de obra: el corpus NO los anota, porque cuando se
-    # generó la decision era no ocultarlos.  Ahora se ofrecen como tipo propio,
-    # marcado por defecto; contarlos como falsos positivos mediria la anotacion,
-    # no el sistema.  Queda visible en el desglose por tipo.
+    # Importes de presupuesto de obra: el corpus NO los anota, pero el sistema
+    # los ofrece como tipo propio, marcado por defecto; contarlos como falsos
+    # positivos mediria la anotacion, no el sistema.  Queda visible en el
+    # desglose por tipo.
     "BUDGET_AMOUNT",
 })
 
@@ -193,7 +193,6 @@ def text_iou(a: str, b: str) -> float:
     shorter, longer = (a_n, b_n) if len(a_n) <= len(b_n) else (b_n, a_n)
     if shorter in longer:
         return len(shorter) / len(longer)
-    # Character trigram IoU
     def trigrams(s: str) -> set[str]:
         return {s[i : i + 3] for i in range(len(s) - 2)} if len(s) >= 3 else {s}
     tg_a, tg_b = trigrams(a_n), trigrams(b_n)

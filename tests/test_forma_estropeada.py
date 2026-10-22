@@ -1,15 +1,12 @@
 """Para tachar no hace falta que el dato sea valido: basta con que tenga su forma.
 
-Si el OCR mete una errata en un IBAN, falla el digito de control y no se
-tachaba; si corta el final de un correo, tampoco.  Casos reales del corpus
-escaneado (contrato_laboral_0002): "ES8O 00495069 47323516 9178" (un 9 leido
-como 5 y un 0 como O) y "pilarmoreno@orange" (sin ".es").
+Si el OCR mete una errata en un IBAN, falla el digito de control; si corta el
+final de un correo, falta el dominio.  Ninguna de las dos cosas puede dejar el
+dato a la vista: un IBAN con una cifra leida como otra y una O en lugar de un 0,
+o un correo sin ".es", se tachan igual.
 
-Medido antes de fijarlo sobre el texto del corpus digital y el OCR de las
-entradas escaneadas e hibridas (452 documentos):
-  IBAN por su forma: 1 dato real recuperado, 0 falsos positivos.
-  correo sin terminacion: 20 datos reales; un falso positivo del OCR
-  ("pr@sent", que era "present"), que se evita exigiendo 3 caracteres de usuario.
+Un correo sin terminacion exige al menos 3 caracteres de usuario, para no tomar
+por correo un "pr@sent" del OCR.
 """
 from app.services.pii.analyzer import PiiAnalyzer
 

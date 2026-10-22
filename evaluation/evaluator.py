@@ -54,10 +54,10 @@ def call_api(
 
     Returns (report_dict, error_string). error_string is None on success.
 
-    El zip trae el informe Y el PDF anonimizado, y hasta ahora el PDF se tiraba.
-    Con `guardar_salidas` se escribe en disco: no cuesta ni un segundo de
-    proceso y es lo unico que permite comprobar despues si las barras negras
-    tapan de verdad el dato, que es algo que las metricas de entidades no ven.
+    El zip trae el informe Y el PDF anonimizado.  Con `guardar_salidas` el PDF
+    se escribe en disco: no cuesta ni un segundo de proceso y es lo unico que
+    permite comprobar despues si las barras negras tapan de verdad el dato, que
+    es algo que las metricas de entidades no ven.
     """
     try:
         with open(pdf_path, "rb") as fh:
@@ -67,12 +67,12 @@ def call_api(
                 params={
                     "output": "zip",
                     "include_entities": "true",
-                    # Tipos desactivados en la peticion (compuerta del bloque 2b):
+                    # Tipos desactivados en la peticion (ver compuerta_tipos):
                     # httpx repite la clave por cada valor.
                     "disabled_types": list(disabled_types or []),
                     # Todos los demas, pedidos de forma explicita: la API parte
-                    # del catalogo (expediente apagado) y la medicion tiene que
-                    # seguir comparando lo mismo que c4, con todo activo.
+                    # del catalogo, y la medicion tiene que hacerse siempre con
+                    # todo activo para que las corridas sean comparables.
                     "enabled_types": sorted(known_type_ids() - set(disabled_types or [])),
                 },
                 timeout=timeout,
@@ -125,9 +125,8 @@ def _doc_result_desde_json(obj: dict) -> DocResult:
     """Reconstruye un DocResult guardado en el checkpoint.
 
     `dataclasses.asdict` aplana las entidades a diccionarios, y volver a meterlos
-    tal cual dejaba un DocResult con dicts donde el agregador espera objetos:
-    la tanda se evaluaba entera —hora y media— y reventaba al agregar, con todo
-    el trabajo hecho y ningun resultado escrito.
+    tal cual dejaria un DocResult con dicts donde el agregador espera objetos:
+    fallaria al agregar, con toda la tanda evaluada y ningun resultado escrito.
     """
     from evaluation.metrics import EntityRecord, TypeResult
 

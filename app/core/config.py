@@ -9,21 +9,15 @@ class Settings(BaseSettings):
 
     temp_root: str = "/tmp/anonymizer"
 
-    # Limites de entrada.  Los anteriores (25 MB / 50 paginas) venian de la
-    # primera fase y habrian rechazado los expedientes reales del ayuntamiento,
-    # que son cientos de paginas concatenadas.
+    # Limites de entrada.  Un expediente del ayuntamiento son cientos de
+    # paginas concatenadas, asi que los limites tienen que admitirlos.
     #
-    # Medido en este equipo (portatil con RTX 4060, un solo documento a la vez):
-    #
-    #   camino digital     600 paginas en 8 min 34 s (0.86 s/pag), pico 1.2 GB
-    #                      301 paginas en 4 min 55 s (0.98 s/pag), pico 1.1 GB
-    #   camino escaneado    10 paginas en 17 min (101.8 s/pag),    pico 2.5 GB
-    #
-    # El tiempo escala lineal y la memoria es plana: el documento no se sostiene
-    # entero en RAM, asi que el techo no lo pone la maquina sino la paciencia.
-    # 300 paginas son ~5 min si el PDF es digital y varias horas si esta
-    # escaneado entero; el presupuesto por pagina (ocr_page_timeout_s) y la cola
-    # son lo que evita que un documento asi bloquee el servicio para siempre.
+    # El tiempo escala lineal con las paginas y la memoria es plana: el
+    # documento no se sostiene entero en RAM, asi que el techo no lo pone la
+    # maquina sino la paciencia.  Una pagina digital tarda alrededor de un
+    # segundo y una escaneada, minutos; el presupuesto por pagina
+    # (ocr_page_timeout_s) y la cola evitan que un documento asi bloquee el
+    # servicio para siempre.
     max_upload_mb: int = 200
     max_pdf_pages: int = 300
     min_digital_text_chars: int = 30
@@ -44,15 +38,14 @@ class Settings(BaseSettings):
     #
     # Documentos procesados a la vez.  Es también el número de trabajadores y
     # el límite de acceso a la GPU: con más de uno, dos peticiones simultáneas
-    # de OCR agotan la memoria de la tarjeta (medido: 500 por CUDA OOM).
+    # de OCR agotan la memoria de la tarjeta.
     max_concurrent_documents: int = 1
     # Trabajos admitidos en cola antes de rechazar con 503.  Evita que una
     # tanda de subidas acumule gigas de PDF en disco esperando turno.
     job_queue_max: int = 20
     # Minutos que se conserva el resultado antes de borrarlo del disco.  Seis
-    # horas: el documento anonimizado ya no lleva datos personales, y con una
-    # sola hora una tanda larga caducaba por delante mientras aún se procesaba
-    # el final.  El informe que se conserva con él tampoco lleva valores (la
+    # horas: el documento anonimizado ya no lleva datos personales, y con menos
+    # una tanda larga caducaria por delante mientras aún se procesa el final.  El informe que se conserva con él tampoco lleva valores (la
     # cola no admite include_entities), y el original se borra en cuanto
     # termina el proceso, salvo store_original.
     result_ttl_minutes: int = 360
@@ -72,9 +65,9 @@ class Settings(BaseSettings):
     # "transformers" → a HuggingFace token-classification model wrapped by
     #                  Presidio's TransformersNlpEngine.  Falls back to spaCy if
     #                  the transformer stack is unavailable.  Model loads lazily.
-    # Default is "spacy": BETO (mrm8488) was evaluated and regressed PERSON F1
-    # (0.80 vs 0.82) and mishandles Valencian/Catalan (span-alignment failures on
-    # D'UNA PART:, D.N.I.:).  Engine kept configurable for future opt-in.
+    # Default is "spacy": the transformer model detects PERSON worse and
+    # mishandles Valencian/Catalan (span-alignment failures on D'UNA PART:,
+    # D.N.I.:).  Engine kept configurable for future opt-in.
     # INE public gazetteers (surnames/given names + municipalities/provinces).
     # gazetteer_address: compositional ADDRESS extractor with CP↔province↔
     #   municipality validation.  gazetteer_person: reinforce low-confidence
@@ -96,7 +89,7 @@ class Settings(BaseSettings):
     # "No paragraphs": at most this many text blocks of ≥150 chars.
     plan_max_paragraph_blocks: int = 5
 
-    # Redaccion total de pagina (bloque B): copia de DNI y autoliquidacion
+    # Redaccion total de pagina: copia de DNI y autoliquidacion
     # tributaria.  Se decide por SENALES TEXTUALES sobre el texto ya extraido
     # (vale igual para PDF digital y para OCR), nunca por analisis visual: un
     # DNI escaneado y pegado en un A4 no conserva proporciones de tarjeta.
@@ -123,8 +116,8 @@ class Settings(BaseSettings):
     dni_crop_min_frac: float = 0.02
     dni_crop_max_frac: float = 0.60
     # Relleno minimo (area de tinta / area del rectangulo) para tomar una mancha
-    # por contenido real.  Medido: 0.007 en el moteado de ruido que abarca la
-    # hoja entera, frente a 0.21-0.52 en la tarjeta.
+    # por contenido real: el moteado de ruido que abarca la hoja entera queda muy
+    # por debajo, y una tarjeta muy por encima.
     dni_crop_min_fill: float = 0.05
 
     # Detect and redact handwritten signatures (embedded images / ink) in the
@@ -164,9 +157,8 @@ class Settings(BaseSettings):
 
     # Tipos de bloque cuyo CONTENIDO no se pide al VLM de MinerU.  Un bloque
     # "image" no aporta texto util —el texto ya lo da EasyOCR— y en cambio
-    # dispara una transcripcion larguisima: medido sobre un DNI escaneado, la
-    # deteccion de layout tarda 3.9 s y devuelve UN bloque de tipo image, cuya
-    # extraccion se llevaba ~27 minutos para acabar descartada por degenerada.
+    # puede disparar una transcripcion de decenas de minutos que acaba
+    # descartada por degenerada.
     ocr_mineru_skip_block_types: str = "image,image_block,chart"
 
     # Cap on tokens the MinerU VLM may generate per block.  Bounds the runaway
@@ -181,8 +173,8 @@ class Settings(BaseSettings):
     # services/ocr/orientation.py).
     ocr_auto_rotate_enabled: bool = True
     # Caracteres por token por debajo de los cuales el texto se considera
-    # ruido.  Medido sobre el corpus: paginas normales 14.2-35.1, pagina
-    # girada 2.1-2.8, la misma pagina corregida 10.5-12.0.
+    # ruido.  Una pagina normal queda muy por encima; una girada, muy por
+    # debajo; la misma pagina enderezada vuelve a quedar por encima.
     ocr_min_chars_per_token: float = 8.0
     # Tokens minimos para molestarse en probar otras orientaciones: por debajo
     # la pagina esta practicamente en blanco y rotarla no aporta.
@@ -208,10 +200,9 @@ class Settings(BaseSettings):
 
     # Pagina que el OCR no ha podido leer —ilegible en todos los giros o que
     # agota ocr_page_timeout_s—: se tacha ENTERA.  Entregarla intacta con un
-    # aviso dejaba visible todo su contenido; medido en un presupuesto
-    # escaneado girado: nombre del tecnico, empresa y fecha legibles.  Si no se
-    # ha podido leer, no se puede afirmar que no lleve datos.  False vuelve al
-    # comportamiento anterior (pagina intacta + aviso de revision manual).
+    # aviso dejaria visible todo su contenido: si no se ha podido leer, no se
+    # puede afirmar que no lleve datos.  False la entrega intacta con un aviso
+    # de revision manual.
     redact_unreadable_pages: bool = True
 
     # "Image-dominant" page fast path: a page whose largest embedded image covers
@@ -227,15 +218,11 @@ class Settings(BaseSettings):
 
     # Tope de pixeles al rasterizar una pagina para OCR.
     #
-    # Antes, una pagina con una imagen enorme se SALTABA: salia sin mirar.  Eso
-    # no es un plano raro, es un expediente archivado a buena resolucion — un A4
-    # a 600 DPI son 35 MP — y se entregaba intacto.  La respuesta correcta a
-    # "esto es caro" no es "no lo mires", es "hazlo mas barato".
-    #
-    # Medido antes de elegir el numero: leyendo un certificado con letra menuda
-    # rasterizado a 600 DPI, el OCR encuentra los MISMOS datos desde 600 DPI
-    # hasta 102 DPI equivalentes, y solo se rompe por debajo (a 72 DPI cae a la
-    # mitad).  Con 8 MP hay seis veces mas resolucion de la que hace falta.
+    # Una pagina con una imagen enorme no se salta: no es un plano raro, es un
+    # expediente archivado a buena resolucion (un A4 a 600 DPI son 35 MP).  La
+    # respuesta a "esto es caro" no es "no lo mires", es "hazlo mas barato":
+    # se reduce.  El OCR encuentra los mismos datos en letra menuda hasta
+    # unos 100 DPI equivalentes; 8 MP dejan holgura de sobra.
     #
     # Y no afecta a ninguna pagina normal: el render de OCR va a 200 DPI, que en
     # un A4 son 3,9 MP.  El tope solo actua sobre las patologicas, como la
@@ -244,36 +231,30 @@ class Settings(BaseSettings):
 
     # ¿Cuando una pagina con texto Y con imagen necesita pasar por OCR?
     #
-    # El reparto es PAGINA A PAGINA CON UN CRITERIO DE SUPERFICIE, no "siempre
-    # OCR".  Antes se decidia por documento con una media de 200 caracteres por
-    # pagina, y dos folios de texto tapaban veinte paginas escaneadas.  Pero la
-    # correccion no puede ser mandar al OCR toda pagina con una imagen: el 51 %
-    # de las paginas del corpus digital llevan una (el logo del membrete), y
-    # pasarlas por OCR cambiaria una redaccion sobre capa de texto —sin fugas de
-    # geometria medidas— por una que si las tiene, y les quitaria el texto
-    # seleccionable, para tachar un logo.
+    # El reparto es PAGINA A PAGINA CON UN CRITERIO DE SUPERFICIE, no por
+    # documento: dos folios de texto no pueden tapar veinte paginas escaneadas.
+    # Tampoco va al OCR toda pagina con una imagen: la mayoria de las paginas
+    # digitales llevan una (el logo del membrete), y pasarlas por OCR cambiaria
+    # una redaccion sobre capa de texto por una sobre imagen, menos precisa, y
+    # les quitaria el texto seleccionable para tachar un logo.
     #
-    # El criterio es FRACCION DE PAGINA CUBIERTA, no pixeles: con las puertas de
-    # tamano ya vimos lo que pasa al mezclar unidades.  Medido:
+    # El criterio es FRACCION DE PAGINA CUBIERTA, no pixeles, para no mezclar
+    # unidades.  Orden de magnitud: un logo, un QR o un sello cubren menos del
+    # 1 %; una firma escaneada unos pocos; un DNI pegado o una foto de anexo,
+    # alrededor del 10 %; una copia escaneada pegada como pagina, mucho mas.
     #
-    #   imagenes legitimas en paginas digitales   maximo 0,38 %   (logo, QR, sello)
-    #   firma escaneada tipica (7 x 3 cm)                3,4 %
-    #   DNI pegado a tamano real                         7,4 %
-    #   foto pequena de un anexo (9 x 6 cm)              8,7 %
-    #   copias pegadas del corpus hibrido               20 %
-    #
-    # Ya NO se manda la pagina entera al OCR por la suma de sus imagenes: cada
+    # No se manda la pagina entera al OCR por la suma de sus imagenes: cada
     # imagen que cubre al menos ocr_imagen_minima se lee SOLA, recortada y con
     # sus propios pixeles, y se tacha en la pagina digital (ver
-    # pdf/imagenes_pegadas.py).  Con la suma del 5 %, un DNI real a mitad de
-    # escala (3,7 % las dos caras) no se miraba, uno girado 90 grados no lo leia
-    # el OCR de la pagina, y uno a tamano real tapaba la pagina entera, oficio
-    # incluido.  Leer un recorte cuesta 0,03 s (una firma) a 2 s (un DNI girado).
+    # pdf/imagenes_pegadas.py).  Asi se leen tambien una copia a escala reducida
+    # o girada, y una copia a tamano real no arrastra al OCR el oficio que la
+    # acompana.  Leer un recorte cuesta de centesimas de segundo a un par de
+    # segundos.
     #
     # La pagina entera solo va al OCR si no tiene texto o si UNA imagen que no
     # es un fondo (un formulario escrito encima, ver pdf/fondos.py) ocupa al
     # menos ocr_imagen_pagina_completa: un escaneo pegado como pagina.  Los
-    # logos (0,38 %) quedan por debajo de ocr_imagen_minima y no se leen.
+    # logos quedan por debajo de ocr_imagen_minima y no se leen.
     ocr_imagen_pagina_completa: float = 0.5
     ocr_imagen_minima: float = 0.01
 

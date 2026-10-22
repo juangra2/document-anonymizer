@@ -1,11 +1,10 @@
 """Un QR escaneado que zbar y OpenCV no leen, zxing-cpp si.
 
-Se sigue exigiendo DECODIFICAR para tachar un codigo: es lo que evita volver a
-tachar diagramas y sellos enteros (TOMO_02, TOMO_03).  Lo que cambia es quien
-decodifica.  Medido en el corpus escaneado: el detector encontraba el QR en 4
-de 16 documentos; con zxing-cpp, en 11, sin ninguna deteccion en paginas sin QR
-ni en el plano real.  Los 5 que siguen sin leerse son escaneos de 120-150 ppp
-con el QR a ~1,4 pixeles por modulo: no los decodifica nadie.
+Se exige DECODIFICAR para tachar un codigo: es lo que evita tachar diagramas y
+sellos enteros.  zxing-cpp decodifica muchos QR escaneados que zbar y OpenCV no
+leen, sin detectar nada en paginas sin QR.  Los que siguen sin leerse son
+escaneos de baja resolucion, con el QR a poco mas de un pixel por modulo: no los
+decodifica nadie.
 
 Las imagenes son recortes de dos paginas del corpus sintetico (datos
 inventados), pegados en una pagina en blanco del tamano del render.

@@ -1,11 +1,10 @@
 """Imagenes pegadas en una pagina con texto: se leen recortadas y se tachan en su sitio.
 
-Casos dificiles con un DNI real (no van al repositorio; ver
-test_casos_dificiles_reales.py): a mitad de escala salia entero (la pagina no
-iba al OCR), girado 90 grados tambien (el OCR leia la pagina derecha), y a
-tamano real se tapaba la pagina entera, oficio incluido.  Aqui, con un OCR
+Una copia de DNI a escala reducida o girada 90 grados se lee igual, y una a
+tamano real no hace tapar la pagina entera con el oficio.  Aqui, con un OCR
 falso y datos inventados: lee la imagen apaisada y da ruido si esta de lado,
-como el OCR real con una tarjeta girada.
+como el OCR real con una tarjeta girada (los casos con un documento real estan
+en test_casos_dificiles_reales.py).
 """
 import fitz
 from PIL import Image, ImageDraw
@@ -109,9 +108,9 @@ def test_deshacer_el_giro_devuelve_las_coordenadas_originales():
 
 
 def test_una_copia_tapada_entera_informa_de_los_datos_que_lleva():
-    """Medicion c4, corpus hibrido: la copia de DNI pegada se tapaba entera (bien)
-    pero el informe solo decia "una copia", sin los datos de dentro.  Quien lea el
-    informe, y el evaluador, tienen que ver que se taparon un nombre y un DNI."""
+    """La copia de DNI pegada se tapa entera, y el informe dice que datos llevaba:
+    quien lea el informe, y el evaluador, tienen que ver que se taparon un nombre
+    y un DNI, no solo "una copia"."""
     _, p = _pagina(fitz.Rect(240, 300, 361, 376))
     r = revisar_imagenes(p, analyzer, leer=_lector(_COPIA))
     tipos = {e.entity_type for e in r[0].entidades}
@@ -121,11 +120,10 @@ def test_una_copia_tapada_entera_informa_de_los_datos_que_lleva():
 
 
 def test_una_copia_con_texto_encima_se_tapa_entera(tmp_path, monkeypatch):
-    """Casos dificiles con un DNI real: la copia con un sello encima, o cruzada por
-    una linea del oficio, salia tapada solo entre un 9 y un 19 %.  El ajuste de las
-    barras a las letras (para no morder etiquetas) reducia la marca de la copia
-    entera a la altura de esa linea de texto.  La marca de una imagen no es una
-    barra de texto y no se ajusta."""
+    """Una copia con un sello encima, o cruzada por una linea del oficio, se tapa
+    entera.  El ajuste de las barras a las letras (para no morder etiquetas)
+    reduciria la marca de la copia a la altura de esa linea de texto: la marca de
+    una imagen no es una barra de texto y no se ajusta."""
     from app.services.pdf import imagenes_pegadas
     from app.services.pdf.redactor import redact_pdf_digital
 

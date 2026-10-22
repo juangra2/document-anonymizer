@@ -250,7 +250,7 @@ def test_a_stopped_hybrid_document_only_keeps_processed_pages(
     import app.services.pdf.hybrid_redactor as hr
     import app.services.pdf.scanned_redactor as sr
 
-    # El hibrido ya no tiene motor de OCR propio: usa el MISMO bucle que el
+    # El hibrido no tiene motor de OCR propio: usa el MISMO bucle que el
     # camino escaneado, asi que el motor se sustituye alli.
     motor = _FakeEngine()
     monkeypatch.setattr(sr, "get_ocr_engine", lambda: motor)
@@ -278,7 +278,7 @@ def test_the_hybrid_digital_pass_is_not_cut_in_half(tmp_path, monkeypatch, analy
     import app.services.pdf.hybrid_redactor as hr
     import app.services.pdf.scanned_redactor as sr
 
-    # El hibrido ya no tiene motor de OCR propio: usa el MISMO bucle que el
+    # El hibrido no tiene motor de OCR propio: usa el MISMO bucle que el
     # camino escaneado, asi que el motor se sustituye alli.
     motor = _FakeEngine()
     monkeypatch.setattr(sr, "get_ocr_engine", lambda: motor)

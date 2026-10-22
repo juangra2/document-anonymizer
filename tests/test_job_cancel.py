@@ -1,9 +1,8 @@
 """Parar un documento que ya se está procesando.
 
 Lo que se fija aquí es que parar libere DE VERDAD el permiso de GPU y borre los
-ficheros: el fallo que esto arregla era que el borrado quitaba los ficheros de
-debajo del trabajador, que seguía ocupando la tarjeta con un documento que ya
-no existía.
+ficheros: borrarlos de debajo del trabajador lo dejaría ocupando la tarjeta con
+un documento que ya no existe.
 
 El procesamiento se simula: así se pueden medir tiempos exactos —cuánto tarda
 en soltar, cuánto tarda en arrancar el siguiente— sin depender de una GPU ni de
@@ -54,7 +53,7 @@ def _store(pipeline) -> JobStore:
 
 
 def _submit(store: JobStore, name: str = "") -> object:
-    # el nombre ya no viaja al servidor; el parametro se conserva por legibilidad
+    # el nombre no viaja al servidor; el parametro se conserva por legibilidad
     job = store.create(content_type="application/pdf")
     job.input_path.write_bytes(b"%PDF-1.4 entrada\n")
     store.enqueue(job, size_bytes=16, disabled_types=frozenset())

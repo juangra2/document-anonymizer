@@ -1,14 +1,12 @@
-"""O3 — el recuento por tipo no depende de include_entities (bloque 6).
+"""El recuento por tipo no depende de include_entities.
 
 En páginas a dos columnas la extracción intercala las líneas de ambas y el trozo
 de texto de cada zona arrastra texto de la otra columna: la misma entidad se
-detecta en varias zonas (en el corpus, el mismo NIE ×6).  Solo se deduplicaba
-con include_entities, así que sin él —el valor por defecto de la API— el informe
-contaba de más.
+detecta en varias zonas.  Se deduplica siempre, pida o no la petición la lista
+de entidades, para que el informe no cuente de más.
 
-Reproducir el orden de extracción del corpus con un PDF sintético no es fiable,
-así que se prueba el punto exacto del fallo: varias zonas cuyo texto cubre la
-misma entidad.
+Reproducir el orden de extracción con un PDF sintético no es fiable, así que se
+prueba el punto exacto: varias zonas cuyo texto cubre la misma entidad.
 """
 import fitz
 

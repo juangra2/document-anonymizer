@@ -184,7 +184,7 @@ def redact_plan_page(page: fitz.Page, analyzer, mode: str = "strict"):
         ))
 
     # Las heurísticas del cajetín (LOCATION→PERSON, "Situación:") añaden entidades
-    # después del analizador: pasan por el mismo filtro de tipos desactivados (F11).
+    # después del analizador: pasan por el mismo filtro de tipos desactivados.
     from app.services.pdf.redaction_plan import RedactionPlan
     plan_filter = RedactionPlan(disabled_types=frozenset(getattr(analyzer, "disabled_types", ())))
     entities = [e for e in entities if plan_filter.admits(e.entity_type)]

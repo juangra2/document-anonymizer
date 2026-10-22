@@ -140,11 +140,11 @@ def _tiene_forma_de_nombre(valor: str) -> bool:
     """Si un PERSON detectado se puede barrer por todo el documento.
 
     El analizador toma a veces por persona un nombre de institucion ("Ajuntament
-    de Sueca", "Universitat Politècnica de Llevant") o una frase ("La persona").
-    Tachado donde se detecto es un falso positivo; barrido, se tachaba tambien en
-    el membrete y en todas partes (c3: 163 barras de mas en 72 documentos).  No
-    se barre lo que nombra una institucion ni lo que lleva palabras en minuscula
-    que no son de enlace.  Donde se detecto se sigue tachando igual.
+    de ...", "Universitat ...") o una frase ("La persona").  Tachado donde se
+    detecto es un falso positivo; barrido, se tacharia tambien en el membrete y
+    en todas partes.  No se barre lo que nombra una institucion ni lo que lleva
+    palabras en minuscula que no son de enlace.  Donde se detecto se sigue
+    tachando igual.
     """
     from app.services.pii.institution_filter import INSTITUTION_NAME_RE, PUBLIC_INSTITUTION_RE
 
@@ -177,8 +177,8 @@ def tachar_todas_las_apariciones(doc: fitz.Document, entidades: list[PiiEntity],
     El dato se detecta en un sitio y vuelve a aparecer en otro donde no se
     detecta: el nombre solo en el bloque de firma (en el pie), la direccion en la
     otra columna partida en dos lineas, el importe de la nomina repetido en la
-    pagina 2.  El camino escaneado ya tachaba todas las apariciones; el digital
-    solo la detectada, y la lectura de barras de c2 lo encontro.  Solo valores que
+    pagina 2.  Como el camino escaneado, el digital tacha todas las
+    apariciones, no solo la detectada.  Solo valores que
     el plan admitio (lo que el filtro institucional aparto no entra) y que no son
     de un tipo desactivado.  Las paginas de `excluir` (planos) no se tocan: su
     tratamiento es el del cajetin.  Devuelve cuantos tachados añadio.
@@ -392,8 +392,8 @@ def _redact_pdf_digital(
                 page_text = extract_page_text(page, page_index)
                 # Las palabras vienen en coordenadas de la pagina SIN girar; el
                 # segmentador tiene que medir las franjas en las mismas.  Con
-                # page.rect, en un anexo apaisado todo caia en el "pie" y se
-                # analizaba con sus tipos (el correo de la firma salia entero).
+                # page.rect, en un anexo apaisado todo caeria en el "pie" y se
+                # analizaria solo con los tipos del pie.
                 sin_girar = page.rect * page.derotation_matrix
                 sin_girar.normalize()
                 zoned_page = segmenter.segment(page_text, sin_girar)
@@ -695,7 +695,7 @@ def _collect_redaction_rects(
         ]
 
         # Celda-nombre aislada (valor de formulario sin etiqueta en la zona).  Pasa
-        # por el plan como cualquier otra: con PERSON desactivado no se tacha (F10).
+        # por el plan como cualquier otra: con PERSON desactivado no se tacha.
         if "PERSON" in allowed and not any(e.entity_type == "PERSON" for e in local_entities):
             span = _standalone_name_cell(zone.text)
             if span is not None:
@@ -840,8 +840,8 @@ def _apply_redactions_safe(page: fitz.Page, **opciones) -> None:
     solapan la redacción — mismo resultado de privacidad.
     """
     # Cajas ajustadas SOLO al aplicar: es donde MuPDF decide que caracteres
-    # borra.  Activas tambien al extraer, partian filas en dos (medicion c4: el
-    # IBAN de una nomina quedaba en dos zonas y no se detectaba).
+    # borra.  Activas tambien al extraer, partirian filas en dos (un IBAN
+    # quedaria en dos zonas y no se detectaria).
     with cajas_de_letra_ajustadas():
         _ajustar_a_las_letras(page)
         try:

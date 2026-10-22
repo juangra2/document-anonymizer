@@ -14,8 +14,8 @@ try:
 except ImportError:
     _PYZBAR_AVAILABLE = False
 
-# zxing-cpp decodifica QR escaneados que zbar y OpenCV no leen: en el corpus
-# escaneado, 11 de 16 frente a 4 (tests/test_qr_escaneado.py).
+# zxing-cpp decodifica QR escaneados que zbar y OpenCV no leen
+# (tests/test_qr_escaneado.py).
 try:
     import zxingcpp  # type: ignore
     _ZXING_AVAILABLE = True

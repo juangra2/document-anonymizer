@@ -1,14 +1,15 @@
 """Formulario bilingue a dos columnas: se tachan los valores, no los rotulos.
 
-Caso dificil 12 (solicitud de ayuda, valenciano | castellano): se tachaban los
-rotulos de las dos columnas.  Dos causas:
+En una solicitud valenciano | castellano a dos columnas, los rotulos de las
+dos columnas no se tachan.  Dos cosas lo hacen posible:
 
-  - tras el canal entre columnas, "Nombre y apellidos:" no se reconocia como
-    etiqueta y, por seguridad, lo que queda tras un corte sin etiqueta se tacha;
-  - el detector de tablas tomaba la primera fila ("Nom i cognoms: ... | Nombre y
-    apellidos: ...") por la cabecera de una tabla y tachaba como nombres todas
-    las celdas de debajo, que eran los rotulos.  Una cabecera de tabla no
-    termina en dos puntos; una etiqueta de formulario si.
+  - tras el canal entre columnas, "Nombre y apellidos:" se reconoce como
+    etiqueta (lo que queda tras un corte sin etiqueta se tacharia, por
+    seguridad);
+  - la primera fila ("Nom i cognoms: ... | Nombre y apellidos: ...") no es la
+    cabecera de una tabla, que haria tachar como nombres los rotulos de debajo.
+    Una cabecera de tabla no termina en dos puntos; una etiqueta de formulario
+    si.
 """
 import fitz
 

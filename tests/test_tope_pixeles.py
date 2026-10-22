@@ -1,14 +1,11 @@
-"""Una pagina enorme se reduce y se mira; antes se saltaba entera.
+"""Una pagina enorme se reduce y se mira, no se salta.
 
-El atajo que habia: una pagina con una imagen de mas de 25 MP cubriendo el 70 %
-se daba por "plano o foto", se le tachaban solo los codigos visuales y se
-entregaba sin leer.  No es un caso raro — un A4 escaneado a 600 DPI son 35 MP, o
-sea un expediente archivado a buena resolucion, y una foto de movil moderna
-tambien pasa de ahi.
+Una pagina con una imagen enorme no es un caso raro: un A4 escaneado a 600 DPI
+(un expediente archivado a buena resolucion) o una foto de movil moderna.  Darla
+por "plano o foto" y entregarla sin leer seria una fuga.
 
-Medido antes de elegir el tope: sobre un certificado con letra menuda, el OCR
-encuentra los mismos datos desde 600 DPI hasta 102 DPI equivalentes.  Reducir no
-cuesta lectura; saltarse la pagina si.
+El OCR encuentra los mismos datos en letra menuda hasta unos 100 DPI
+equivalentes: reducir no cuesta lectura; saltarse la pagina si.
 """
 import fitz
 import pytest

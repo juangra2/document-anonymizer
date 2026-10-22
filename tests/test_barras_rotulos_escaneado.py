@@ -1,10 +1,10 @@
 """Camino escaneado: la barra de un valor no muerde el rotulo de encima.
 
-Formulario real escaneado (caso dificil 6): con la etiqueta pequena justo encima
-del valor, la barra del valor subia y tapaba el pie del rotulo ("COGNOMS",
-"NOM", "Nº RECIBO", "DATA"... con un 14-34 % en negro).  Es el equivalente del
-arreglo del camino digital (cajas de letra ajustadas).  Antes de pintar, si una
-barra muerde el BORDE inferior de un rotulo que esta encima, empieza justo debajo.
+En un formulario escaneado con la etiqueta pequena justo encima del valor, la
+barra del valor tiende a subir y tapar el pie del rotulo ("COGNOMS", "NOM",
+"DATA"...).  Es el equivalente de las cajas de letra ajustadas del camino
+digital: antes de pintar, si una barra muerde el BORDE inferior de un rotulo que
+esta encima, empieza justo debajo.
 Si el OCR junto rotulo y valor en una sola caja, la barra queda dentro de ella y
 no se toca: recortarla destaparia el valor.
 """

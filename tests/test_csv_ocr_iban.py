@@ -29,7 +29,7 @@ def test_csv_requires_label():
 
 
 def test_csv_dotted_abbreviation_real_layout():
-    # Real MinerU layout from a notarial footer: "(*) C.S.V.: <value>".
+    # MinerU layout of a notarial footer: "(*) C.S.V.: <value>".
     text = ("(*) C.S.V.: 12806538135277910.\n"
             "Servicio Web de Verificación: https://www.registradores.org/csv")
     assert any(t == "CSV" and v == "12806538135277910" for t, v, _ in _ents(text))
@@ -49,9 +49,8 @@ def test_csv_explanatory_note_without_value_not_matched():
 def test_csv_con_pocas_cifras():
     """Un CSV de letras y cifras mezcladas no tiene por que llevar 8 cifras.
 
-    Se exigian 8 y se escapaban 165 de 200 CSV del corpus digital y 7 de 8 del
-    escaneado.  Lo que descarta el falso positivo es la etiqueta al lado, no el
-    numero de cifras.
+    Lo que descarta el falso positivo es la etiqueta al lado, no el numero de
+    cifras: un CSV puede ser casi todo letras.
     """
     for valor in ("EGFGOHHL0FWCSC1MWWQP", "KISOW3DQQ12NHCV3VXWN"):
         assert any(t == "CSV" and v == valor for t, v, _ in _ents(f"CSV: {valor}")), valor
@@ -96,10 +95,10 @@ def test_ocr_iban_country_letter_misread_as_5():
 
 
 def test_ocr_iban_invalido_con_forma_sale_con_menos_confianza():
-    # Antes este pase exigia mod-97.  La politica es la misma que la del regex
-    # directo —con forma de IBAN, se redacta—, y ahora vale tambien para las
-    # formas con erratas del OCR (tests/test_forma_estropeada.py): sale, pero
-    # con menos confianza que uno valido.
+    # La politica es la misma que la del regex directo —con forma de IBAN, se
+    # redacta—, tambien para las formas con erratas del OCR
+    # (tests/test_forma_estropeada.py): sale, pero con menos confianza que uno
+    # valido.
     from app.services.pii.analyzer import PiiAnalyzer
     (out,) = PiiAnalyzer._detect_ocr_iban("ref ES9921001901552200556699 x")
     assert out.score < 0.92

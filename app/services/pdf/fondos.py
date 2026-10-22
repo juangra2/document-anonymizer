@@ -18,9 +18,9 @@ _ALTURA_CUBIERTA_DE_UN_FONDO = 0.40
 def es_fondo(rect: fitz.Rect, bboxlog: list, trazas: list) -> bool:
     """True si sobre la imagen de `rect` va escrito texto VISIBLE de la pagina.
 
-    Documento real: el escudo de una universidad de fondo (57,7 % de la pagina)
-    con el formulario escrito encima.  La red lo tomaba por una copia pegada y
-    lo tachaba entero.  Una copia pegada trae sus datos en los pixeles; un fondo
+    Un formulario puede llevar de fondo una imagen grande (el escudo de la
+    entidad) con el texto escrito encima: no es una copia pegada y no se tapa
+    entera.  Una copia pegada trae sus datos en los pixeles; un fondo
     lleva el texto de la pagina dibujado despues, encima, y repartido como un
     formulario: un sello de unas pocas lineas no la convierte en fondo.  El texto
     invisible de una capa OCR no cuenta: una copia escaneada con su capa OCR

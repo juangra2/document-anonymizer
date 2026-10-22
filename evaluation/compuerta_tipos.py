@@ -1,12 +1,10 @@
 """Compuerta: desmarcar un tipo no puede hacer desaparecer otro.
 
-Todos los tipos son desmarcables, así que ya no hay «obligatorios que dependen
-de opcionales».  Lo que sigue valiendo es el principio de fondo: si una
-petición desmarca DATE_TIME, lo que se tacha de los demás tipos tiene que ser
-exactamente lo mismo que se tachaba antes.  Cuando no es así, un tipo estaba
-cubierto de rebote por otro —el caso real fue una fecha de nacimiento que solo
-se tapaba porque DATE_TIME la pillaba—, y desmarcarlo destapa datos sin que
-nadie lo haya pedido.
+Si una petición desmarca DATE_TIME, lo que se tacha de los demás tipos tiene
+que ser exactamente lo mismo que con todo marcado.  Cuando no es así, un tipo
+está cubierto de rebote por otro —por ejemplo, una fecha de nacimiento que solo
+se tapa porque DATE_TIME la pilla—, y desmarcarlo destapa datos sin que nadie
+lo haya pedido.
 
 Compara dos corridas de evaluación sobre el mismo corpus:
   * referencia: sin nada desmarcado;

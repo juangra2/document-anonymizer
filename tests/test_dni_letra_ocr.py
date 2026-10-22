@@ -1,8 +1,7 @@
-"""El OCR lee la letra de control del DNI como una cifra: "49674744B" -> "496747448".
+"""El OCR lee la letra de control del DNI como una cifra: "...4B" -> "...48".
 
-Pasa en escaneos reales (B->8, G->6, S->5, Z->2...) y con nueve cifras el patron
-del DNI no salta: el dato se entregaba sin tachar.  Medido en el corpus
-escaneado: el DNI de la representante de contrato_laboral_0004.
+Pasa en escaneos (B->8, G->6, S->5, Z->2...) y con nueve cifras el patron del
+DNI no salta: el dato se entregaria sin tachar.
 
 Se recupera SOLO si las dos cosas se cumplen: hay una etiqueta de DNI o NIE
 justo antes, y la cifra final se parece a la letra que exige el digito de
@@ -57,6 +56,6 @@ def test_nie_con_la_letra_leida_como_cifra():
 
 
 def test_la_etiqueta_es_del_valor_de_al_lado_no_del_siguiente():
-    """Caso del corpus digital: un telefono tras el NIE ya leido de la etiqueta."""
+    """Un telefono tras un NIE ya leido no es otro DNI de la misma etiqueta."""
     texto = "DNI/NIE:\nX1156016J\nTfno.:\n678939806"
     assert "678939806" not in _dnis(texto)

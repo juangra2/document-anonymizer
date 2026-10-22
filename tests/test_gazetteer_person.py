@@ -12,7 +12,7 @@ def _persons(text):
     ]
 
 
-# --- FN reales del corpus (prosa que el NER pierde) ----------------------------
+# --- nombres en prosa que el NER pierde ------------------------------------------
 
 def test_name_in_prose_detected():
     assert "Roberto Iglesias Calvo" in _persons(

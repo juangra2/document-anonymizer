@@ -2,7 +2,7 @@
 
 Que la compuerta salga en verde solo demuestra algo si sabe fallar.  Aquí se le
 dan corridas sintéticas: en una se pierde una fecha de nacimiento que la
-referencia sí detectaba, al desmarcar DATE_TIME (el fallo real F2).
+referencia sí detectaba, al desmarcar DATE_TIME.
 """
 from evaluation.compuerta_tipos import compare, watched_types
 

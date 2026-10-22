@@ -1,14 +1,13 @@
 """Telefono, direccion y codigo postal en la cabecera y el pie: decide el filtro, no la zona.
 
-Las zonas de cabecera y pie excluian por diseño estos tres tipos, para no
-tachar el telefono de centralita del membrete.  La consecuencia, medida con el
-banco de pruebas (scripts/banco_contacto.py): un telefono o una direccion
-PERSONAL en el 12 % superior o inferior de una pagina digital no se tachaba
-nunca, con cualquier formato.  El destinatario de una carta va justo ahi.
+Si las zonas de cabecera y pie excluyeran estos tres tipos (para no tachar el
+telefono de centralita del membrete), un telefono o una direccion PERSONAL en
+el borde superior o inferior de una pagina no se tacharia nunca.  El
+destinatario de una carta va justo ahi.
 
-Ahora el filtro institucional —el mismo en los dos caminos— ya distingue el
-membrete del destinatario, asi que la zona deja de excluir: en cabecera y pie se
-buscan como en el cuerpo y el filtro aparta solo el contacto de la institucion.
+El filtro institucional —el mismo en los dos caminos— distingue el membrete del
+destinatario, asi que la zona no excluye: en cabecera y pie se buscan como en
+el cuerpo y el filtro aparta solo el contacto de la institucion.
 Entre tachar un telefono de centralita y dejar a la vista el de un particular,
 se prefiere lo primero.
 """
@@ -77,9 +76,8 @@ def test_escaneado_un_telefono_personal_en_un_pie_se_tacha():
 
 
 # --- CSV, IP, URL y documentos de identidad en cabecera y pie --------------------------
-# Lectura de barras de c2: en la franja superior de las paginas interiores van el
-# CSV, la IP de acceso y la URL de verificacion, y la cabecera no los admitia; en
-# el bloque de firmas del pie, el DNI del garante.
+# En la franja superior de las paginas interiores van el CSV, la IP de acceso y
+# la URL de verificacion; en el bloque de firmas del pie, el DNI de quien firma.
 
 def test_csv_ip_y_url_en_la_cabecera(tmp_path):
     texto = _carta(tmp_path, ["CSV: MQRMUFXUIAM3RU6LENLC  IP: 95.30.29.213",
@@ -96,32 +94,30 @@ def test_dni_y_pasaporte_en_el_pie(tmp_path):
 
 
 def test_importes_de_nomina_en_el_pie_y_en_la_cabecera(tmp_path):
-    """nomina_0003: "TOTAL DEDUCCIONES 746,01" caia en la franja del pie y el
-    pie no admitia importes; el "LIQUIDO A PERCIBIR" de la pagina siguiente,
-    en la cabecera."""
+    """En una nomina, los totales pueden caer en la franja del pie o en la
+    cabecera de la pagina siguiente: esas zonas admiten importes."""
     texto = _carta(tmp_path, ["NOMINA DEL MES · LIQUIDO A PERCIBIR 4.113,99 €"],
                    ["TOTAL DEDUCCIONES 746,01"])
     assert "746,01" not in texto and "4.113,99" not in texto
 
 
 # --- nombres en el pie --------------------------------------------------------------
-# contrato_laboral_0027: la garante solo aparece en el bloque de firmas, que cae
-# en la franja del pie, y el pie no buscaba nombres: quedaba a la vista.  Los
-# cargos que firman tambien se tachan, como en el cuerpo, mientras no se decida
-# otro criterio (que distinguiria cargo de particular, no la posicion).
+# Quien firma puede aparecer solo en el bloque de firmas, que cae en la franja
+# del pie: el pie busca nombres.  Los cargos que firman tambien se tachan, como
+# en el cuerpo, mientras no se decida otro criterio (que distinguiria cargo de
+# particular, no la posicion).
 
 def test_un_nombre_que_solo_esta_en_el_pie_se_tacha(tmp_path):
-    """Como en el documento real: el cargo en una linea y el nombre debajo."""
+    """Como en un bloque de firma habitual: el cargo en una linea y el nombre debajo."""
     texto = _carta(tmp_path, _MEMBRETE, ["Garante", "Paula Martín Delgado"])
     assert "Paula Martín Delgado" not in texto
 
 
 
 # --- carta corta: el pie no es membrete por caer en las primeras lineas -------------
-# Una carta con una sola linea de cuerpo cabia entera en las "primeras lineas" que
-# el filtro institucional toma por membrete: el movil de un particular en el pie
-# se apartaba como contacto del ayuntamiento y quedaba a la vista.  Con dos lineas
-# de cuerpo el recuento acababa antes y si se tachaba.
+# Una carta con una sola linea de cuerpo cabe entera en las "primeras lineas" que
+# el filtro institucional toma por membrete: sin cortar en el pie, el movil de un
+# particular en el pie se apartaria como contacto del ayuntamiento.
 
 def test_en_una_carta_corta_el_telefono_personal_del_pie_se_tacha(tmp_path):
     entrada, salida = tmp_path / "carta.pdf", tmp_path / "carta_out.pdf"

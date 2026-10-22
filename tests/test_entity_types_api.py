@@ -1,4 +1,4 @@
-"""Bloque C — catálogo de tipos y desmarcado por petición."""
+"""Catálogo de tipos y desmarcado por petición."""
 import fitz
 import json
 import zipfile
@@ -26,7 +26,7 @@ def _sample_pdf() -> bytes:
     return data
 
 
-# --- C1: GET /entity-types ---------------------------------------------------
+# --- GET /entity-types ------------------------------------------------------
 
 def test_entity_types_lists_every_redactable_type():
     response = client.get("/entity-types")
@@ -49,7 +49,7 @@ def test_known_types_are_the_valid_values_for_disabling():
     assert ids == known_type_ids()
 
 
-# --- C2: desactivar tipos en la petición -------------------------------------
+# --- desactivar tipos en la petición -----------------------------------------
 
 def test_unknown_type_is_rejected():
     # El tipado con Enum rechaza el valor y lista los admitidos.
@@ -114,7 +114,7 @@ def test_without_configuration_the_catalog_applies():
     assert set(report["entity_types_applied"]) == set(ALL_PII_TYPES)
 
 
-# --- C3: resumen de lo aplicado ----------------------------------------------
+# --- resumen de lo aplicado --------------------------------------------------
 
 def test_report_summarises_applied_types_and_counts():
     response = client.post(

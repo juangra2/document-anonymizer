@@ -4,9 +4,8 @@ Por que hace falta
 ------------------
 La evaluacion compara la lista de entidades que devuelve el servicio contra las
 etiquetas del corpus: mide DETECCION.  Nunca abre el documento anonimizado, asi
-que una barra negra pintada a tres centimetros del dato cuenta como acierto.
-Ese defecto existe de verdad —el camino hibrido coloca las barras desplazadas—
-y podia haber vivido escondido indefinidamente.
+que una barra negra pintada a tres centimetros del dato cuenta como acierto, y
+un defecto asi (barras desplazadas) puede vivir escondido indefinidamente.
 
 Aqui se abre el PDF de salida y se busca el dato.  Es caro (rasterizar mas OCR
 por pagina), asi que se pasa sobre una MUESTRA, no sobre los corpus enteros.
@@ -26,15 +25,15 @@ Las dos condiciones que hacen fiable la medida
    que falla es la medida, no el pipeline.
 
 3. **Comparar tolerando las erratas del OCR.**  Exigir identidad exacta
-   convertia cualquier errata en un falso exito: el OCR leyo "7931398G" donde
-   pone "79313986G" y ese DNI, perfectamente visible, se conto como tapado.
-   Se busca la ventana mas parecida, con un umbral que no llega a casar dos
-   datos distintos (18001 contra 18002 se queda corto).
+   convierte cualquier errata en un falso exito: un DNI leido con una cifra de
+   menos, perfectamente visible, contaria como tapado.  Se busca la ventana mas
+   parecida, con un umbral que no llega a casar dos datos distintos (dos codigos
+   postales que solo difieren en la ultima cifra se quedan cortos).
 
-4. **Juzgar pagina a pagina.**  Unir el texto de todo el documento impedia
-   saber si la lectura de la pagina donde vivia el dato era de fiar.  Ahora un
-   "no esta" solo cuenta si esa pagina se leyo comparablemente bien que en la
-   entrada, o si esta practicamente en negro, que es una redaccion total.
+4. **Juzgar pagina a pagina.**  Uniendo el texto de todo el documento no se
+   sabe si la lectura de la pagina donde vive el dato es de fiar.  Un "no esta"
+   solo cuenta si esa pagina se leyo comparablemente bien que en la entrada, o
+   si esta practicamente en negro, que es una redaccion total.
 
 QUE VALE COMO PRUEBA Y QUE NO
 -----------------------------
@@ -64,8 +63,8 @@ NO_CONCLUYENTE = "no_concluyente"
 
 _DPI_LECTURA = 200
 _ANGULOS = (0, 90, 180, 270)
-# Calidad de una lectura: caracteres por token.  Medido sobre el corpus, una
-# pagina bien orientada da 14-35 y una girada 2-3.
+# Calidad de una lectura: caracteres por token.  Una pagina bien orientada da
+# muchos; una girada, muy pocos.
 _CALIDAD_ACEPTABLE = 8.0
 _UMBRAL_OSCURO = 60
 # Por encima de esto la pagina esta tachada entera: que no se lea nada es lo
@@ -93,11 +92,10 @@ def _aplanar(texto: str) -> str:
 def aparece(aguja: str, pajar: str, umbral: float = _PARECIDO_MINIMO) -> bool:
     """¿Esta el dato en el texto, aunque el OCR lo haya leido con erratas?
 
-    La comparacion exacta era el verdadero fallo de la primera version: el OCR
-    de la salida leyo "7931398G" donde pone "79313986G" —una cifra menos— y el
-    dato, perfectamente visible en la pagina, se contaba como tapado.  Exigir
-    identidad convierte cualquier errata del OCR en un falso exito, que es la
-    peor direccion posible en la que equivocarse.
+    Una comparacion exacta contaria como tapado un dato perfectamente visible
+    que el OCR de la salida ha leido con una cifra de menos.  Exigir identidad
+    convierte cualquier errata del OCR en un falso exito, que es la peor
+    direccion posible en la que equivocarse.
 
     Se busca la ventana mas parecida del mismo largo.  Barato: el texto de una
     pagina son un par de miles de caracteres y el dato, una decena.
@@ -340,8 +338,8 @@ def anotar(resultado: ResultadoDocumento, valor: str, tipo: str, estado: str,
     """Cuenta un dato en su casilla.
 
     Los tipos que el sistema no anonimiza por politica (un municipio) quedan
-    aparte: contarlos como fuga inflaba el numero —11 de 44 en la medicion de
-    la red—.  Es el mismo criterio que aplica el evaluador.
+    aparte: contarlos como fuga inflaria el numero.  Es el mismo criterio que
+    aplica el evaluador.
     """
     from evaluation.metrics import fuera_de_alcance
 

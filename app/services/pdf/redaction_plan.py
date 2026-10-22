@@ -1,13 +1,11 @@
-"""Plan de redacción de una página: el único punto de salida (bloque 6).
+"""Plan de redacción de una página: el único punto de salida.
 
-Antes, cada productor —analizador, redacción estructural, zonas de QR y firma,
-celda-nombre aislada, heurísticas del cajetín— pintaba y contaba por su lado, y
-el filtro de `disabled_types` solo vivía en el analizador.  Así aparecieron
-tres acoplamientos (F5, F10, F11) y un recuento que dependía de
-include_entities (O3).
-
-Ahora todo productor da de alta en el plan lo que quiere tachar, con su tipo, y
-**nadie pinta ni cuenta directamente**.  El plan:
+Hay muchos productores de tachados —analizador, redacción estructural, zonas de
+QR y firma, celda-nombre aislada, heurísticas del cajetín—.  Si cada uno pintara
+y contara por su lado, el filtro de tipos desactivados tendría que repetirse en
+todos y el recuento dependería de quién lo hiciera.  Por eso todo productor da de
+alta en el plan lo que quiere tachar, con su tipo, y **nadie pinta ni cuenta
+directamente**.  El plan:
 
 * aplica en un único sitio el filtro de tipos desactivados y la regla del
   colegiado (que no se tacha nunca);

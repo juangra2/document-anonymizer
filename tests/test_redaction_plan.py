@@ -1,4 +1,4 @@
-"""Bloque 6 — el plan de redacción es el único punto de salida.
+"""El plan de redacción es el único punto de salida.
 
 Todo lo que se tacha o se cuenta pasa por el mismo filtro.  Estos tests fijan las
 reglas del plan; el enganche en los redactores se verifica aparte, sobre PDF.

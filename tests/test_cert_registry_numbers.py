@@ -48,9 +48,7 @@ def test_short_number_not_cert_serial():
 
 # --- case-file (expediente) policy ----------------------------------------
 # La casilla "Numero de expediente" decide: si esta marcada se tacha cualquier
-# formato, tambien el municipal (E-03001-2022-000074-00); si no, ninguno.  Antes
-# un ajuste del servidor dejaba el municipal siempre a la vista aunque la
-# pantalla mostrara la casilla marcada.
+# formato, tambien el municipal (E-03001-2022-000074-00); si no, ninguno.
 
 def test_case_file_number_redacted_when_the_type_is_on():
     assert _has("Expediente: E-03001-2022-000074-00", "CASE_NUMBER", "E-03001-2022-000074-00")
@@ -60,7 +58,7 @@ def test_case_file_number_kept_when_the_type_is_off():
     apagado = analyzer.with_disabled_types({"CASE_NUMBER"})
     texto = "Expediente: E-03001-2022-000074-00"
     # Ni como expediente ni como trozo de otro tipo: el patron del numero de
-    # registro reconocia el tramo central (03001-2022-000074).
+    # registro no puede quedarse con el tramo central.
     assert not apagado.analyze(texto, mode="strict")
 
 

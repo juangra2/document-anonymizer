@@ -12,8 +12,8 @@ from app.services.layout.models import ZoneType
 #
 # LOCATION and ORGANIZATION are intentionally absent: the ground truth almost
 # never annotates them as personal PII (the personal location goes through
-# ADDRESS, the person through PERSON), so redacting them produced hundreds of
-# false positives (F1 ≈ 0.02 / 0.00).  They are still DETECTED internally by the
+# ADDRESS, the person through PERSON), so redacting them would produce hundreds
+# of false positives.  They are still DETECTED internally by the
 # NER engine (NER_ALLOWED_TYPES in analyzer.py) so they remain available as a
 # signal for issuer/institution identification — they are only excluded from the
 # redaction output and the verification residual count (see ALL_PII_TYPES use in
@@ -120,12 +120,11 @@ _HEADER_CONFIG = ZoneDetectorConfig(
         "EMAIL_ADDRESS",
         # Un IBAN nunca es contacto institucional de membrete: es dato
         # financiero y se redacta siempre.  La franja superior de una página
-        # interior ("FORMA DE PAGO … IBAN: ES25-…") se clasifica como header
-        # y sin este tipo el IBAN se perdía (regex de alta precisión: mod-97).
+        # interior ("FORMA DE PAGO … IBAN: …") se clasifica como header y sin
+        # este tipo el IBAN se perdería (regex de alta precisión: mod-97).
         "IBAN_CODE",
         # En la franja superior de las paginas interiores van el CSV, la IP de
-        # acceso y la URL de verificacion (lectura de barras de c2), y el
-        # pasaporte junto al DNI y el NIE que ya se buscaban.
+        # acceso y la URL de verificacion, y el pasaporte junto al DNI y el NIE.
         "CSV",
         # Numero de registro de entrada de un formulario ("Núm. registre / Nº
         # registro"), arriba a la derecha.  Exige su etiqueta.
@@ -149,11 +148,11 @@ _FOOTER_CONFIG = ZoneDetectorConfig(
     # contacto de plantilla; el mod-97 evita falsos positivos.
     # DATE_TIME / DATE_OF_BIRTH: por requisito del ayuntamiento se anonimiza
     # TODA fecha, sin excepcion — tambien la del bloque de firma electronica y
-    # la del pie de pagina, que antes quedaban fuera de alcance.
+    # la del pie de pagina.
     # Contacto: igual que en la cabecera, decide el filtro institucional.
     # IP de acceso, documentos de identidad y NOMBRES: el bloque de firmas cae
-    # en el pie, y el DNI y el nombre de la garante de un contrato quedaban a la
-    # vista (lectura de barras de c2).  Los cargos que firman tambien se tachan,
+    # en el pie, con el DNI y el nombre de quien firma.  Los cargos que firman
+    # tambien se tachan,
     # como en el cuerpo; si algun dia se dejan visibles, sera con una regla que
     # distinga cargo de particular, no por la posicion en la pagina.
     entity_types=["CASE_NUMBER", "URL", "CERT_SERIAL", "REGISTRY_NUMBER", "CSV",

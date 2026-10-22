@@ -2,13 +2,10 @@
 
 filter_institutional aparta el telefono, la direccion y el codigo postal de quien
 emite el documento (membrete, o justo despues del nombre de la institucion sin
-una persona en medio).  Solo lo aplicaba el camino digital: en el escaneado se
-tachaba el membrete entero —"Plaça Major, 1, 46410 Sueca", "96 170 05 00"—, la
-sobre-redaccion de la que se quejo el ayuntamiento.  Eran 66 falsos positivos en
-los corpus escaneado e hibrido.
-
-Ahora lo aplica el RedactionPlan, el punto unico de salida, en los dos caminos:
-un solo filtro, no dos copias que se desincronicen.
+una persona en medio).  Lo aplica el RedactionPlan, el punto unico de salida, en
+los dos caminos: un solo filtro, no dos copias que se desincronicen.  Sin el, en
+el escaneado se tacharia el membrete entero, la sobre-redaccion de la que se
+queja el ayuntamiento.
 
 Y el riesgo contrario, que pesa mas: el destinatario de una carta va arriba, en
 la misma franja que el membrete.  Si el OCR estropea su nombre y no se detecta
@@ -88,7 +85,7 @@ def test_el_mismo_filtro_en_digital():
 def test_un_parrafo_no_es_membrete_aunque_sea_de_las_primeras_lineas():
     """MinerU devuelve un parrafo como una sola 'linea': las cinco primeras
     lineas de la pagina pueden alcanzar el cuerpo.  Un membrete son lineas
-    cortas; un parrafo largo ya no lo es, y su telefono se tacha."""
+    cortas; un parrafo largo no lo es, y su telefono se tacha."""
     t = _tachado([_zona(ZoneType.BODY, _MEMBRETE + [
         "Le comunicamos que su solicitud ha sido admitida a tramite y que, para "
         "cualquier aclaracion sobre el expediente, puede llamar al 612 345 678."], 100)])
@@ -96,11 +93,10 @@ def test_un_parrafo_no_es_membrete_aunque_sea_de_las_primeras_lineas():
 
 
 # --- una etiqueta de dato personal entre la institucion y el dato -------------------
-# Caso real (nomina_0007): "Centro de trabajo: Universitat Mediterrània d'Elx /
-# Antigüedad / 12 de febrer de 2015 / Domicilio fiscal: Paseo del Sol, 75, 2º B,
-# 18001 Granada / Tfno.: +34 796 202 675".  Sin ninguna persona detectada en
-# medio, el filtro tomaba el domicilio y el telefono del trabajador por los de la
-# universidad y los dejaba a la vista.  La etiqueta dice de quien es el dato.
+# En una nomina: "Centro de trabajo: <universidad> / Antigüedad / <fecha> /
+# Domicilio fiscal: <direccion> / Tfno.: <telefono>".  Sin ninguna persona
+# detectada en medio, el filtro tomaria el domicilio y el telefono del trabajador
+# por los de la universidad.  La etiqueta dice de quien es el dato.
 
 def _suprimidos(texto, valores):
     ents = []
@@ -129,8 +125,8 @@ def test_el_domicilio_social_de_la_institucion_si():
 # dentro va como entidad aparte y se quedaba: se tachaba solo el CP del membrete.
 
 def test_el_codigo_postal_de_una_direccion_institucional_tambien_se_aparta():
-    """solicitud_generica_0003: la direccion cae dentro de la ventana de cercania
-    al nombre de la institucion, pero su codigo postal, 30 caracteres despues, no."""
+    """La direccion cae dentro de la ventana de cercania al nombre de la
+    institucion, pero su codigo postal, unos caracteres despues, no: va con ella."""
     texto = ("Ayuntamiento de Cartagena Sur con la finalidad de gestionar su solicitud. Puede "
              "ejercer sus\nderechos dirigiéndose a Calle del Consistorio, 14, 30201 Cartagena")
     assert _suprimidos(texto, [("ADDRESS", "Calle del Consistorio, 14, 30201 Cartagena"),

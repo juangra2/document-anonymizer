@@ -1,10 +1,10 @@
 """Una pagina girada (anexo en A3 apaisado) dentro de un documento vertical.
 
-Caso dificil 13: la extraccion de texto da las coordenadas de la pagina SIN
-girar (alto 1191) y el segmentador medía las franjas con el tamano de la pagina
-girada (alto 842).  Todo el texto caia por debajo del "pie" y se analizaba con
-los tipos del pie, que no buscan correos: el correo de la firma, junto al borde
-inferior, salia entero, y el nombre a medias.
+La extraccion de texto da las coordenadas de la pagina SIN girar, y el
+segmentador tiene que medir las franjas en esas mismas coordenadas.  Con el
+tamano de la pagina girada, todo el texto caeria por debajo del "pie" y se
+analizaria con los tipos del pie, que no buscan correos: el correo de la firma,
+junto al borde inferior, saldria entero.
 """
 import fitz
 

@@ -1,10 +1,10 @@
 """El verificador: la pagina entera y todos los tipos, con los filtros del tachado.
 
-Lee sin limitar tipos por zona (las fugas de estas semanas estaban en esas
+Lee sin limitar tipos por zona (las fugas tipicas estan justo en esas
 limitaciones: telefonos y direcciones en cabecera y pie, nombres en el pie), pero
-con el mismo texto y el mismo filtro institucional que el tachado.  Antes daba
-falsas alarmas: el contacto del membrete, y palabras de celdas distintas que la
-pagina ordenada juntaba en un "nombre" ("Acero Guantes").
+con el mismo texto y el mismo filtro institucional que el tachado, para no dar
+falsas alarmas: el contacto del membrete, o palabras de celdas distintas que la
+pagina ordenada juntaria en un "nombre".
 """
 import fitz
 
@@ -47,7 +47,7 @@ def test_un_telefono_personal_en_el_pie_si_lo_es(tmp_path):
 
 def test_palabras_de_celdas_distintas_no_forman_un_nombre(tmp_path):
     """Presupuesto de seguridad y salud: una columna de partidas y otra de
-    materiales.  Ordenada, la pagina juntaba "Acero" y "Guantes"."""
+    materiales.  Ordenada, la pagina juntaria "Acero" y "Guantes"."""
     filas = [(50, 120 + 16 * k, a, 9) for k, a in enumerate(["Casco", "Guantes", "Calzado"])]
     filas += [(300, 120 + 16 * k, b, 9) for k, b in enumerate(["Acero", "Cuero", "Goma"])]
     assert "PERSON" not in _tipos(_pagina(tmp_path, _CUERPO + filas))

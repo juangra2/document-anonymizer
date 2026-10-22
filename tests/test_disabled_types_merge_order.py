@@ -1,10 +1,10 @@
 """Desactivar un tipo no puede dejar sin tapar lo que ese tipo contenía.
 
 La fusión de solapes se queda con un único span y descarta el resto.  Si se
-filtraban los tipos desactivados DESPUÉS de fusionar, un span desactivado que
-había ganado se llevaba por delante a los que contenía: nombre y correo dentro
-de una fila de expediente, el teléfono tras una dirección, una IP tomada por
-importe.  Los textos son fragmentos reales del corpus.
+filtraran los tipos desactivados DESPUÉS de fusionar, un span desactivado que
+hubiera ganado se llevaría por delante a los que contiene: nombre y correo
+dentro de una fila de expediente, el teléfono tras una dirección, una IP tomada
+por importe.  Los textos imitan fragmentos del corpus.
 """
 import pytest
 
@@ -28,7 +28,7 @@ def _analyze(text: str, disabled: set[str]):
     return analyzer.with_disabled_types(disabled).analyze(text, mode="strict")
 
 
-# --- los casos que fallaban ----------------------------------------------------
+# --- un tipo desactivado que contiene a otros ------------------------------------
 
 def test_case_table_row_disabled_keeps_name_and_email_hidden():
     text = "CAS-001 Diego Ferrer Demo Email: diego.demo@example.com\n"

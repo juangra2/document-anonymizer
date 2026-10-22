@@ -3,9 +3,9 @@
 El formato "(618) 741-017" lo inventa nuestro generador de corpus (formato
 mobile_parens): nueve cifras agrupadas al estilo de EE. UU., que no es como se
 escribe un telefono en Espana.  Ajustar el detector a el seria ajustarse a datos
-falsos.  Mientras los corpus sigan congelados se excluye por su FORMA —el resto
-de telefonos siguen contando— y cuando se regeneren, sin ese formato, esta
-exclusion se quita (ver _TELEFONO_FORMATO_DEL_GENERADOR).
+falsos.  Se excluye por su FORMA —el resto de telefonos siguen contando— y
+cuando el corpus se regenere sin ese formato, esta exclusion se quita (ver
+_TELEFONO_FORMATO_DEL_GENERADOR).
 """
 from evaluation.lectura_salida import FUGA, ResultadoDocumento, anotar
 from evaluation.metrics import evaluate_document, fuera_de_alcance
@@ -46,7 +46,7 @@ def test_la_lectura_de_barras_tampoco_como_fuga():
 # --- QR fantasma (defecto pagina_siempre_1) ---------------------------------------
 
 def test_un_qr_fantasma_no_cuenta_y_un_qr_real_del_mismo_documento_si():
-    """hibrido_giro_dentro_0003 lleva un QR que no esta en el PDF y otro que si."""
+    """Un documento con un QR que no esta en el PDF y otro que si."""
     gt = [{"text": "NOM:x|Ana", "type": "QR_CODE", "page": 1, "procede_de": "nomina_0005"},
           {"text": "NOT:y|Luis", "type": "QR_CODE", "page": 3, "procede_de": "otro_0001"}]
     r = evaluate_document("hibrido_giro_dentro_0003", "mixto", "es", "hibrido",

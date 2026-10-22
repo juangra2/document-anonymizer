@@ -1,13 +1,13 @@
 """La red de seguridad no tacha entera la imagen de una firma pegada.
 
 Requisito del ayuntamiento: la rubrica se conserva (test_signature_images_kept.py
-fija que los detectores visuales de firma estan apagados).  Pero habia otra via:
-la red de seguridad tacha ENTERA una imagen pegada si la segunda pasada lee
-dentro un residuo de tipo fiable (PERSON incluido) o dos residuos.  Una firma
-pegada pasa con facilidad del 1 % de la pagina, y la segunda pasada lee nombres
-falsos en los trazos: la firma desaparecia.
+fija que los detectores visuales de firma estan apagados).  Hay otra via: la red
+de seguridad tacha ENTERA una imagen pegada si la segunda pasada lee dentro un
+residuo de tipo fiable (PERSON incluido) o dos residuos.  Una firma pegada pasa
+con facilidad del 1 % de la pagina, y la segunda pasada lee nombres falsos en los
+trazos.
 
-Ahora una imagen con aspecto de firma (pocos trazos, poca tinta) no se tacha
+Por eso una imagen con aspecto de firma (pocos trazos, poca tinta) no se tacha
 entera: solo se repasa la zona del residuo, como fuera de una imagen.  Una copia
 de DNI o un escrito pegado se siguen tachando enteros.
 """

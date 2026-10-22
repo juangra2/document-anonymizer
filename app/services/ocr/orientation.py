@@ -2,28 +2,24 @@
 
 Un escaneo con el contenido girado 90° (una tarjeta de identidad puesta de lado
 sobre el cristal, un anexo apaisado) hace que el OCR devuelva **ruido**, no
-vacío: sobre el DNI real medido, EasyOCR devolvía 24 tokens y 67 caracteres de
-basura (`"EQUIPO EQUIP 12246A6D1 M 2 1 1 …"`).  Ese es el fallo más peligroso de
-la herramienta: no se detecta ninguna entidad, no se redacta nada y **nadie
-avisa**, de modo que el usuario cree que el documento está limpio.
+vacío: unas decenas de tokens cortos sin sentido.  Ese es el fallo más
+peligroso de la herramienta: no se detecta ninguna entidad, no se redacta nada
+y **nadie avisa**, de modo que el usuario cree que el documento está limpio.
 
 La rotación aquí no viene declarada en el PDF (la página es A4 vertical con
 `rotation=0`); está en el contenido escaneado, así que hay que deducirla del
 resultado del OCR.
 
-Métrica de calidad: **caracteres por token**.  Medido sobre el corpus:
+Métrica de calidad: **caracteres por token**.  Una página normal da muchos
+caracteres por token; una girada, muy pocos; la misma página enderezada vuelve
+a dar muchos.  El umbral por defecto (8.0) separa los tres casos con margen: no
+dispara en páginas normales, sí en las giradas, y no vuelve a disparar una vez
+corregidas.
 
-    páginas escaneadas normales   14.2 – 35.1   (mediana 30.9)
-    DNI rotado (ilegible)          2.1 –  2.8
-    DNI corregido                 10.5 – 12.0
-
-El umbral por defecto (8.0) separa los tres grupos con margen: no dispara en
-páginas normales, sí en las rotas, y no vuelve a disparar una vez corregidas.
-
-Se descartó la confianza media del OCR como métrica: es engañosa.  El modo
-`rotation_info` nativo de EasyOCR daba la confianza más alta (0.829) con el
-texto más ilegible, porque rota cada caja por separado y rompe el orden de
-lectura — probado y descartado frente a rotar la imagen completa.
+La confianza media del OCR no sirve como métrica: es engañosa.  El modo
+`rotation_info` nativo de EasyOCR da confianzas altas con el texto más
+ilegible, porque rota cada caja por separado y rompe el orden de lectura; por
+eso se rota la imagen completa.
 """
 from __future__ import annotations
 
@@ -54,8 +50,8 @@ class OrientationResult:
 def text_quality(ocr_page: OcrPage) -> float:
     """Caracteres por token: alto en texto legible, muy bajo en ruido de OCR.
 
-    Sirve para decidir SI la página está ilegible (umbral calibrado sobre el
-    corpus), no para elegir ENTRE dos giros — ver `orientation_score`.
+    Sirve para decidir SI la página está ilegible, no para elegir ENTRE dos
+    giros — ver `orientation_score`.
     """
     texts = [t.text for t in ocr_page.tokens if t.text and t.text.strip()]
     if not texts:
@@ -66,11 +62,11 @@ def text_quality(ocr_page: OcrPage) -> float:
 def orientation_score(ocr_page: OcrPage) -> float:
     """Puntuación para ELEGIR entre giros: longitud de token × confianza.
 
-    Los caracteres por token no bastan aquí: a 270° el texto sale invertido
-    (`'>>>>>>>nyaf>>9I3…'`) y produce tokens igual de largos que a 90°, con lo
-    que la página se leía al revés y las señales no disparaban.  El texto dado
-    la vuelta sí se distingue por la confianza del OCR — medido sobre el DNI
-    real: a 90° 0.39 frente a 0.21 a 270° —, así que se exige lo uno y lo otro.
+    Los caracteres por token no bastan aquí: con el giro contrario el texto sale
+    invertido y produce tokens igual de largos, con lo que la página se leería
+    al revés y las señales no dispararían.  El texto dado la vuelta sí se
+    distingue por una confianza del OCR bastante más baja, así que se exige lo
+    uno y lo otro.
     """
     tokens = [t for t in ocr_page.tokens if t.text and t.text.strip()]
     if not tokens:
@@ -104,10 +100,9 @@ def resolve_orientation(image: Image.Image, run_ocr) -> OrientationResult:
     # completa.  Una copia reducida no sirve para elegir: 90° y 270° dejan la
     # página apaisada con tokens igual de largos, y solo la confianza del OCR
     # distingue el texto derecho del invertido, pero en pequeño el texto de un
-    # A4 no se lee.  Medido en el corpus de extensión (correcto = 270°): la
-    # copia de 1000 px elegía mal en 5 de 7 páginas —confianza 0.06 en ambos
-    # giros—; a resolución completa 270° puntuaba 7–17 frente a 2–3.6 de 90°
-    # en todas, con 2–5 s por pase.
+    # A4 no se lee: la confianza sale igual de baja en los dos giros.  A
+    # resolución completa la diferencia es clara, a costa de unos segundos por
+    # pase.
     best_angle, best_page = 0, base
     best_score = orientation_score(base)
     for angle in _CANDIDATE_ANGLES:

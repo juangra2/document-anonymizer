@@ -1,4 +1,4 @@
-"""Bloque D1 — estado del servicio.
+"""Estado del servicio.
 
 El indicador de la interfaz y quien opere el servidor del ayuntamiento leen lo
 mismo de aquí, así que la comprobación tiene que decir la verdad sobre lo que

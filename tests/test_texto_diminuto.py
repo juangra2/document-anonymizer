@@ -1,12 +1,10 @@
 """El texto diminuto no sobrevive al tachado.
 
-El corpus pone el contenido del QR en texto blanco de 1 punto debajo de la
-imagen ("Eduardo Hernández Álvarez | 18187660L").  No se ve, pero se copia del PDF
-entregado.  No lo quitaba nada: la barra del QR tapa la imagen y no el texto de
-debajo, ese texto cae en la franja del pie (donde no se buscan nombres ni DNI),
-y scrub(hidden_text=True) solo quita el texto marcado como invisible, no el de 1
-punto.  El verificador si lo veia —riesgo alto, revision manual— y el documento
-se entregaba igual.
+Un PDF puede llevar el contenido de un QR en texto blanco de 1 punto debajo de
+la imagen ("<nombre> | <DNI>").  No se ve, pero se copia del PDF entregado.  La
+barra del QR tapa la imagen y no el texto de debajo, ese texto cae en la franja
+del pie, y scrub(hidden_text=True) solo quita el texto marcado como invisible,
+no el de 1 punto.
 
 Se quita de la salida, sin pintar nada, el texto de menos de 2 puntos que no se
 ve: en blanco, invisible o tapado por una imagen (el diminuto que se ve, como las

@@ -4,20 +4,20 @@ Un DNI escaneado en plano ocupa una fracción pequeña de un A4 casi vacío:
 pintar la página entera es correcto pero visualmente drástico.  Aquí se acota
 la región a redactar.
 
-La región se construye uniendo **dos señales independientes**, porque medido
-sobre un DNI real ninguna basta por separado:
+La región se construye uniendo **dos señales independientes**, porque ninguna
+basta por separado:
 
 * **Componentes de contenido** (Otsu + cierre morfológico) captan la foto
   biométrica y la firma, que no producen ningún token de OCR — pero en el
-  reverso la tarjeta sale fragmentada y el texto empieza 32 px antes del
+  reverso la tarjeta puede salir fragmentada y el texto empezar antes del
   componente detectado.
 * **Cajas de los tokens de OCR** (ya calculadas al resolver la orientación,
   así que salen gratis) captan todo el texto — pero no la foto.
 
-Además se filtra por **relleno**, no por tamaño: en el reverso el componente
-más grande resultó ser la hoja entera con un relleno de 0.007 (moteado de ruido
-que conecta toda la página), frente a 0.213–0.524 de la tarjeta real.  Quedarse
-con "el componente más grande" habría fallado.
+Además se filtra por **relleno**, no por tamaño: el componente más grande puede
+ser la hoja entera, unida por el moteado de ruido pero casi vacía, mientras que
+la tarjeta está mucho más llena.  Quedarse con "el componente más grande"
+fallaría.
 
 Esta función solo PROPONE la región.  Quien la usa debe verificarla pintándola
 y comprobando por OCR que no queda texto legible fuera; si queda, se redacta la

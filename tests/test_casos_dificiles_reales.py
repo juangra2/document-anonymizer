@@ -6,8 +6,8 @@ valor se escribe aqui ni sale en un mensaje: se leen en memoria, con OCR, de las
 caras de la tarjeta, y las salidas se guardan junto a los originales.
 
   1. copia del DNI a tamano real en una pagina con texto;
-  2. a mitad de escala (antes no se miraba: salia entera);
-  3. girada 90 grados (antes el OCR de la pagina no la leia: salia entera);
+  2. a mitad de escala;
+  3. girada 90 grados;
   4. con un sello visible encima;
   5. expediente: formulario + oficio + copia escaneada;
   6. el expediente entero rasterizado, como un escaneo.

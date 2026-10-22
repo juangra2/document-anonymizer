@@ -1,15 +1,14 @@
 """El instrumento con el que juzgamos al pipeline, sujeto con pruebas.
 
-Este modulo mintio dos veces antes de estar bien, y las dos en la direccion
-peligrosa —decir "tapado" de un dato que estaba a la vista—:
+Hay dos formas de equivocarse en la direccion peligrosa —decir "tapado" de un
+dato que esta a la vista—:
 
-  1. Unia el texto de todas las paginas, asi que no podia saber si la lectura
-     de la pagina donde vivia el dato era de fiar.
-  2. Comparaba de forma exacta, asi que una errata del OCR de la salida
-     ("7931398G" por "79313986G") convertia una fuga en un exito.
+  1. Unir el texto de todas las paginas: no se sabria si la lectura de la
+     pagina donde vive el dato es de fiar.
+  2. Comparar de forma exacta: una errata del OCR de la salida (una cifra de
+     menos en un DNI) convertiria una fuga en un exito.
 
-Lo que se fija aqui es la logica de decision, que es donde estaban los dos
-fallos.  Son pruebas rapidas: no cargan modelos ni tocan la GPU.
+Lo que se fija aqui es la logica de decision.  Son pruebas rapidas: no cargan modelos ni tocan la GPU.
 """
 import pytest
 
@@ -32,9 +31,9 @@ from evaluation.lectura_salida import (
     # Se lee en las dos: prueba de fuga, sin matices.
     (True,  True,  True,  FUGA),
     (True,  True,  False, FUGA),
-    # Se leia y ya no, con lectura de fiar: tapado.
+    # Se lee en la entrada y no en la salida, con lectura de fiar: tapado.
     (True,  False, True,  TAPADO),
-    # Se leia y ya no, pero no podemos fiarnos de la lectura: no demuestra nada.
+    # Se lee en la entrada y no en la salida, sin lectura de fiar: no demuestra nada.
     (True,  False, False, NO_CONCLUYENTE),
     # No se leia ya en la entrada: la comprobacion no aplica.
     (False, False, True,  NO_CONCLUYENTE),
@@ -54,7 +53,7 @@ def test_una_lectura_dudosa_nunca_produce_un_tapado():
 # --- la comparacion tolerante ----------------------------------------------
 
 def test_encuentra_el_dato_aunque_el_ocr_se_coma_una_cifra():
-    """El caso real: el OCR leyo una cifra menos y el DNI se dio por tapado."""
+    """El OCR lee una cifra menos: el DNI no puede darse por tapado."""
     assert aparece("79313986G", "ANIDNI7931398GREVERSOLUGAR")
 
 

@@ -77,11 +77,11 @@ class OcrInfo(BaseModel):
     second_pass_verification: bool = False
     # Paginas con texto e imagen que el criterio de superficie decidio NO mirar
     # (ver ocr_imagen_pagina_completa).  No es un aviso al usuario: es el numero donde se
-    # veria un dia que la imagen relevante era pequena, antes que en una fuga.
+    # veria que una imagen relevante era pequena, antes que en una fuga.
     pages_with_image_not_ocr: int = 0
     # De ellas, las de la zona gris: alguna imagen por encima del minimo por
-    # imagen pero sin llegar al umbral de la pagina.  Un DNI pegado a mitad de
-    # escala (1,9 %) caeria aqui.
+    # imagen pero sin llegar al umbral de la pagina.  Un DNI pegado a escala
+    # reducida caeria aqui.
     pages_image_grey_zone: int = 0
     # Red de seguridad: lo que la segunda pasada todavia leia tras tachar y se
     # tapo antes de entregar.  Si estos numeros suben, la primera pasada esta
@@ -201,7 +201,7 @@ class ProcessingReport(BaseModel):
     redaction_strategy: str = "physical_pdf_redaction"
     redaction_mode: Literal["strict"] = "strict"
 
-    # Bloque C — configuración de tipos aplicada en esta petición.  Permite al
+    # Configuración de tipos aplicada en esta petición.  Permite al
     # usuario ver el efecto de su selección: qué se buscó y qué se dejó fuera.
     entity_types_applied: list[str] = Field(default_factory=list)
     entity_types_disabled: list[str] = Field(default_factory=list)

@@ -1,8 +1,8 @@
 """data/samples/real/ no se recorre nunca por defecto.
 
-Guarda datos personales reales.  Un prototipo que recorrio data/samples/ entero llego
-a analizar —en memoria, sin escribir nada— el DNI real del usuario.  La regla:
-solo se toca por ruta explicita.  Aqui se fija que el recorrido comun la deje
+Guarda datos personales reales.  Un prototipo que recorriera data/samples/ entero
+analizaria esos documentos sin que nadie lo hubiera pedido.  La regla: solo se
+toca por ruta explicita.  Aqui se fija que el recorrido comun la deje
 fuera y que nadie recorra data/samples/ por su cuenta.
 """
 import re

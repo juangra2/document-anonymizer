@@ -1,11 +1,11 @@
-"""Fase (i): detección de páginas de plano de obra antes de render."""
+"""Detección de páginas de plano de obra antes de render."""
 import fitz
 import pytest
 
 from app.core.config import settings
 from app.services.pdf.plan_pages import is_plan_page
 
-# A1 apaisado en puntos (como TOMO_04 real: 2384×1684).
+# A1 apaisado en puntos (2384×1684).
 _A1_W, _A1_H = 2384, 1684
 
 

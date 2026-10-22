@@ -1,4 +1,4 @@
-"""Bloque D1 — avance por páginas.
+"""Avance por páginas.
 
 La interfaz enseña «página N de M» mientras procesa, así que lo que se
 comprueba aquí es que el aviso llega desde el bucle real de páginas y que un

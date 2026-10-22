@@ -1,9 +1,8 @@
 """Direcciones en prosa y repartidas en varias lineas.
 
-El banco de pruebas (scripts/banco_contacto.py) mostro que no se detectaban ni
-en digital ni en escaneado: "reside en la calle Ruzafa número 12, piso tercero"
-y "Calle del Doctor Sumsi, 326, 2º / 46005 Valencia" con el codigo postal en la
-linea siguiente.  Los patrones exigian un codigo postal en la misma linea.
+"reside en la calle Ruzafa número 12, piso tercero", o una direccion con el
+codigo postal en la linea siguiente, no llevan un codigo postal en la misma
+linea, que es lo que piden los patrones de direccion habituales.
 
 En prosa se exige la palabra "número" (o "núm.", "nº") y un nombre de calle con
 mayuscula: es lo que separa "la calle Ruzafa número 12" de "la calle estaba
@@ -81,8 +80,8 @@ def test_trampas_de_pg_y_partida(texto):
 # El reagrupado de lineas digital solo une una linea con la siguiente si la
 # primera "llena la columna" (se partio por falta de sitio).  Con un parrafo
 # largo en la pagina la columna es ancha, "Calle X, 12, 2º" no la llena y el
-# codigo postal de la linea siguiente quedaba en otra zona: la direccion no se
-# veia entera.  Reproducido con el banco de pruebas.
+# codigo postal de la linea siguiente quedaria en otra zona: la direccion no se
+# veria entera.
 
 def test_direccion_en_dos_lineas_en_una_pagina_con_lineas_largas(tmp_path):
     import fitz
@@ -105,8 +104,8 @@ def test_direccion_en_dos_lineas_en_una_pagina_con_lineas_largas(tmp_path):
 
 
 def test_direccion_con_el_salto_de_linea_a_mitad():
-    """contrato_prestacion_servicios_0007: el salto cae entre el numero y el
-    piso, no antes del codigo postal."""
+    """El salto de linea cae entre el numero y el piso, no antes del codigo
+    postal."""
     texto = ("NASS: 41/3546801989, domiciliado/a en Ctra. de España, 60,\n"
              "Entresuelo Centro, 08002 Barcelona, Tel.: 617 485 476")
     assert any("España, 60" in d and "08002" in d for d in _direcciones(texto)), _direcciones(texto)

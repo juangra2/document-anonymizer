@@ -1,4 +1,4 @@
-"""Contrato del parámetro disabled_types (F12, F13).
+"""Contrato del parámetro disabled_types.
 
 El frontend serializa la lista de tipos desmarcados: sin ninguno envía cadena
 vacía.  Eso tiene que equivaler a no enviar nada: se aplica el catálogo.  Mayúsculas y espacios se

@@ -460,7 +460,7 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
     (
         "PHONE_NUMBER",
         # Spanish phones: +34 optional prefix, must start 6/7/8/9.  El prefijo
-        # tambien como 0034 y (+34): antes quedaba fuera de la barra, a la vista.
+        # tambien como 0034 y (+34), para que entre en la barra con el numero.
         # Dot excluded from separators: IPs like 95.73.233.44 also start with 9x
         # and would be incorrectly matched (los puntos van en el patron siguiente).
         r"(?<![\d(])(?:(?:\+|00)34[ \t\n\-]{0,3}|\(\+34\)[ \t\n\-]{0,3})?"
@@ -1190,8 +1190,7 @@ _CSV_LABEL_RE = re.compile(
     r"\bc[oó]d(?:igo|i)?\.?\s+(?:de\s+)?verificaci[oó]n?\b)"
 )
 # A CSV is a long alphanumeric run with at least two digits (rules out plain
-# words).  Se exigian 8 cifras y un CSV de letras y cifras mezcladas
-# ("EGFGOHHL0FWCSC1MWWQP") se escapaba: 165 de 200 en el corpus digital.  Lo que
+# words).  No se exigen mas cifras: un CSV puede ser casi todo letras.  Lo que
 # descarta el falso positivo es la etiqueta a menos de _CSV_WINDOW caracteres.
 _CSV_VALUE_RE = re.compile(r"\b(?=[A-Z0-9]*\d[A-Z0-9]*\d)[A-Z0-9]{14,44}\b")
 _CSV_WINDOW = 80   # max chars between a CSV label end and its value start
@@ -1233,9 +1232,9 @@ def _parece_etiqueta(linea: str) -> bool:
     from app.services.pii.label_types import label_entity_type
 
     limpia = linea.strip()
-    # Un rotulo no lleva cifras ni arroba.  Sin esto, un correo de
-    # "telefonica.net" o una direccion "postal:Ronda..." parecian etiquetas
-    # (corpus digital: 4 datos reales perdidos).
+    # Un rotulo no lleva cifras ni arroba.  Sin esto, un correo o una
+    # direccion pegada a su etiqueta ("postal:Ronda...") pasarian por rotulo y
+    # el dato se perderia.
     if "@" in limpia or any(c.isdigit() for c in limpia):
         return False
     return (
@@ -1359,7 +1358,7 @@ _SIGNATURE_NAME_RE = re.compile(
     r"(?i)(?<![\wÀ-ÿ])(?:fdo\.?|signat(?:[^\S\r\n]+(?:electr[oò]nicament[^\S\r\n]+)?per)?|"
     r"firmat(?:[^\S\r\n]+per)?|firmado(?:[^\S\r\n]+(?:electr[oó]nicamente[^\S\r\n]+)?por)?|"
     # (?![\wÀ-ÿ]): el label debe terminar en límite de palabra — "signatura"
-    # no es "signat" + valor "ura…" (85 FPs de 'ura electrónica' en corpus).
+    # no es "signat" + valor "ura…".
     r"firma)(?![\wÀ-ÿ])[^\S\r\n]*:?[^\S\r\n]*"
     r"(?P<value>" + _SIG_WORD_GUARD + r"[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’\-]+"
     r"(?:[^\S\r\n]+(?:de|del|la|les|dels|i|y)?[^\S\r\n]*"
@@ -1375,8 +1374,8 @@ _CASE_FILE_NUMBER_RE = re.compile(
 )
 
 # Residential dwelling marker (floor + door): the strongest "personal address"
-# signal in the corpus (0 institutional FPs).  When present, the institutional-
-# context guards below never fire.
+# signal; an institution does not give a floor and door.  When present, the
+# institutional-context guards below never fire.
 _FLOOR_DOOR_RE = re.compile(
     r"(?i)(?:\d{1,3}\s*[ºªo]\s*[A-D]\b|\bbaix(?:os)?\b|\bbajo\b|[àa]tico|[àa]tic|"
     r"entresuelo|entresòl|\besc\.|\bpiso\b|\bpta\.|\bpuerta\b|\bporta\b|"
@@ -1594,9 +1593,9 @@ class PiiAnalyzer:
 
         # Los tipos desactivados se quitan ANTES de resolver solapes.  La fusión
         # se queda con un único span por solape y descarta el resto; si un tipo
-        # desactivado ganaba ("CAS-001 Diego Ferrer Email: …" absorbiendo a
-        # PERSON y EMAIL) y se filtraba después, lo que contenía quedaba sin
-        # tapar.  Filtrando primero, lo absorbido compite por su cuenta.
+        # desactivado ganara (una fila de tabla que absorbe un nombre y un
+        # correo) y se filtrara después, lo que contiene quedaría sin tapar.
+        # Filtrando primero, lo absorbido compite por su cuenta.
         disabled = self.disabled_types
         candidates = (
             [e for e in entities if e.entity_type not in disabled] if disabled else entities
@@ -1964,9 +1963,8 @@ class PiiAnalyzer:
                     continue
 
                 # Un nombre lleva al menos un nombre o un apellido del padron.  Sin
-                # esto, "Persona" del epigrafe de un formulario se tomaba por
-                # etiqueta y lo que seguia por un nombre (corpus digital: 26
-                # descartes, ningun nombre real).
+                # esto, el epigrafe "Persona" de un formulario pasaria por
+                # etiqueta y lo que le sigue por un nombre.
                 if entity_type == "PERSON" and not any(
                     gazetteer.is_person_token(gazetteer.normalize(t)) for t in _name_tokens(value)
                 ):
@@ -2038,8 +2036,7 @@ class PiiAnalyzer:
         "REAL", "JUSTO", "DOMINGO", "REYES", "SANTOS", "MARCO", "VICTORIA",
         "COSTA", "SERRA", "MOTA", "SALAS", "MERCADO", "CONSEJO", "CORTES",
         # Vocabulario administrativo/organizativo que el INE lista como nombre
-        # (FPs observados en el corpus: "Campus Nord", "UNA PARTE", "Área de
-        # Personal", "Centro de Salud Valle Verde", "Alcalde Reig"…).
+        # o apellido ("Campus", "Parte", "Área", "Centro", "Alcalde"…).
         "CAMPUS", "NORD", "SUR", "ESTE", "OESTE", "UNA", "UNO", "PARTE",
         "AREA", "PERSONAL", "VALLE", "VERDE", "SALUD", "CENTRO", "CENTRE",
         "ALCALDE", "ALCALDESA", "TEMPORAL", "COMPTE", "CONCEPTO", "CUENTA",
@@ -2159,7 +2156,7 @@ class PiiAnalyzer:
     @staticmethod
     def _detect_person_filenames(text: str) -> list[PiiEntity]:
         """Nombres de fichero adjunto que contienen el nombre del interesado
-        ("TFM_Luis_Vela.pdf"): fuga habitual en formularios con anexos.
+        ("TFM_Nombre_Apellido.pdf"): fuga habitual en formularios con anexos.
 
         Precisión: exige a la vez un nombre de pila y un apellido del INE entre
         las partes del fichero — "Informe_2024.pdf" o "Memoria_Valencia.pdf"
@@ -2668,8 +2665,8 @@ class PiiAnalyzer:
 
         Devuelve dos tipos: MONEY para los importes ligados a una persona o a
         una cuenta, y BUDGET_AMOUNT para los de un presupuesto de obra o una
-        tabla de mediciones.  Antes estos ultimos se descartaban; ahora salen
-        con tipo propio para que se puedan desmarcar por separado.
+        tabla de mediciones, con tipo propio para que se puedan desmarcar por
+        separado.
         """
         entities: list[PiiEntity] = []
 
@@ -2983,7 +2980,7 @@ class PiiAnalyzer:
             if not body.isdigit():
                 continue
             # Para tachar basta la FORMA: un IBAN con una errata del OCR falla el
-            # mod-97 y antes se entregaba a la vista.  Con mod-97 se acepta como
+            # mod-97 y no por eso debe quedar a la vista.  Con mod-97 se acepta como
             # siempre; sin el, si la mayoria son cifras de verdad (no letras que
             # el OCR podria haber confundido).  Ver tests/test_forma_estropeada.py.
             valido = is_valid_spanish_iban("ES" + body)

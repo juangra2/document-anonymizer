@@ -1,11 +1,9 @@
 """Un fondo con el formulario escrito encima no es una copia pegada.
 
-Documento real (solicitud de titulo de una universidad, un formulario): salia
-con el 58 % de la pagina en negro.  No era el clasificador de copias de DNI ni
-el de autoliquidaciones: el escudo de la universidad va de fondo, cubre el
-57,7 % de la pagina, y la red de seguridad lo trataba como una imagen pegada
-(una copia de DNI en un expediente).  La segunda pasada leyo un nombre encima
-del escudo y la red tacho la imagen entera.
+Un formulario puede llevar de fondo el escudo de la entidad, cubriendo media
+pagina.  Si la red de seguridad lo tratara como una imagen pegada (una copia de
+DNI en un expediente), al leer un nombre encima del escudo tacharia la imagen
+entera, y con ella media pagina.
 
 Lo que distingue un fondo de una copia: el fondo lleva el texto VISIBLE de la
 pagina encima (el formulario se escribe sobre el escudo); una copia pegada
@@ -27,7 +25,7 @@ def _imagen(page, rect):
 
 
 def _formulario(texto_invisible=False):
-    """Como el real: cabecera, escudo grande de fondo y los campos encima."""
+    """Cabecera, escudo grande de fondo y los campos encima."""
     doc = fitz.open()
     page = doc.new_page(width=595, height=842)
     page.insert_text((60, 60), "SOLICITUD DE TITULO UNIVERSITARIO", fontsize=11)

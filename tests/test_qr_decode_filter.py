@@ -36,7 +36,7 @@ def test_no_codes_when_none_decode(monkeypatch):
     doc = fitz.open()
     page = doc.new_page(width=595, height=842)
     fake = [
-        (fitz.Rect(700, 235, 1546, 945), ""),   # the TOMO_02 diagram false positive
+        (fitz.Rect(700, 235, 1546, 945), ""),   # a diagram that looks like a code
     ]
     monkeypatch.setattr(
         "app.services.vision.code_detector.detect_and_decode_visual_codes",
@@ -52,7 +52,7 @@ def test_no_codes_when_none_decode(monkeypatch):
 
 def test_ocr_segmenter_drops_undecoded_qr(monkeypatch):
     # Scanned path: a large region that does not decode (e.g. a notary seal)
-    # must not become a QR_CODE zone (the TOMO_03 page-1 false positive).
+    # must not become a QR_CODE zone.
     from PIL import Image
     from app.services.layout.segmenters import OcrPageSegmenter
     from app.services.ocr.models import OcrPage

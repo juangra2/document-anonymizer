@@ -1,21 +1,19 @@
 """Formulario de solicitud: codigo de verificacion, registro, recibo, importe y
 lugar de nacimiento.
 
-Documento real (solicitud de titulo de una universidad): con la red ya
-arreglada, seguian a la vista cuatro campos que el detector no reconocia, y la
-provincia y el municipio de nacimiento, que no se tachaban nunca:
+Campos de un formulario de solicitud que el detector tiene que reconocer:
 
-  - "Cód. Verificación" / "Cod. Verificació": el CSV solo reconocia "CSV" y
+  - "Cód. Verificación" / "Cod. Verificació" como CSV, ademas de "CSV" y
     "Código seguro de verificación";
-  - "Núm. registre / Nº registro" y "Núm. rebut / Nº recibo": ninguna regla;
-    el registro ademas partido entre lineas ("UV-" / "SEU-0000000446721");
-  - "212.07 €": punto decimal, que el patron de importes no aceptaba.  Solo con
-    el simbolo de euro detras, para no confundirlo con un separador de miles;
+  - "Núm. registre / Nº registro" y "Núm. rebut / Nº recibo", con el registro
+    partido entre lineas;
+  - un importe con punto decimal, solo con el simbolo de euro detras, para no
+    confundirlo con un separador de miles;
   - lugar de nacimiento: un lugar solo se tacha si su etiqueta dice que es el
     de nacimiento.  Fuera de esa etiqueta los lugares siguen a la vista.
 
-La disposicion es la del real: etiqueta bilingue en una linea y valor debajo.
-Todos los valores son inventados.
+La disposicion imita la de un formulario bilingue: etiqueta en una linea y
+valor debajo.  Todos los valores son inventados.
 """
 import fitz
 
@@ -138,8 +136,8 @@ def test_el_formulario_sale_con_los_valores_tachados_y_las_etiquetas_a_la_vista(
 def test_la_etiqueta_justo_encima_del_valor_sale_entera(tmp_path):
     """Al tachar, PyMuPDF borra todo caracter cuya caja TOQUE la barra, y la caja
     usa el alto completo de la fuente.  Con la etiqueta pequena justo encima del
-    valor (formulario real), la barra del valor se llevaba el pie de la etiqueta:
-    "BSERVACIONES", "LLIDOS", "ECIBO"."""
+    valor, la barra del valor se llevaria el pie de la etiqueta
+    ("BSERVACIONES", "LLIDOS", "ECIBO")."""
     from app.services.pdf.redactor import redact_pdf_digital
 
     entrada, salida = tmp_path / "in.pdf", tmp_path / "out.pdf"
@@ -163,10 +161,10 @@ def test_la_etiqueta_justo_encima_del_valor_sale_entera(tmp_path):
 
 
 # --- texto de OCR: las etiquetas seguidas y los valores despues --------------------
-# En la pasada OCR del formulario real (la pagina va al OCR por el escudo de
-# fondo) el texto no sigue el orden de la capa digital: las etiquetas pueden ir
-# seguidas y los valores despues.  Se tachaban lineas de etiqueta enteras, el
-# codigo del curso y el "11/2007" de la ley del pie.
+# En la pasada OCR de un formulario el texto no sigue el orden de la capa
+# digital: las etiquetas pueden ir seguidas y los valores despues.  Ni las
+# lineas de etiqueta, ni el codigo de un curso, ni la fecha de una ley citada
+# en el pie son datos.
 
 def test_una_etiqueta_no_es_el_valor_de_la_etiqueta_de_encima():
     texto = ("PROVINCIA NAIXEMENT / PROVINCIA NACIMIENTO\n"
@@ -191,9 +189,9 @@ def test_el_registro_salta_solo_etiquetas_hasta_su_valor():
 
 
 def test_tras_nom_o_cognoms_otra_etiqueta_no_es_un_nombre():
-    """Pasada OCR del formulario real: el detector de campo sin dos puntos tomaba
-    por nombre la linea que sigue a "COGNOMS / APELLIDOS", que en el orden del OCR
-    era otra etiqueta.  Se tachaban lineas de etiqueta enteras."""
+    """Pasada OCR de un formulario: la linea que sigue a "COGNOMS / APELLIDOS"
+    puede ser otra etiqueta, y el detector de campo sin dos puntos no la toma por
+    nombre."""
     texto = ("NOM / NOMBRE\nCOGNOMS / APELLIDOS\nD. NAIXEMENT / F. NACIMIENTO\n"
              "PROVINCIA NAIXEMENT / PROVINCIA NACIMIENTO\nDESCRIPCIÓ / DESCRIPCIÓN\n")
     for etiqueta in ("COGNOMS", "D. NAIXEMENT", "PROVINCIA NAIXEMENT", "DESCRIPCIÓ"):
@@ -206,9 +204,8 @@ def test_tras_nom_y_cognoms_el_valor_si_es_un_nombre():
 
 
 def test_tras_nom_un_valor_sin_nombre_ni_apellido_no_es_persona():
-    """Formulario real: "Persona" del epigrafe del pie se tomaba por etiqueta y
-    lo que seguia, por un nombre.  Sin un nombre o un apellido del padron no lo
-    es (corpus digital: 26 descartes de este detector, ningun nombre real)."""
+    """"Persona" del epigrafe del pie no es una etiqueta ni lo que le sigue un
+    nombre: sin un nombre o un apellido del padron no lo es."""
     texto = "Entrada electrònica de\nPersona y Entidad\n"
     assert "PERSON" not in _tipos(texto, "y Entidad")
 
@@ -222,11 +219,10 @@ def test_un_numero_suelto_corto_no_es_un_registro():
 
 
 # --- camino escaneado: celdas de tabla de MinerU -------------------------------------
-# Expediente escaneado real: MinerU devuelve la casilla como una celda con el
-# rotulo y el valor separados por <br>, y el lector de tablas los pegaba sin
-# separador ("RECIBO" + numero, "FECHA" + fecha, "IMPORTE" + importe).  El
-# numero de recibo no casaba despues con ninguna palabra de la imagen y no se
-# tachaba; una fecha pegada a letras ni se detectaba.
+# MinerU devuelve la casilla como una celda con el rotulo y el valor separados
+# por <br>.  Pegados sin separador ("RECIBO" + numero, "FECHA" + fecha), el
+# numero no casaria con ninguna palabra de la imagen y no se tacharia, y una
+# fecha pegada a letras ni se detectaria.
 
 def test_el_rotulo_y_el_valor_de_una_celda_no_se_pegan():
     from app.services.ocr.mineru_engine import _parse_html_table_tokens
@@ -261,7 +257,7 @@ def test_mineru_pega_el_valor_al_rotulo_bilingue_y_se_despega():
 
 def test_el_rotulo_no_entra_en_el_nombre():
     """Con el valor despegado, la fila llega como "NOM / NOMBRE PEDRO", y el nombre
-    salia como "NOMBRE PEDRO": la barra se llevaba el rotulo."""
+    tiene que salir sin el rotulo: si no, la barra se lo lleva."""
     texto = "NOM / NOMBRE PEDRO\nCOGNOMS / APELLIDOS MARTIN DELGADO\n"
     personas = [texto[e.start:e.end] for e in analyzer.analyze(texto, mode="strict", context_text=texto)
                 if e.entity_type == "PERSON"]
@@ -270,10 +266,10 @@ def test_el_rotulo_no_entra_en_el_nombre():
 
 
 # --- camino escaneado: la barra dentro de una linea larga ------------------------
-# Oficio escaneado real: el OCR leyo la frase entera como una sola caja, y la
-# barra del dato se calculaba repartiendo el ancho a partes iguales entre los
-# caracteres.  Mayusculas y cifras son mas anchas que la media: la barra empezaba
-# tarde y dejaba a la vista el nombre de pila y las dos primeras cifras del NIF.
+# El OCR puede leer una frase entera como una sola caja.  Repartiendo el ancho a
+# partes iguales entre los caracteres, la barra empezaria tarde (mayusculas y
+# cifras son mas anchas que la media) y dejaria a la vista el principio del
+# dato: la barra se calcula con la anchura de cada caracter.
 
 def test_la_barra_de_un_dato_dentro_de_una_linea_larga_lo_cubre_desde_su_inicio():
     from types import SimpleNamespace
@@ -293,8 +289,8 @@ def test_la_barra_de_un_dato_dentro_de_una_linea_larga_lo_cubre_desde_su_inicio(
 
 
 # --- registro de entrada o salida sin "Nº" delante -----------------------------------
-# Caso dificil (oficio con la copia del DNI): "Registre d'entrada: 2026/118430" en
-# la cabecera no se tachaba; la etiqueta del registro exigia "Nº" o "Núm.".
+# "Registre d'entrada: <numero>" en la cabecera es un numero de registro aunque
+# la etiqueta no lleve "Nº" ni "Núm.".
 
 def test_registro_de_entrada_o_salida_sin_numero_delante():
     for etiqueta in ("Registre d'entrada:", "Registre d’eixida:", "Registro de entrada:",
@@ -330,10 +326,10 @@ def test_en_evaluacion_el_informe_dice_que_nombres_descarto_la_regla_del_padron(
 
 
 def test_un_iban_partido_en_dos_lineas_de_una_celda_se_tacha(tmp_path):
-    """Medicion c4: con las cajas de letra ajustadas tambien al EXTRAER, el IBAN de
-    una nomina, partido en dos lineas de su celda y desplazado respecto a la
-    etiqueta, quedaba en dos zonas y no se detectaba.  Las cajas ajustadas solo
-    se usan al aplicar las tachaduras."""
+    """Con las cajas de letra ajustadas tambien al EXTRAER, el IBAN de una
+    nomina, partido en dos lineas de su celda y desplazado respecto a la
+    etiqueta, quedaria en dos zonas y no se detectaria.  Las cajas ajustadas
+    solo se usan al aplicar las tachaduras."""
     from app.services.pdf.redactor import redact_pdf_digital
 
     entrada, salida = tmp_path / "in.pdf", tmp_path / "out.pdf"
@@ -355,9 +351,9 @@ def test_un_iban_partido_en_dos_lineas_de_una_celda_se_tacha(tmp_path):
 
 
 # --- telefono partido entre dos lineas ----------------------------------------------
-# Medicion c4, hibrido: "Nº teléfono:60" en una linea y "885 718 1" en la siguiente,
-# en zonas distintas.  Cada zona se analiza sola y ninguna veia el numero entero.
-# En c3 se tachaba porque la pagina iba entera al OCR; ahora sigue siendo digital.
+# "Nº teléfono:" con el principio del numero en una linea y el resto en la
+# siguiente, en zonas distintas: cada zona se analiza sola y ninguna ve el numero
+# entero, asi que se une en el texto de la pagina.
 
 def test_un_telefono_partido_tras_su_etiqueta_se_detecta_en_cada_zona():
     """Cada linea es una zona: la primera solo lleva "65" y la segunda el resto.
@@ -378,7 +374,7 @@ def test_un_telefono_partido_tras_su_etiqueta_se_detecta_en_cada_zona():
 
 
 def test_el_telefono_partido_tras_movil_tel():
-    """Lectura de barras c4 (hibrido): "Móvil/Tel.:+34 950 314" / "671"."""
+    """La etiqueta puede llevar sufijo ("Móvil/Tel.:") con el numero partido."""
     primera = "Domicilio:Pza. de la Cruz, 120, 3º C, 29010 Málaga Móvil/Tel.:+34 950 314"
     segunda = "671 Email:sergio.morales@example.com Cuenta bancaria:"
     pagina = "INFORME\n" + primera + "\n" + segunda + "\nTexto corriente.\n"

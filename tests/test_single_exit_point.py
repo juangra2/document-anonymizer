@@ -1,9 +1,8 @@
-"""Bloque 6 — acoplamientos latentes cerrados por el punto único de salida.
+"""Acoplamientos que cierra el punto único de salida.
 
-F5, F10 y F11 no eran alcanzables por la API (PERSON es obligatorio), pero se
-convertían en fuga el día que cambiase la lista de obligatorios.  Se prueban a
-nivel de pipeline, con el analizador filtrado directamente.  O3 (recuento que
-dependía de include_entities) sí afectaba al informe por defecto.
+Con PERSON desactivado, el filtro institucional, la celda-nombre aislada y las
+heurísticas del cajetín tienen que respetar el filtro de tipos.  Se prueban a
+nivel de pipeline, con el analizador filtrado directamente.
 """
 import fitz
 import pytest
@@ -20,8 +19,8 @@ def _pdf(path, lines, fontsize=9):
     doc = fitz.open()
     page = doc.new_page()
     for i, line in enumerate(lines):
-        # En el cuerpo de la pagina: la cabecera excluye PHONE_NUMBER (telefonos
-        # institucionales) y el caso F5 no se ejercitaria.
+        # En el cuerpo de la pagina, para ejercitar el filtro institucional con
+        # PERSON desactivado.
         page.insert_text((40, 320 + i * 16), line, fontsize=fontsize)
     doc.save(path)
     doc.close()
@@ -33,7 +32,7 @@ def _text(path):
         return "\n".join(p.get_text() for p in doc)
 
 
-# --- F5: supresión institucional con PERSON desactivado ------------------------------------
+# --- supresión institucional con PERSON desactivado ----------------------------------------
 
 F5_LINES = [
     # Relleno: el filtro institucional trata las 5 primeras lineas de la pagina
@@ -61,7 +60,7 @@ def test_disabling_person_does_not_turn_a_private_phone_into_institutional(tmp_p
     assert "+34679339028" not in _text(off), "el teléfono del particular no puede liberarse"
 
 
-# --- F10: la celda-nombre aislada respeta el filtro -----------------------------------------
+# --- la celda-nombre aislada respeta el filtro ----------------------------------------------
 
 def test_standalone_name_cell_respects_disabled_person(tmp_path):
     lines = ["RELACION DE ASISTENTES A LA SESION ORDINARIA", "", "", "", "",
@@ -75,10 +74,10 @@ def test_standalone_name_cell_respects_disabled_person(tmp_path):
     assert "PERSON" not in report.entities_by_type
 
 
-# --- O3: ver tests/test_counts_two_columns.py (necesita dos columnas intercaladas) ---
+# --- el recuento por tipo: ver tests/test_counts_two_columns.py ---------------------
 
 
-# --- F11: heurísticas del cajetín filtradas -------------------------------------------------
+# --- heurísticas del cajetín filtradas ------------------------------------------------------
 
 class _FakeWordEngine:
     """OCR limpio del cajetín: el fixture sintético sale truncado con EasyOCR."""

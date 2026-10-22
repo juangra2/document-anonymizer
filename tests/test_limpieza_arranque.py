@@ -1,13 +1,13 @@
 """La limpieza de arranque no le borra el trabajo a un proceso vivo.
 
-El fallo real: un segundo servicio que ni siquiera llego a ocupar el puerto
-ejecuto su limpieza de arranque y borro la carpeta del documento que el servicio
-vivo estaba procesando en ese momento.  Salto un FileNotFoundError a media
-pagina y el usuario recibio un error interno sin causa entendible.
+Un segundo servicio que ni siquiera llega a ocupar el puerto ejecuta su
+limpieza de arranque; si borrara la carpeta del documento que el servicio vivo
+esta procesando, saltaria un FileNotFoundError a media pagina y el usuario
+recibiria un error interno sin causa entendible.
 
-No fue un accidente de un reinicio mal hecho: se dispara solo cuando un gestor
-de procesos reinicia con trabajo en curso, cuando dos instancias se levantan a
-la vez aunque una falle, y cuando un arranque se solapa con el apagado anterior.
+Pasa sin reinicios mal hechos: cuando un gestor de procesos reinicia con trabajo
+en curso, cuando dos instancias se levantan a la vez aunque una falle, y cuando
+un arranque se solapa con el apagado anterior.
 """
 import time
 from pathlib import Path
@@ -35,7 +35,7 @@ def _carpeta(raiz: Path, nombre: str, testigo: str | None) -> Path:
 
 
 def test_no_borra_la_carpeta_de_un_proceso_vivo(raiz):
-    """El caso que rompio: otro proceso esta trabajando ahi ahora mismo."""
+    """Otro proceso esta trabajando ahi ahora mismo: no se borra."""
     propiedad.registrar_proceso()
     otro = "testigo_de_otro_proceso"
     (raiz / ".procesos").mkdir(exist_ok=True)

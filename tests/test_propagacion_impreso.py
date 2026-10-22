@@ -1,10 +1,9 @@
 """La redaccion total solo se propaga con evidencia del MISMO expediente.
 
-El caso que lo motiva (caso 5b de las pruebas manuales): una autoliquidacion
-modelo 600 seguida de una notificacion corriente que decia «en relacion con el
-modelo 600 presentado en esta administracion».  Las dos paginas compartian
-`modelo:600`, la propagacion lo tomo por evidencia de ser el mismo impreso y la
-notificacion salio ENTERA EN NEGRO.
+Una autoliquidacion modelo 600 seguida de una notificacion corriente que dice
+«en relacion con el modelo 600 presentado en esta administracion»: las dos
+paginas comparten `modelo:600`, y si la propagacion lo tomara por evidencia de
+ser el mismo impreso, la notificacion saldria ENTERA EN NEGRO.
 
 No es una fuga: es destruir contenido legitimo.  Y esa frase esta en toda la
 correspondencia tributaria — cualquier resolucion que mencione el impreso al que
@@ -52,7 +51,7 @@ def test_el_justificante_si_es_referencia():
 
 
 def test_una_mencion_al_modelo_no_arrastra_a_negro():
-    """El caso 5b: lo que rompia."""
+    """Autoliquidacion y notificacion que solo comparten el numero de modelo."""
     clasificadas = classify_pages([_AUTOLIQUIDACION, _SOLO_MENCIONA])
     assert clasificadas.get(0) == TAX_FORM
     assert 1 not in clasificadas, (

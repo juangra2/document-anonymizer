@@ -367,9 +367,9 @@ def _is_sensitive_multicolumn_header(cells: list[list[WordBox]]) -> bool:
         return False
 
     # Una cabecera de tabla no termina en dos puntos; una etiqueta de formulario
-    # si.  "Nom i cognoms: Jordi ... | Nombre y apellidos: Jordi ..." es una fila
-    # de un formulario bilingue a dos columnas, y tomada por cabecera hacia tachar
-    # como nombres los rotulos de debajo (caso dificil 12).
+    # si.  "Nom i cognoms: ... | Nombre y apellidos: ..." es una fila de un
+    # formulario bilingue a dos columnas, y tomada por cabecera haria tachar como
+    # nombres los rotulos de debajo.
     if any(_cell_text(cell).strip().endswith(":") for cell in cells):
         return False
 

@@ -1,4 +1,4 @@
-"""Bloque D1 — anonimización asíncrona por cola de trabajos.
+"""Anonimización asíncrona por cola de trabajos.
 
 Lo que se fija aquí es el contrato que consumirá el frontend (nombres de
 endpoints, forma del estado, códigos de estado HTTP) y las dos garantías que no
@@ -418,7 +418,7 @@ def test_the_location_header_respects_the_path_prefix():
 # --- límites de entrada ------------------------------------------------------
 
 def test_a_document_over_the_page_limit_is_rejected_at_upload(monkeypatch):
-    """Antes se descubría al procesarlo, con la cola por delante; ahora, al subir."""
+    """Se descubre al subir, no al procesarlo con la cola por delante."""
     monkeypatch.setattr(settings, "max_pdf_pages", 2)
     response = _upload(pages=3)
 
@@ -452,7 +452,7 @@ def test_a_rejected_document_never_reaches_the_queue(monkeypatch):
 
 
 def test_a_password_protected_pdf_is_rejected_at_upload(tmp_path):
-    """Antes se descubria al procesarlo; ahora al subirlo, en segundos."""
+    """Se descubre al subirlo, en segundos, no al procesarlo."""
     import fitz
 
     doc = fitz.open()
@@ -470,7 +470,7 @@ def test_a_password_protected_pdf_is_rejected_at_upload(tmp_path):
 
 
 def test_a_damaged_pdf_is_told_apart_from_an_internal_error():
-    """Antes salía como «error interno», indistinguible de un fallo nuestro."""
+    """Un error con codigo propio, distinguible de un fallo interno."""
     roto = b"%PDF-1.4 esto no es un PDF de verdad" + bytes([10])
     response = client.post(
         "/jobs", files={"file": ("roto.pdf", BytesIO(roto), "application/pdf")},

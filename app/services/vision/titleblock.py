@@ -20,8 +20,8 @@ evidencia textual de cajetín):
    inferior, prior típico del cajetín).  Cada candidato se re-rasteriza SOLO su
    clip a DPI alto y se valida con EasyOCR: se exige ≥2 keywords.
 
-Valores calibrados con TOMO_04 (plano GRUPOTEC real, A1 apaisado rotado 90°,
-cajetín = franja derecha con 11/12 keywords):
+Valores calibrados con un plano A1 apaisado y girado 90°, con el cajetín en la
+franja derecha:
   - DPI de localización: 120 (11 MP para A1; suficiente para líneas de rejilla)
   - DPI de validación/OCR del clip: 300
   - Rejilla: kernel líneas = dim/60, dilate 9px, candidatos 0.5–30% de página
@@ -54,8 +54,8 @@ _LOCATE_DPI = 120
 _VALIDATE_DPI = 300
 _MIN_TEXT_KEYWORDS = 3     # ruta texto: keywords distintas en el clúster
 _MIN_OCR_KEYWORDS = 2      # ruta visión: keywords distintas en el OCR del clip
-# Franjas candidatas de borde derecho/inferior.  18%: el cajetín real de
-# TOMO_04 ocupa el 13.8% del ancho y las etiquetas empiezan en su borde
+# Franjas candidatas de borde derecho/inferior.  18%: un cajetín en franja
+# derecha ocupa en torno al 14% del ancho y sus etiquetas empiezan en su borde
 # interior; una franja más estrecha recorta el inicio de las keywords.
 _EDGE_STRIP_FRAC = 0.18
 _MAX_AREA_FRAC = 0.30      # un cajetín nunca supera el 30% de la página

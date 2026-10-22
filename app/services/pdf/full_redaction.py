@@ -127,7 +127,7 @@ def classify_page(text: str) -> str | None:
     # Nombrar el impreso no es ser el impreso: «en relación con el modelo 600
     # presentado, se le comunica que la autoliquidación ha sido revisada» lleva
     # las dos palabras en prosa corriente, y con esa regla una notificación
-    # normal salía ENTERA EN NEGRO.  Esa frase está en toda la correspondencia
+    # normal saldría ENTERA EN NEGRO.  Esa frase está en toda la correspondencia
     # tributaria.
     #
     # Lo que distingue al impreso de quien lo menciona es su ESTRUCTURA de
@@ -145,18 +145,16 @@ def classify_page(text: str) -> str | None:
 def form_references(text: str) -> set[str]:
     """Identificadores del impreso para la propagación: SOLO justificante o referencia.
 
-    El número de modelo NO cuenta.  Medido: una notificación normal que solo
-    decía «en relación con el modelo 600 presentado…» compartía `modelo:600` con
-    la autoliquidación anterior y salía ENTERA EN NEGRO.  No es una fuga, es
+    El número de modelo NO cuenta: una notificación que solo dice «en relación
+    con el modelo 600 presentado…» compartiría `modelo:600` con la
+    autoliquidación de al lado y saldría ENTERA EN NEGRO.  No es una fuga, es
     destruir contenido legítimo, y esa frase aparece en toda la correspondencia
     tributaria: cualquier resolución que mencione el impreso al que responde.
 
     Un número de modelo identifica un TIPO de impreso, no un expediente
     concreto; el justificante o la referencia sí identifican el documento.  La
-    propagación necesita lo segundo.
-
-    Esto se aprieta ANTES de ampliar la clasificación a más páginas: aplicar la
-    regla floja a todas las páginas de un documento multiplicaría el problema.
+    propagación necesita lo segundo; con una regla floja, propagar a todas las
+    páginas de un documento multiplicaría el problema.
     """
     norm = _norm(text)
     refs: set[str] = set()

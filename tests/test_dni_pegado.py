@@ -1,13 +1,11 @@
 """Un DNI pegado dentro de una pagina con texto no puede entregarse legible.
 
-Es el primer caso de las pruebas manuales («una pagina con texto digital y una
-imagen escaneada dentro, ambos con datos personales») y el que quedo sin
-resolver tras unificar los caminos: la pagina ya pasa por OCR, pero en 3 de
-los 5 documentos del patron `pagina_mixta` se seguian leyendo el nombre, el
-numero de DNI y la fecha de nacimiento de la copia pegada.
+Una pagina con texto digital y una imagen escaneada dentro, ambos con datos
+personales: el nombre, el numero de DNI y la fecha de nacimiento de la copia
+pegada no pueden quedar legibles.
 
-Estos tres documentos son los que fallaban.  La prueba lee el PDF entregado,
-no la lista de entidades: la evaluacion los daba casi por buenos.
+La prueba lee el PDF entregado, no la lista de entidades: la evaluacion por
+entidades daria por buenos documentos con la copia legible.
 
 Depende del corpus generado en el repositorio vecino; si no esta, se salta.
 """
@@ -44,7 +42,7 @@ def test_los_datos_del_dni_pegado_no_se_leen_en_la_salida(nombre, tmp_path):
         input_path=pdf, output_path=salida, job_id=nombre, mode="strict",
     )
 
-    # Solo los datos que viven en la IMAGEN pegada: es lo que fallaba.
+    # Solo los datos que viven en la IMAGEN pegada: es lo que se comprueba.
     solo_imagen = dict(etiqueta)
     solo_imagen["entities"] = [e for e in etiqueta["entities"] if e.get("en_imagen")]
     assert solo_imagen["entities"], "la etiqueta no marca que datos van en la imagen"

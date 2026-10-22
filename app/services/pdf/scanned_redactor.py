@@ -263,7 +263,7 @@ def redact_pdf_scanned(
                     zoned_page = segmenter.segment(layout_page, image=work_image)
                     easy_words = ocr_page.tokens
                     # Lo que MinerU no leyo, lo lee EasyOCR (ver
-                    # _zona_de_lo_no_leido).  El repliegue de arriba cubria solo
+                    # _zona_de_lo_no_leido).  El repliegue de arriba cubre solo
                     # el caso de todo-o-nada; este cubre la region que falta.
                     complemento = _zona_de_lo_no_leido(
                         layout_page.tokens, ocr_page.tokens,
@@ -476,16 +476,11 @@ def redact_pdf_scanned(
                         continue
 
                     # El render respeta un tope de pixeles (ocr_max_megapixels),
-                    # asi que una pagina enorme ya no es cara: es una pagina
-                    # normal reducida.
-                    #
-                    # Aqui habia un atajo que SALTABA las paginas con una imagen
-                    # dominante —mas de 25 MP cubriendo el 70 % de la pagina— y
-                    # solo les tachaba los codigos visuales.  Se entregaban sin
-                    # mirar.  No era un caso raro: un A4 escaneado a 600 DPI son
-                    # 35 MP, o sea un expediente archivado a buena resolucion, y
-                    # una foto de movil moderna tambien pasa de ese umbral.
-                    # Ahora pasan por el mismo tratamiento que las demas.
+                    # asi que una pagina enorme no es cara: es una pagina normal
+                    # reducida.  Por eso una pagina con una imagen dominante no
+                    # se salta: un A4 escaneado a 600 DPI o una foto de movil
+                    # moderna son paginas corrientes y pasan por el mismo
+                    # tratamiento que las demas.
                     image = _render_page_to_image(page, dpi=settings.ocr_pdf_render_dpi)
                     # Donde estan las imagenes pegadas, para la red de seguridad.
                     imagenes_px = _imagenes_pegadas_px(page, _zoom_con_tope(
@@ -900,13 +895,13 @@ def _canon_tok(raw: str) -> str | None:
 
 #: Parecido minimo para dar por igual un token del dato y uno del OCR.
 #:
-#: Elegido con datos, no por analogia con el 0.85 de la lectura de salidas: alli
-#: se comparan cadenas para VERIFICAR, aqui se decide DONDE se pinta una barra y
-#: emparejar mal tapa el sitio equivocado.  Medido sobre las fugas reales:
-#:   Z4422899G leido como 24422899G (Z->2)  ->  0.89   hay que aceptarlo
-#:   18001 frente a 18002 (datos distintos) ->  0.80   hay que rechazarlo
-#: 0.85 separa los dos casos.  Y solo se aplica a tokens de 5 caracteres o mas
-#: —identificadores—: en uno corto cualquier parecido es casualidad.
+#: No se copia del 0.85 de la lectura de salidas por analogia: alli se comparan
+#: cadenas para VERIFICAR, aqui se decide DONDE se pinta una barra y emparejar
+#: mal tapa el sitio equivocado.  El umbral acepta un identificador con una
+#: letra mal leida por el OCR (un NIE con la Z leida como 2) y rechaza dos
+#: datos distintos que solo difieren en la ultima cifra (dos codigos postales
+#: vecinos).  Y solo se aplica a tokens de 5 caracteres o mas —identificadores—:
+#: en uno corto cualquier parecido es casualidad.
 PARECIDO_TOKEN = 0.85
 _LARGO_MINIMO_PARECIDO = 5
 
@@ -1146,12 +1141,11 @@ def _entity_rects_via_easy(
 
     # Los candidatos de los dos tipos se agrupan JUNTOS por linea visual.
     #
-    # Antes se agrupaba solo `whole` y los sub-rects iban sueltos, asi que una
-    # aparicion repartida entre una palabra propia ("Ramos Munoz") y un token de
-    # linea larga ("El/La representante Elena ...") quedaba partida en dos
-    # grupos incompletos y perdia frente a otra aparicion que si estaba entera
-    # en un solo token.  Resultado: de un dato que salia DOS veces en la pagina,
-    # se tapaba una y se entregaba la otra.
+    # Si los sub-rects fueran sueltos, una aparicion repartida entre una palabra
+    # propia y un token de linea larga quedaria partida en dos grupos
+    # incompletos y perderia frente a otra aparicion entera en un solo token:
+    # de un dato que sale DOS veces en la pagina, se taparia una y se
+    # entregaria la otra.
     _Falsa = _CajaSuelta
     candidatos = list(whole) + [(_Falsa(sub), shared) for sub, shared in line_groups]
 
@@ -1169,13 +1163,11 @@ def _entity_rects_via_easy(
         # multi-line block (almost always an NER false positive on a paragraph).
         return [_padded(region)] if _small(region, line_h) else []
 
-    # TODAS las apariciones completas, no solo una.
-    #
-    # Antes se acumulaban grupos hasta cubrir los tokens del dato y se paraba:
-    # un nombre que aparece en la fila del formulario Y en el parrafo de abajo
-    # se tapaba una vez y se entregaba la otra.  Medido sobre la linea base: 9
-    # datos legibles en 6 de 15 documentos escaneados, todos ellos contados como
-    # acierto por la evaluacion, que no mira el PDF de salida.
+    # TODAS las apariciones completas, no solo una: un nombre que aparece en la
+    # fila del formulario Y en el parrafo de abajo se tapa las dos veces.  Parar
+    # al cubrir los tokens del dato una vez entregaria la otra aparicion a la
+    # vista, y la evaluacion por entidades no lo veria, porque no mira el PDF
+    # de salida.
     completos = [g for g in groups if g[1] >= ent_tokens]
     if completos:
         # Hay al menos un sitio donde el dato esta entero: se sabe que el
@@ -1411,7 +1403,7 @@ def _zoom_con_tope(page: fitz.Page, dpi: int, tope_mp: float) -> float:
     Una pagina declarada a un punto por pixel —lo que escriben muchos
     conversores de imagen a PDF— dice medir 58 x 82 cm, y a 200 DPI daria 30 MP.
     Reducir es barato y no cuesta calidad de lectura (ver ocr_max_megapixels);
-    saltarse la pagina, que es lo que se hacia antes, si cuesta: sale sin mirar.
+    saltarse la pagina si cuesta: saldria sin mirar.
     """
     zoom = dpi / 72
     if tope_mp <= 0:
@@ -1443,32 +1435,24 @@ def _zona_de_lo_no_leido(tokens_mineru: list, tokens_easy: list) -> "PageZone | 
     Por que hace falta
     ------------------
     El texto que se analiza en una pagina escaneada es el de MinerU; EasyOCR
-    solo servia para colocar las barras.  Lo que MinerU no lee, no se analiza:
-    ni se detecta, ni se tacha, ni llega a la clasificacion de documento de
-    identidad.  Y deja cosas sin leer por dos vias:
+    coloca las barras.  Lo que MinerU no lee, no se analiza: ni se detecta, ni
+    se tacha, ni llega a la clasificacion de documento de identidad.  Y deja
+    cosas sin leer por dos vias:
 
-    1. A proposito.  Desde 5e5abc4 no se le pide el contenido de los bloques
-       de imagen y grafico (ocr_mineru_skip_block_types): extraerlos tardaba unos
-       27 minutos en un escaneo.  Se supuso que el repliegue al OCR de palabras
-       lo cubriria, pero ese repliegue solo actuaba si la pagina ENTERA salia
-       vacia.  Una copia de DNI pegada en una pagina con texto no la leia nadie,
-       y se entregaba legible.
+    1. A proposito.  No se le pide el contenido de los bloques de imagen y
+       grafico (ocr_mineru_skip_block_types), que es carisimo.  El repliegue al
+       OCR de palabras solo actua si la pagina ENTERA sale vacia, asi que una
+       copia de DNI pegada en una pagina con texto no la leeria nadie.
     2. Sin decirlo.  Hay texto corriente, fuera de cualquier figura, que MinerU
        tampoco devuelve.
 
-    Medido sobre los corpus escaneado e hibrido (67 paginas por OCR, 23 con
-    alguna figura sin leer), comparando dos formas de complementar:
+    Por eso se complementa con TODO lo que MinerU no leyo, no solo con sus
+    figuras: recupera muchos mas datos, y lo que anade tiene una precision
+    parecida a la del propio camino escaneado (el ruido de bordes de tabla y
+    texturas de sello es poco).
 
-        solo las figuras de MinerU   14 datos reales recuperados,  4 falsos positivos
-        todo lo que MinerU no leyo   67 datos reales recuperados, 27 falsos positivos
-
-    Se usa la segunda: recupera casi cinco veces mas, y la precision de lo que
-    anade (un 82 % sin contar LOCATION, que no se anota) es parecida a la del
-    propio camino escaneado.  El temor era que fuera de las figuras entrara
-    ruido de bordes de tabla y texturas de sello; casi no aparecio.
-
-    No deshace 5e5abc4: el VLM sigue sin leer figuras, que es lo caro.  Las lee
-    EasyOCR, que ya habia leido la pagina entera para colocar las barras.
+    El VLM sigue sin leer figuras, que es lo caro.  Las lee EasyOCR, que ya ha
+    leido la pagina entera para colocar las barras.
     """
     if not tokens_easy:
         return None
@@ -1477,8 +1461,8 @@ def _zona_de_lo_no_leido(tokens_mineru: list, tokens_easy: list) -> "PageZone | 
     # Un bloque CORTADO (MinerU cayo en un bucle a mitad, ver
     # mineru_engine.recortar_bucle) no cubre lo que no llego a leer: sus
     # palabras de EasyOCR no se dan por leidas por estar dentro de su caja, solo
-    # por contenido.  Medido: el IBAN, el correo y el telefono de
-    # contrato_laboral_0002 se perdian asi.
+    # por contenido: si no, lo que viene despues del bucle (un IBAN, un correo)
+    # se perderia.
     leidos = [
         fitz.Rect(t.rect.x0 - _HOLGURA_BLOQUE_PX, t.rect.y0 - _HOLGURA_BLOQUE_PX,
                   t.rect.x1 + _HOLGURA_BLOQUE_PX, t.rect.y1 + _HOLGURA_BLOQUE_PX)
@@ -1487,9 +1471,8 @@ def _zona_de_lo_no_leido(tokens_mineru: list, tokens_easy: list) -> "PageZone | 
     ]
     # Lo que MinerU SI leyo, por su contenido.  Una palabra cuya caja asoma
     # fuera de un bloque pero cuyo texto ya esta aqui no es texto sin leer: es
-    # la misma palabra vista por otro motor.  Dejarla entrar detectaba el dato
-    # dos veces —28 de 40 falsos positivos nuevos en el corpus hibrido—.  Y
-    # quitarla es seguro: la geometria tapa todas las apariciones de un dato,
+    # la misma palabra vista por otro motor.  Dejarla entrar detectaria el dato
+    # dos veces, con falsos positivos.  Y quitarla es seguro: la geometria tapa todas las apariciones de un dato,
     # asi que si se detecta en el texto de MinerU, la barra cae tambien donde
     # asome.
     leido_por_contenido: set[str] = set()
@@ -1528,26 +1511,25 @@ def _zona_de_lo_no_leido(tokens_mineru: list, tokens_easy: list) -> "PageZone | 
 # Red de seguridad: lo que la segunda pasada todavia lee, no se entrega
 # ---------------------------------------------------------------------------
 #
-# La segunda pasada vuelve a leer la pagina ya tachada con EasyOCR.  Hasta ahora
-# lo que encontraba se contaba como "residuo", se pedia revision manual y el
-# documento se entregaba igual: el sistema SABIA que un dato seguia a la vista
-# y lo entregaba.  Es el mismo patron que ya se corrigio con las paginas
-# ilegibles y con los tiempos agotados, y la respuesta es la misma: tachar, no
-# solo avisar.  Pero de forma proporcional:
+# La segunda pasada vuelve a leer la pagina ya tachada con EasyOCR.  Si lo que
+# encuentra solo se contara como "residuo" y se pidiera revision, el sistema
+# SABRIA que un dato sigue a la vista y lo entregaria igual.  Como con las
+# paginas ilegibles y los tiempos agotados, la respuesta es tachar, no solo
+# avisar.  Pero de forma proporcional:
 #
 #   - Dentro de una IMAGEN PEGADA en una pagina con texto (una copia de DNI en
 #     un expediente) se tacha la imagen entera: no tiene nada que conservar.
 #   - En cualquier otro sitio se repasa solo la zona del residuo.  Tachar la
 #     pagina seria sobre-redaccion.
 #
-# Dos cuidados que salieron al disenarla:
+# Dos cuidados:
 #
 #   - En una pagina ESCANEADA la "imagen" es la pagina entera.  Si la regla de
 #     imagen se le aplicara, un solo residuo tacharia la pagina completa.  Por
 #     eso solo cuentan las imagenes de paginas que tienen capa de texto.
 #   - La segunda pasada usa el mismo analizador que la primera, con sus falsos
-#     positivos (en el camino escaneado, precision ~0,6 en direccion, codigo
-#     postal y telefono).  Tachar una imagen entera exige un residuo de tipo
+#     positivos (en el camino escaneado, sobre todo en direccion, codigo postal
+#     y telefono).  Tachar una imagen entera exige un residuo de tipo
 #     FIABLE o dos residuos en la misma imagen: un codigo postal suelto no basta
 #     para borrar la foto de un anexo.
 #
@@ -1561,9 +1543,8 @@ def _zona_de_lo_no_leido(tokens_mineru: list, tokens_easy: list) -> "PageZone | 
 TIPOS_FIABLES_RED = frozenset({"ES_DNI", "ES_NIE", "IBAN_CODE", "ES_CIF", "PERSON"})
 
 # Lo que, si SIGUE legible tras la red, pide revision manual.  Sin PERSON: la
-# segunda pasada da muchos falsos positivos de nombre, y el aviso saltaba casi
-# siempre sin motivo (medido: 11 avisos, ninguno con fuga real en la lectura de
-# barras).  Un aviso que casi nunca acierta acaba ignorado.  Los demas residuos
+# segunda pasada da muchos falsos positivos de nombre, y el aviso saltaria casi
+# siempre sin motivo.  Un aviso que casi nunca acierta acaba ignorado.  Los demas residuos
 # se tapan igual y se siguen contando en el informe; solo no piden revision.
 TIPOS_AVISO_RED = frozenset({"ES_DNI", "ES_NIE", "IBAN_CODE", "ES_CIF"})
 

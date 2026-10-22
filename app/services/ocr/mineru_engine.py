@@ -232,7 +232,7 @@ class MinerUEngine(OcrEngine):
     # ------------------------------------------------------------------
 
     def _dispositivo(self) -> str:
-        # "cuda" sin CUDA reventaba al primer escaneado: sin tarjeta, CPU.
+        # "cuda" sin CUDA hace fallar el primer escaneado: sin tarjeta, CPU.
         return "cuda" if usar_gpu(self._use_gpu) else "cpu"
 
     def _get_client(self) -> Any:
@@ -437,8 +437,8 @@ def _parse_html_table_tokens(
                 self._skip_cell = True
             elif tag == "br" and self._cell is not None:
                 # Rotulo y valor de una casilla van separados por <br>: sin el
-                # salto se pegaban ("RECIBO" + numero, "FECHA" + fecha) y el
-                # valor ni casaba con la imagen ni, si era una fecha, se detectaba.
+                # salto se pegan ("RECIBO" + numero, "FECHA" + fecha) y el valor
+                # ni casa con la imagen ni, si es una fecha, se detecta.
                 self._cell += "\n"
 
         def handle_endtag(self, tag: str) -> None:

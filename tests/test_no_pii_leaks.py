@@ -1,15 +1,14 @@
 """Que no se escape texto del documento por los sitios que nadie mira.
 
-Tres fugas encontradas y cerradas aquí:
+Tres sitios que se vigilan aquí:
 
-1. El filtro anti-PII del registro estaba puesto en el logger raíz, donde no se
-   aplica a lo que escriben los módulos: Python solo ejecuta los filtros del
-   logger donde nace el mensaje, nunca los de sus antepasados.
-2. Los avisos de la capa de verificación copiaban el valor de un metadato o de
-   un campo de formulario sin limpiar; ese aviso va al informe, que se conserva
-   horas.
-3. El informe de un trabajo de la cola podía llevar los valores detectados en
-   claro si se pedía `include_entities`.
+1. El filtro anti-PII del registro va en los manejadores, no en el logger raíz:
+   Python solo ejecuta los filtros del logger donde nace el mensaje, nunca los
+   de sus antepasados, así que en el raíz no se aplicaría a los módulos.
+2. Los avisos de la capa de verificación no copian el valor de un metadato o de
+   un campo de formulario: ese aviso va al informe, que se conserva horas.
+3. El informe de un trabajo de la cola no lleva los valores detectados: la cola
+   no admite `include_entities`.
 """
 import logging
 from io import BytesIO

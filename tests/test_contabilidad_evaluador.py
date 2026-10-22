@@ -1,18 +1,16 @@
 """La metrica de entidades mide "¿se detecto este valor en el documento?".
 
-Antes emparejaba aparicion por aparicion: un nombre que sale tres veces en la
-etiqueta y se detecta una contaba dos falsos negativos, aunque la geometria
-tapa TODAS las apariciones de un valor detectado.  En el escaneado eran 37 de
-92 falsos negativos.  Si cada aparicion queda tapada lo mide la lectura de
-barras, que abre el PDF; asi cada medida mide lo suyo.
+Emparejando aparicion por aparicion, un nombre que sale tres veces y se
+detecta una contaria dos falsos negativos, aunque la geometria tapa TODAS las
+apariciones de un valor detectado.  Si cada aparicion queda tapada lo mide la
+lectura de barras, que abre el PDF; asi cada medida mide lo suyo.
 
 Y una pagina que sale entera en negro tapa lo que llevaba, aunque sus datos no
-figuren en la lista de detectados (otros 24).  Cuenta solo si la pagina esta
-DE VERDAD en negro —por la fraccion de pixeles oscuros de la salida—, no porque
-el clasificador dijera que lo era.
+figuren en la lista de detectados.  Cuenta solo si la pagina esta DE VERDAD en
+negro —por la fraccion de pixeles oscuros de la salida—, no porque el
+clasificador dijera que lo era.
 
-Durante la transicion se guarda tambien el numero a la antigua, para que se vea
-que parte de la mejora es contabilidad y cual es el pipeline.
+Se guarda tambien la cuenta por aparicion, mas estricta.
 """
 import fitz
 
@@ -88,7 +86,7 @@ def test_la_negrura_distingue_una_pagina_tachada(tmp_path):
 
 
 def test_se_guardan_las_detecciones_y_las_paginas_en_negro():
-    """Para que las proximas medidas salgan exactas, no reconstruidas."""
+    """Las detecciones se guardan, para poder volver a contar exacto."""
     r = _ev([_g("Pilar Moreno Sanz")], [_d("Pilar Moreno Sanz"), _d("Pilar Moreno Sanz")],
             negras={2})
     assert [e.text for e in r.detectados] == ["Pilar Moreno Sanz"] * 2
@@ -105,8 +103,8 @@ def test_un_resultado_guardado_se_reconstruye_con_sus_detecciones():
 
 
 # --- variantes con el limite pasado ---------------------------------------------
-# "Luis Molina Medina NIF /" junto a una deteccion exacta de "Luis Molina Medina":
-# no es un dato inventado, es una barra que se come la etiqueta de al lado.  No
+# "<nombre> NIF /" junto a una deteccion exacta de "<nombre>": no es un dato
+# inventado, es una barra que se come la etiqueta de al lado.  No
 # cuenta como falso positivo, pero se mide aparte como sobre-redaccion —la queja
 # del ayuntamiento—, al lado del F1.
 
@@ -137,9 +135,9 @@ def test_una_variante_corta_no_es_sobre_redaccion():
 
 
 # --- los contadores de la red, por documento -----------------------------------------
-# Para decidir sobre el aviso de "siguen legibles tras la red" hacia falta cruzar
-# que documentos lo daban con las fugas de la lectura de barras, y el evaluador
-# no lo guardaba.
+# Para valorar el aviso de "siguen legibles tras la red" hay que cruzar que
+# documentos lo dan con las fugas de la lectura de barras: el evaluador guarda
+# lo que hizo la red en cada documento.
 
 def test_el_evaluador_guarda_lo_que_hizo_la_red(monkeypatch, tmp_path):
     import dataclasses

@@ -1,4 +1,4 @@
-"""Fixes del formulario GVA real (EST_TFM): celdas solapadas, celdas-nombre,
+"""Formularios de la GVA: celdas solapadas, celdas-nombre,
 FPs de firma/DNI y nombres en ficheros adjuntos."""
 import fitz
 
@@ -27,7 +27,7 @@ def _ents(text, types=None):
 # --- celdas solapadas (gap negativo) y conservación de la etiqueta ------------
 
 def test_vertical_value_with_overlapping_cells():
-    # Formulario compacto real: la caja del valor solapa ~2.5pt con la de la
+    # Formulario compacto: la caja del valor solapa ~2.5pt con la de la
     # etiqueta (gap negativo).  Debe redactarse el valor y conservar la
     # etiqueta (rect recortado por debajo de ella).
     label = [_w("NOM", 50, 232, 241), _w("/", 73, 232, 241), _w("NOMBRE", 81, 232, 241)]

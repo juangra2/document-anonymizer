@@ -1,9 +1,8 @@
-"""El numero de pasaporte pegado a su etiqueta: "PassaportPZ6203136".
+"""El numero de pasaporte pegado a su etiqueta: "Passaport<numero>".
 
-En el texto extraido del corpus digital la etiqueta y el numero salen sin espacio
-("Doc.:" / "PassaportPZ6203136"), y el patron exigia "pasaporte:" con dos puntos:
-tres pasaportes quedaban a la vista en la muestra de c2.  La extraccion de texto
-de tablas reales los pega igual.
+En el texto extraido de una tabla la etiqueta y el numero pueden salir sin
+espacio ni dos puntos ("Doc.:" / "Passaport<numero>"): el patron no puede exigir
+"pasaporte:" con dos puntos.
 """
 import pytest
 

@@ -1,9 +1,9 @@
 """Una sola decision de dispositivo para todo el servicio: GPU si se pide y la hay.
 
-Antes cada motor decidia por su cuenta con el ajuste de configuracion: EasyOCR
-caia solo a CPU, pero MinerU pedia "cuda" aunque no la hubiera y el primer
-documento escaneado reventaba.  En el contenedor sin tarjeta (o con la tarjeta
-mal pasada) el servicio tiene que arrancar en CPU y decirlo claro en el log.
+Los motores no deciden por su cuenta con el ajuste de configuracion: pedir
+"cuda" sin CUDA hace fallar el primer documento escaneado.  En el contenedor sin
+tarjeta (o con la tarjeta mal pasada) el servicio tiene que arrancar en CPU y
+decirlo claro en el log.
 
 Que tarjeta se usa no se decide aqui: la elige quien arranca el contenedor
 (GPU_DEVICE en docker-compose, o --gpus device=N), y dentro solo se ve esa.

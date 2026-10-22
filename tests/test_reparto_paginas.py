@@ -1,13 +1,11 @@
 """El reparto es PAGINA A PAGINA: que paginas van ENTERAS al OCR.
 
-Antes se decidia por documento: si la media llegaba a 200 caracteres por pagina,
-el documento entero iba por el camino digital sin pasar ni una pagina por OCR.
-Despues, por la suma de superficie de las imagenes (5 %): una copia de DNI
-pegada mandaba la pagina entera al OCR, y la pagina perdia su texto.
+Decidir por documento dejaria sin OCR paginas escaneadas de un documento con
+texto; decidir por la suma de superficie de las imagenes mandaria al OCR la
+pagina entera por una copia de DNI pegada, y la pagina perderia su texto.
 
-Ahora las imagenes de una pagina con texto se leen recortadas en el pase
-digital (pdf/imagenes_pegadas.py; casos con un DNI real: a mitad de escala y
-girado salia entero, a tamano real se tapaba el oficio).  La pagina entera solo
+Las imagenes de una pagina con texto se leen recortadas en el pase digital
+(pdf/imagenes_pegadas.py).  La pagina entera solo
 va al OCR si no tiene texto o si una imagen que no es un fondo ocupa al menos
 la mitad: un escaneo pegado como pagina.
 """
@@ -71,8 +69,8 @@ def test_un_escaneo_pegado_como_pagina_si():
 
 
 def test_un_fondo_con_el_formulario_encima_no():
-    """El escudo de fondo de un formulario real (57,7 %): la pagina conserva su
-    texto y sus etiquetas, que el camino escaneado mordia."""
+    """El escudo de fondo de un formulario (media pagina): la pagina conserva su
+    texto y sus etiquetas, que el camino escaneado morderia."""
     doc = fitz.open()
     page = doc.new_page(width=595, height=842)
     pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 20, 20), 0)

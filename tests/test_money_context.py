@@ -1,8 +1,7 @@
-"""A1.2 — importes económicos: MONEY los personales, BUDGET_AMOUNT los de obra.
+"""Importes económicos: MONEY los personales, BUDGET_AMOUNT los de obra.
 
-Los de un presupuesto de obra se detectaban y se tiraban; ahora salen con tipo
-propio, marcado por defecto como todos, para que quien necesite conservar el
-presupuesto a la vista lo desmarque en vez de no tener opción.
+Los de un presupuesto de obra salen con tipo propio, marcado por defecto como
+todos, para que quien necesite conservar el presupuesto a la vista lo desmarque.
 """
 import pytest
 
@@ -85,12 +84,12 @@ def test_construction_budget_amounts_are_not_personal_money(text):
     "Total capítulo 03 6.112,70",
 ])
 def test_construction_budget_amounts_have_their_own_type(text):
-    """Antes se descartaban; ahora se ofrecen para poder desmarcarlos."""
+    """Se ofrecen con tipo propio para poder desmarcarlos."""
     assert _obra(text), text
 
 
 def test_unmarking_the_new_type_leaves_the_budget_visible():
-    """Es el caso de quien necesita el presupuesto a la vista."""
+    """Quien necesita el presupuesto a la vista lo desmarca."""
     sin_obra = analyzer.with_disabled_types({"BUDGET_AMOUNT"})
     texto = "Presupuesto de Ejecución Material (P.E.M.) 14.831,15 €"
     encontrados = sin_obra.analyze(texto, mode="strict", zone_type="body")

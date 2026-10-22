@@ -1,15 +1,15 @@
-"""Cortar el valor de un campo de formulario donde de verdad termina (bloque 5b).
+"""Cortar el valor de un campo de formulario donde de verdad termina.
 
-La redacción estructural tachaba desde la etiqueta hasta el final de la fila
-visual.  Eso sobre-redacta en dos formas medidas en el corpus:
+Tachar desde la etiqueta hasta el final de la fila visual sobre-redacta de dos
+formas:
 
-* **Dos columnas** (castellano | valenciano): «telèfon +34 706 206 505 i correu
-  │ teléfono +34 706 …» quedaba como un único valor que cruzaba el canal.  El
-  texto está justificado (17,7 pt entre palabras, 27,6 pt en el canal): el
-  hueco no basta, hace falta el canal de la página.
-* **Dos campos en la misma fila** (nóminas): «Nombre Sergio Garrido Ramos ·
-  Titular del 70740740P».  Dentro del valor hay 2,6 pt entre palabras y 72,6 pt
-  antes del segundo campo.
+* **Dos columnas** (castellano | valenciano): el teléfono de la columna
+  izquierda y la etiqueta de la derecha formarían un único valor que cruza el
+  canal.  Con texto justificado el hueco entre palabras se parece al del canal:
+  hace falta el canal de la página, no basta el hueco.
+* **Dos campos en la misma fila** (nóminas): «Nombre <nombre> · Titular del
+  <documento>».  Dentro del valor los huecos son pequeños; antes del segundo
+  campo, grandes.
 
 Tres cortes: el canal de columnas, la siguiente etiqueta de la fila y un salto
 horizontal grande.
@@ -115,11 +115,11 @@ def _remainder_label_length(words: Sequence, find_label: LabelFinder,
     if len(words) >= 2 and _is_colon_label(words[0]):
         return 1
     # Etiqueta de varias palabras terminada en dos puntos («Nombre y apellidos:»,
-    # «Código postal:»): solicitud bilingüe a dos columnas, la etiqueta de la
-    # columna derecha se tachaba como valor.  Solo letras: lo que lleva cifras
+    # «Código postal:»): en una solicitud bilingüe a dos columnas, la etiqueta
+    # de la columna derecha no es un valor.  Solo letras: lo que lleva cifras
     # puede ser un dato y se sigue tachando.  Y SOLO justo tras el canal de
-    # columnas: en una fila corrida, «González Domínguez Doc. identitat:» pasaba
-    # por etiqueta y los apellidos quedaban a la vista (lectura de barras c4).
+    # columnas: en una fila corrida, «<apellidos> Doc. identitat:» pasaría por
+    # etiqueta y los apellidos quedarían a la vista.
     if not varias_palabras:
         return None
     for k in range(2, min(_MAX_PALABRAS_ETIQUETA, len(words) - 1) + 1):

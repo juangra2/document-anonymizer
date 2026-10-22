@@ -2,15 +2,14 @@
 
 El problema que resuelve
 ------------------------
-La limpieza de arranque borraba TODO lo que hubiera bajo el directorio temporal,
-dando por supuesto que al arrancar no hay ningun proceso vivo.  Se comprobo que
-no es cierto: un segundo servicio que ni siquiera llego a ocupar el puerto
-ejecuto su limpieza y borro la carpeta del documento que el servicio vivo estaba
-procesando en ese instante.  El resultado fue un `FileNotFoundError` a media
-pagina y un error interno sin causa entendible para quien lo sufre.
+La limpieza de arranque no puede borrar TODO lo que haya bajo el directorio
+temporal dando por supuesto que al arrancar no hay ningun proceso vivo.  Un
+segundo servicio que ni siquiera llega a ocupar el puerto ejecuta su limpieza y
+borraria la carpeta del documento que el servicio vivo esta procesando: un
+`FileNotFoundError` a media pagina y un error interno sin causa entendible.
 
-Eso no fue un accidente de un reinicio mal hecho.  Se dispara solo en tres
-situaciones rutinarias de un servidor: un gestor de procesos que reinicia con un
+No hace falta un reinicio mal hecho.  Pasa en tres situaciones rutinarias de un
+servidor: un gestor de procesos que reinicia con un
 documento en curso, dos instancias levantadas a la vez aunque una falle
 enseguida, y un arranque que se solapa con el apagado anterior.
 
@@ -130,8 +129,8 @@ def duenyo_de(carpeta: Path) -> str | None:
 def esta_en_uso(carpeta: Path) -> bool:
     """¿La esta usando un proceso vivo ahora mismo?
 
-    Una carpeta sin marca de dueno es de una version anterior a este
-    mecanismo: no puede pertenecer a nadie vivo, asi que se puede limpiar.
+    Una carpeta sin marca de dueno no puede pertenecer a nadie vivo (todo
+    proceso marca las suyas), asi que se puede limpiar.
     """
     testigo = duenyo_de(carpeta)
     return bool(testigo) and proceso_vivo(testigo)

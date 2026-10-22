@@ -2,13 +2,13 @@
 
 Los genera scripts/casos_dificiles.py imitando documentos reales.  La version
 digital se comprueba con la capa de texto de la salida; la escaneada, leyendo la
-salida con OCR (lento).  Hallazgos que fijan:
+salida con OCR (lento).  Lo que fijan:
 
-  11. banco: el IBAN y el titular repetidos en el parrafo, no solo en la tabla;
-  12. bilingue a dos columnas: los rotulos de las dos columnas se tachaban;
-  13. anexo apaisado: la pagina girada se segmentaba con otra geometria y el
-      correo junto al borde inferior salia entero;
-  14. firmas en una fila: el nombre del medio quedaba a medias.
+  11. banco: el IBAN y el titular se tachan tambien repetidos en el parrafo;
+  12. bilingue a dos columnas: los rotulos de las dos columnas no se tachan;
+  13. anexo apaisado: la pagina girada se segmenta con su geometria y el
+      correo junto al borde inferior se tacha;
+  14. firmas en una fila: el nombre del medio se tacha entero.
 """
 import json
 import re

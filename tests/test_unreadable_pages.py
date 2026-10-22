@@ -1,9 +1,8 @@
 """Red de seguridad: una página escaneada que el OCR no puede leer se tacha entera.
 
-Medido en el corpus de extensión: un presupuesto escaneado girado cuyo giro se
-eligió mal salía ilegible para el OCR y se entregaba intacto, con un aviso, y
-en la salida se leían el nombre del técnico, la empresa y la fecha.  Lo que no
-se ha podido leer tampoco se ha podido tachar.  Los motores de OCR se simulan
+Una página que sale ilegible para el OCR (por ejemplo, un escaneo girado cuyo
+giro se elige mal) no puede entregarse intacta con un aviso: lo que no se ha
+podido leer tampoco se ha podido tachar.  Los motores de OCR se simulan
 para que los tests sean rápidos y deterministas.
 """
 import io

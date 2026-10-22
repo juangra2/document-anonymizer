@@ -1,11 +1,10 @@
 """Los pasos finales del digital no rompen ni cuelgan un plano.
 
-Prueba del plano real (A1, 60.000 trazos, 10.700 fragmentos de menos de 2 pt):
-quitar_texto_diminuto ponia una marca por fragmento y aplicarlas sobre tantos
-trazos no terminaba; ademas se llevaba las cotas, que en un plano se leen con
-zoom.  Lo que habia que quitar era solo el texto diminuto que NO se ve (el
-contenido del QR en blanco a 1 punto debajo de la imagen): en blanco, invisible
-o tapado por una imagen dibujada despues.  Asi las cotas se quedan aunque la
+Un plano lleva decenas de miles de trazos y miles de fragmentos de texto de
+menos de 2 pt (las cotas, que se leen con zoom).  Poner una marca por fragmento
+no terminaria y se llevaria las cotas.  Solo se quita el texto diminuto que NO
+se ve (por ejemplo, el contenido de un QR en blanco a 1 punto debajo de la
+imagen): en blanco, invisible o tapado por una imagen dibujada despues.  Asi las cotas se quedan aunque la
 pagina no se detecte como plano (un A3 no se detecta).
 
 Las paginas de plano tampoco entran en el barrido de todas las apariciones:
@@ -84,7 +83,7 @@ def _imagen(pagina, rect):
 def test_solo_se_quita_el_texto_diminuto_que_no_se_ve():
     doc = fitz.open()
     p = doc.new_page(width=595, height=842)
-    p.insert_text((300, 100), "DEBAJO-DE-LA-IMAGEN", fontsize=1)    # el QR del corpus
+    p.insert_text((300, 100), "DEBAJO-DE-LA-IMAGEN", fontsize=1)    # como el texto de un QR
     _imagen(p, fitz.Rect(290, 90, 340, 110))
     _imagen(p, fitz.Rect(290, 150, 340, 170))
     p.insert_text((300, 160), "ENCIMA-DE-LA-IMAGEN", fontsize=1)    # se ve: se queda

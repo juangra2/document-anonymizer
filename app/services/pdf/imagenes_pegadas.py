@@ -1,17 +1,10 @@
 """Imagenes pegadas en una pagina con texto: se leen recortadas y se tachan en su sitio.
 
-Antes, una pagina con texto e imagenes o pasaba ENTERA por OCR (si sus
-imagenes sumaban el 5 %) o sus imagenes no se miraban.  Casos dificiles con un
-DNI real:
+Mandar la pagina entera al OCR, o no mirar sus imagenes, falla en los dos
+sentidos: una copia pequena o girada no se lee, y una a tamano real hace tapar
+la pagina entera con el oficio que la acompana.
 
-  - a mitad de escala (las dos caras suman un 3,7 %): no se miraba y salia
-    entero;
-  - girado 90 grados: la pagina iba al OCR, que la lee derecha; la tarjeta de
-    lado no la leia nadie y salia entera;
-  - a tamano real: la pagina entera se clasificaba como copia de DNI y se
-    tapaba, oficio incluido.
-
-Ahora cada imagen que cubre al menos `ocr_imagen_minima` se lee sola, con sus
+Por eso cada imagen que cubre al menos `ocr_imagen_minima` se lee sola, con sus
 propios pixeles (sin el texto digital que pueda ir encima) y probando los giros
 como el camino escaneado.  Si su texto es el de una copia de identidad, se tapa
 la imagen entera; si no, solo los datos que se leen en ella.  Despues se vuelve
@@ -170,8 +163,8 @@ def revisar_imagenes(page: fitz.Page, analyzer, mode: str = "strict",
             r.copia = r.entera = True
             r.rects = [bbox]
             # Se tapa entera, pero el informe dice que datos llevaba: sin esto
-            # solo constaba "una copia" (medicion c4: el evaluador, y quien lea
-            # el informe, no veian el nombre ni el DNI que se habian tapado).
+            # solo constaria "una copia", y ni el evaluador ni quien lea el
+            # informe verian el nombre ni el DNI que se han tapado.
             leidos = [e for e, _ in _datos(ocr, analyzer, mode)]
             r.entidades = leidos or [PiiEntity("ES_DNI", 0, 0, 0.99, source="imagen_pegada_copia")]
             revisadas.append(r)

@@ -1,14 +1,10 @@
 """Camino hibrido: documentos con paginas digitales y paginas que hay que mirar.
 
-Ya no tiene bucle de OCR propio
--------------------------------
-Antes lo tenia, y era una segunda copia del tratamiento de una pagina escaneada
-que se habia quedado atras: sin enderezado, sin clasificacion de redaccion total
-—una copia de DNI dentro de un expediente no se tachaba entera— y con una
-geometria de barras distinta, que las pintaba desplazadas.  Cada mejora del
-camino escaneado dejaba al hibrido un paso mas lejos.
-
-Ahora el hibrido es solo el orden de dos pasos:
+Sin bucle de OCR propio
+-----------------------
+Una segunda copia del tratamiento de una pagina escaneada se queda atras con
+cada mejora del camino escaneado (enderezado, redaccion total, geometria de las
+barras).  Por eso el hibrido es solo el orden de dos pasos:
 
 1. El pase digital sobre el documento entero: redacta la capa de texto de todas
    las paginas, que es exacto.

@@ -31,11 +31,12 @@ def test_the_page_is_served_at_the_root():
 
 
 def test_nothing_of_the_interface_is_cached_without_asking():
-    """El fallo real: HTML nuevo con CSS viejo, y la pantalla descuadrada.
+    """Tras una actualizacion, nada de HTML nuevo con CSS viejo.
 
-    La pagina se servia sin cache pero los estilos y los modulos no, asi que
-    tras una actualizacion el navegador seguia con los de antes.  `no-cache` no
-    prohibe guardar: obliga a preguntar, y mientras no cambie llega un 304.
+    Si la pagina se sirviera sin cache pero los estilos y los modulos no, el
+    navegador seguiria con los de antes y la pantalla saldria descuadrada.
+    `no-cache` no prohibe guardar: obliga a preguntar, y mientras no cambie llega
+    un 304.
     """
     for ruta in ("/", "/styles.css", "/js/main.js", "/js/texts/es.js"):
         cabecera = client.get(ruta).headers.get("cache-control", "")

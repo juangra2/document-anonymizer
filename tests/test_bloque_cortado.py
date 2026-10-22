@@ -1,17 +1,14 @@
 """Un bloque de MinerU que acaba en un bucle esta CORTADO: lo de detras no se leyo.
 
-El caso (contrato_laboral_0002 del corpus escaneado): MinerU lee el bloque de la
-persona trabajadora y, a mitad de la direccion, entra en un bucle
-"...28020113133333333333333333".  Todo lo que venia detras —telefono, correo,
-IBAN— desaparece.  El guardia de bucles no lo veia (se repite un caracter
-dentro de una sola "palabra"), y descartar el bloque entero habria sido peor: la
-primera mitad estaba bien leida.  Y el complemento con EasyOCR tampoco lo
-rescataba, porque la caja del bloque cubria esa zona y daba sus palabras por
-leidas.
+MinerU puede leer un bloque y, a mitad, entrar en un bucle que repite un
+caracter ("...3333333333").  Todo lo que venia detras —telefono, correo, IBAN—
+desaparece.  Descartar el bloque entero seria peor: la primera mitad esta bien
+leida.  Y el complemento con EasyOCR no lo rescataria si la caja del bloque
+diera por leidas las palabras que cubre.
 
-Arreglo: se recorta el bucle, el bloque queda marcado como cortado, y las
+Por eso se recorta el bucle, el bloque queda marcado como cortado, y las
 palabras de EasyOCR que caen dentro de un bloque cortado cuentan como NO leidas
-—salvo las que ya esten en lo que MinerU si leyo, como siempre—.
+—salvo las que ya esten en lo que MinerU si leyo—.
 """
 from types import SimpleNamespace
 

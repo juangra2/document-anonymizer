@@ -1,9 +1,9 @@
-"""Fecha de nacimiento con etiqueta en valenciano (F2).
+"""Fecha de nacimiento con etiqueta en valenciano.
 
-Con estas etiquetas la fecha solo se detectaba como DATE_TIME, así que al
-desactivar "Fechas" se publicaban fechas de nacimiento.  Los textos son
-fragmentos reales del corpus.  Se analizan con DATE_TIME desactivado: si la
-fecha queda cubierta, es que DATE_OF_BIRTH la detecta por sí mismo.
+Si con estas etiquetas la fecha solo se detectara como DATE_TIME, al desactivar
+"Fechas" se publicarían fechas de nacimiento.  Los textos imitan fragmentos del
+corpus.  Se analizan con DATE_TIME desactivado: si la fecha queda cubierta, es
+que DATE_OF_BIRTH la detecta por sí mismo.
 """
 import pytest
 
@@ -22,15 +22,15 @@ def _dob_covers(text: str, value: str) -> bool:
 
 
 @pytest.mark.parametrize("text, value", [
-    # Prosa, a media línea (acuerdo_adscripcion_0006).
+    # Prosa, a media línea.
     ("A efectes de nòmina i comunicacions: NAF: C/C: i Nascut/da el: 24/10/1954.\n", "24/10/1954"),
     ("La persona interessada, nascuda el 03/05/1980, sol·licita l'alta.\n", "03/05/1980"),
     ("nascut el 12/03/1985 a València\n", "12/03/1985"),
     ("nascuda el 3 de maig de 1980\n", "3 de maig de 1980"),
-    # Etiqueta con dos puntos a media línea (acuerdo_adscripcion_0009).
+    # Etiqueta con dos puntos a media línea.
     ("A efectes de nòmina i comunicacions: Nº S.S.: C/C: i Data de naixement: 24/02/1967 01:29.\n",
      "24/02/1967 01:29"),
-    # La misma etiqueta partida en varias líneas por la extracción (acuerdo_adscripcion_0010).
+    # La misma etiqueta partida en varias líneas por la extracción.
     ("A efectes de nòmina i comunicacions: Nº S.S.: C/C: i\nData\nde\nnaixement: 21/01/1971 21:08.\n",
      "21/01/1971 21:08"),
 ])

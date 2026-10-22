@@ -1,4 +1,4 @@
-"""Fix 5: pre-SEPA CCC (Entidad-Oficina-DC-Cuenta, 4-4-2-10) detection."""
+"""Pre-SEPA CCC (Entidad-Oficina-DC-Cuenta, 4-4-2-10) detection."""
 from app.services.pii.analyzer import PiiAnalyzer
 
 analyzer = PiiAnalyzer()

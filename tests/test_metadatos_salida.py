@@ -1,10 +1,10 @@
 """En el PDF entregado no queda nada oculto ni interactivo.
 
-Auditoria de metadatos (19-10): el camino digital dejaba notas de comentario con
-su autor, marcadores, el JavaScript de apertura, la apariencia de un campo con el
-valor antiguo y el EXIF/GPS de las fotos pegadas que no se tachan; el hibrido lo
-heredaba en las paginas que copia y el escaneado copiaba sin limpiar las paginas
-de plano.  Principio: todo lo que se ve ha pasado por el analisis; lo demas, fuera.
+Notas de comentario con su autor, marcadores, JavaScript, la apariencia de un
+campo con su valor y el EXIF/GPS de las fotos pegadas no pueden llegar a la
+salida, en ningun camino (tampoco en las paginas que el hibrido copia ni en las
+de plano del escaneado).  Principio: todo lo que se ve ha pasado por el
+analisis; lo demas, fuera.
 
   - Lo que no se ve (notas, adjuntos, JavaScript, marcadores, metadatos): fuera.
   - Lo que se ve (texto libre, sellos, dibujos, campos rellenos): se integra en la

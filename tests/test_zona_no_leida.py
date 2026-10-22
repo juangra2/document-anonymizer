@@ -1,10 +1,8 @@
 """La zona de lo que MinerU no leyo solo recoge lo que de verdad no leyo.
 
-El fallo que fija: MinerU lee un bloque, y la caja de alguna palabra de EasyOCR
-asoma unos pixeles fuera de ese bloque.  Esa palabra entraba en la zona de lo no
-leido, el dato se detectaba otra vez, y la evaluacion —que empareja uno a uno—
-contaba la segunda deteccion como falso positivo.  Medido en el corpus hibrido:
-28 de los 40 falsos positivos nuevos eran eso.
+MinerU lee un bloque, y la caja de alguna palabra de EasyOCR asoma unos pixeles
+fuera de ese bloque.  Si esa palabra entrara en la zona de lo no leido, el dato
+se detectaria otra vez, con un falso positivo.
 
 Quitarlas es seguro porque la geometria tapa TODAS las apariciones de un dato
 en la pagina: si el texto ya esta en lo que leyo MinerU, se detecta ahi y la
@@ -34,7 +32,7 @@ def test_lo_que_mineru_ya_leyo_no_entra_aunque_asome():
 
 
 def test_lo_que_de_verdad_no_se_leyo_si_entra():
-    """El caso del DNI pegado: MinerU no transcribe la figura."""
+    """Un DNI pegado: MinerU no transcribe la figura, y la lee EasyOCR."""
     easy = [_tok("39127242X", 200, 900, 330, 940)]
     assert "39127242X" in _textos(_zona_de_lo_no_leido(_MINERU, easy))
 

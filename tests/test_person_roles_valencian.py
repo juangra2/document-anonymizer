@@ -1,10 +1,9 @@
-"""Cargos de persona con etiqueta en valenciano (ampliación del bloque 2a).
+"""Cargos de persona con etiqueta en valenciano.
 
-La etiqueta castellana reconoce «Representante:», «Interesado:», «Técnico:»…
-y refuerza la detección del nombre que sigue.  La valenciana solo conocía
-«Nom», «Cognoms», «Sol·licitant» (y esta última sin el punto volado, así que
-nunca casaba).  Se exige que el nombre lo detecte el CAMPO ETIQUETADO, no el NER,
-que es lo que esta ampliación aporta.
+Como en castellano («Representante:», «Interesado:», «Técnico:»…), la etiqueta
+valenciana refuerza la detección del nombre que sigue, también «Sol·licitant»
+con su punto volado.  Se exige que el nombre lo detecte el CAMPO ETIQUETADO, no
+el NER.
 """
 import pytest
 

@@ -16,7 +16,7 @@ def _ents(text):
     ]
 
 
-# --- caso real de la captura ------------------------------------------------
+# --- etiqueta bilingüe y valor en la línea siguiente -------------------------
 
 def test_nom_nombre_next_line():
     assert ("PERSON", "JUAN") in _ents("NOM / NOMBRE\nJUAN")
