@@ -46,10 +46,11 @@ CAMINO_ESPERADO = {
 # imprimen como tales en vez de contarse como fallo.
 DESVIO_ESPERADO = {
     "hibrido": (
-        "ESPERADO hasta el arreglo del reparto: hoy un documento mixto con una "
-        "media de 200 caracteres por pagina se manda ENTERO al camino digital, "
-        "sin pasar una sola pagina por OCR. Esta es la linea base que se quiere "
-        "medir. Deberia desaparecer despues del arreglo unificado."
+        "El reparto es pagina a pagina: una pagina solo va entera al OCR si no "
+        "tiene texto o si su imagen es un escaneo pegado. Un documento mixto "
+        "cuyas imagenes no llegan a eso (las paginas mixtas del corpus) se "
+        "procesa en el camino digital, que tacha sobre la capa de texto y lee "
+        "esas imagenes recortadas (ver ocr_imagen_pagina_completa)."
     ),
 }
 
