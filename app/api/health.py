@@ -158,6 +158,7 @@ def _snapshot() -> dict[str, Any]:
             "max_upload_mb": settings.max_upload_mb,
             "max_pdf_pages": settings.max_pdf_pages,
             "result_ttl_minutes": settings.result_ttl_minutes,
+            "store_original": settings.store_original,
         },
         "issues": issues,
     }

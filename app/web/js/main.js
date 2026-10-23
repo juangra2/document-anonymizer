@@ -35,7 +35,6 @@ async function arrancar() {
   $("organizacion").textContent = T.app.organizacion;
   $("ayudaTipos").textContent = T.paso2.ayuda;
   $("vacio").textContent = T.paso3.vacio;
-  $("retencion").textContent = T.paso3.retencion;
   $("anonimizar").textContent = T.paso3.anonimizar;
   $("elegir").textContent = T.paso1.elegir;
   $("zonaTitulo").textContent = T.paso1.soltar;
@@ -94,12 +93,29 @@ async function comprobarServicio() {
   try {
     const salud = await api.estadoDelServicio();
     estado.limites = salud.limits || estado.limites;
+    pintarRetencion(salud.limits);
     estado.cola = salud.queue?.queued ?? 0;
     estado.servicio = salud.ready ? (salud.status === "ok" ? "ok" : "lento") : "caido";
   } catch {
     estado.servicio = "sinConexion";
   }
   pintarServicio();
+}
+
+// Sin datos del servidor el aviso no se muestra: mejor callar que afirmar un
+// plazo o un borrado que quizá no sean los de este servidor.
+function pintarRetencion(limites) {
+  const aviso = $("retencion").parentElement;
+  const minutos = limites?.result_ttl_minutes;
+  if (typeof minutos !== "number" || typeof limites.store_original !== "boolean") {
+    aviso.classList.add("hidden");
+    return;
+  }
+  $("retencion").textContent = T.paso3.retencion({
+    plazo: T.paso3.plazo(minutos),
+    guardaOriginal: limites.store_original,
+  });
+  aviso.classList.remove("hidden");
 }
 
 function pintarServicio() {

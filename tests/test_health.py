@@ -42,6 +42,14 @@ def test_health_reports_the_queue_and_the_limits():
     assert body["limits"]["result_ttl_minutes"] == settings.result_ttl_minutes
 
 
+def test_health_says_whether_the_original_is_kept(monkeypatch):
+    # El aviso de borrado de la pantalla se compone con esto: no puede
+    # afirmar que el original se borra si el servidor lo guarda.
+    for valor in (False, True):
+        monkeypatch.setattr(settings, "store_original", valor)
+        assert client.get("/health").json()["limits"]["store_original"] is valor
+
+
 def test_a_missing_model_is_reported_as_an_issue(monkeypatch):
     monkeypatch.setattr(settings, "ner_spacy_model", "no_existe_este_modelo")
     body = client.get("/health").json()

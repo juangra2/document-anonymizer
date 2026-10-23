@@ -158,6 +158,20 @@ def esperar_texto(pagina, selector: str, texto: str, ms: int = 120000) -> bool:
 def flujo_documento_completo(p, pagina, tmp: Path) -> None:
     print("\n1) Un documento de principio a fin")
     abrir(pagina)
+    limites = httpx.get(f"{BASE}/health", timeout=10).json()["limits"]
+    aviso = pagina.locator("#retencion").inner_text()
+    if limites["store_original"] is False and limites["result_ttl_minutes"] == 360:
+        p.comprobar(
+            aviso == "El documento original se borra del servidor en cuanto termina de "
+                     "procesarse. El anonimizado se borra 6 horas después: descárgalo antes.",
+            "un solo aviso de borrado, con el texto acordado",
+        )
+    else:
+        p.comprobar(
+            ("se guarda" in aviso) == limites["store_original"],
+            "el aviso de borrado dice lo que hace este servidor con el original",
+        )
+    p.comprobar(pagina.get_by_text("seis horas").count() == 0, "sin un segundo aviso de plazo")
     pagina.set_input_files("#ficheros", str(pdf_simple(tmp / "expediente.pdf", 2)))
     p.comprobar(
         pagina.locator(".ficha").count() == 1,

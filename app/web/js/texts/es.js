@@ -99,9 +99,18 @@ export const TEXTOS = {
     colaCargada:
       "Los escaneados pueden tardar horas: puedes cerrar esta página y volver " +
       "más tarde, el trabajo sigue en el servidor.",
-    retencion:
-      "Los documentos anonimizados se borran del servidor 6 horas después de " +
-      "terminar. Descárgalos antes de ese plazo.",
+    // Se compone con lo que dice el servidor (plazo y si guarda el original):
+    // el aviso no puede prometer un borrado que no ocurre.
+    retencion: ({ plazo, guardaOriginal }) =>
+      guardaOriginal
+        ? `El documento original se guarda en el servidor junto al anonimizado. ` +
+          `Los dos se borran ${plazo} después de terminar: descárgalo antes.`
+        : `El documento original se borra del servidor en cuanto termina de ` +
+          `procesarse. El anonimizado se borra ${plazo} después: descárgalo antes.`,
+    plazo: (minutos) =>
+      minutos % 60 === 0
+        ? `${minutos / 60} ${minutos === 60 ? "hora" : "horas"}`
+        : `${minutos} minutos`,
     paginaLenta: (pagina) =>
       `La página ${pagina} está tardando más de lo normal. Es habitual en ` +
       `escaneados y planos; el sistema sigue trabajando.`,
@@ -125,10 +134,6 @@ export const TEXTOS = {
       `${n} ${n === 1 ? "página tachada entera" : "páginas tachadas enteras"} porque no se ${
         n === 1 ? "pudo" : "pudieron"
       } leer`,
-    caducado: (hora) =>
-      `Este documento se borró del servidor a las ${hora}, seis horas después de ` +
-      `terminar. Si aún lo necesitas, vuelve a subir el original.`,
-    disponibleHasta: (hora) => `Disponible hasta las ${hora}`,
   },
 
   acciones: {
