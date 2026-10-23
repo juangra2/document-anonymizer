@@ -29,10 +29,10 @@ El Ajuntament de València tiene que publicar o entregar a terceros documentos a
 —resoluciones, notificaciones, contratos, nóminas, expedientes enteros— sin los datos personales
 de quienes aparecen en ellos. Hacerlo a mano es lento y es fácil que se escape algo.
 
-El anonimizador es un servicio que recibe un PDF, encuentra los datos personales (nombres, DNI,
-direcciones, teléfonos, cuentas bancarias…) y devuelve el mismo documento con esos datos
-**eliminados de verdad**, junto con un informe de lo que ha hecho y de lo que conviene revisar a
-mano. Trabaja en castellano y en valenciano, con documentos digitales, escaneados o mezcla de
+El anonimizador, desarrollado por la Universitat de València (IDAL) para el Ajuntament, es un
+servicio que recibe un PDF, encuentra los datos personales (nombres, DNI, direcciones, teléfonos,
+cuentas bancarias…) y devuelve el mismo documento con esos datos **eliminados de verdad**, junto
+con un informe de lo que ha hecho y de lo que conviene revisar a mano. Trabaja en castellano y en valenciano, con documentos digitales, escaneados o mezcla de
 ambos, desde una página hasta expedientes de cientos. Funciona en un servidor propio, sin enviar
 nada a internet.
 

@@ -30,6 +30,20 @@ def test_the_page_is_served_at_the_root():
     assert "Anonimizador de documentos" in respuesta.text
 
 
+def _frases_visibles(fichero: str) -> str:
+    """Lo que la pantalla puede mostrar: cadenas y texto del HTML, sin comentarios."""
+    texto = _texto_de(fichero)
+    texto = re.sub(r"/\*.*?\*/|<!--.*?-->", "", texto, flags=re.S)
+    return "\n".join(l for l in texto.splitlines() if not l.strip().startswith("//"))
+
+
+def test_the_page_names_the_universitat():
+    for fichero in ("index.html", "js/texts/es.js"):
+        visible = _frases_visibles(fichero)
+        assert "Universitat de València" in visible, fichero
+        assert not re.search(r"ajuntament|ayuntamiento", visible, re.I), fichero
+
+
 def test_nothing_of_the_interface_is_cached_without_asking():
     """Tras una actualizacion, nada de HTML nuevo con CSS viejo.
 

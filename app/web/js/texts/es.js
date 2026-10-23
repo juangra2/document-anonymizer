@@ -26,7 +26,7 @@ function losDatos(nombres) {
 export const TEXTOS = {
   app: {
     titulo: "Anonimizador de documentos",
-    organizacion: "Ajuntament de València",
+    organizacion: "Universitat de València",
   },
 
   salud: {
@@ -41,8 +41,8 @@ export const TEXTOS = {
       "El servicio no puede anonimizar documentos ahora mismo. Inténtalo de " +
       "nuevo en unos minutos; si sigue así, avisa a [soporte].",
     avisoSinConexion:
-      "No se puede conectar con el servicio. Comprueba que estás en la red del " +
-      "ayuntamiento; si lo estás, puede estar parado: avisa a [soporte].",
+      "No se puede conectar con el servicio. Comprueba que estás en la red de la " +
+      "Universitat; si lo estás, puede estar parado: avisa a [soporte].",
   },
 
   paso1: {

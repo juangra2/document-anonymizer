@@ -172,6 +172,10 @@ def flujo_documento_completo(p, pagina, tmp: Path) -> None:
             "el aviso de borrado dice lo que hace este servidor con el original",
         )
     p.comprobar(pagina.get_by_text("seis horas").count() == 0, "sin un segundo aviso de plazo")
+    p.comprobar(
+        pagina.locator("#organizacion").inner_text() == "Universitat de València",
+        "la cabecera dice Universitat de València",
+    )
     pagina.set_input_files("#ficheros", str(pdf_simple(tmp / "expediente.pdf", 2)))
     p.comprobar(
         pagina.locator(".ficha").count() == 1,

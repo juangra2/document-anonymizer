@@ -5,7 +5,8 @@ Servicio que anonimiza de forma **irreversible** documentos PDF de la administra
 NIE, direcciones, teléfonos, cuentas bancarias, fechas de nacimiento y una treintena de tipos más—,
 los **borra del documento** (el texto tachado desaparece del PDF, no queda debajo de un recuadro) y
 entrega un PDF sin metadatos ni contenido oculto, junto con un informe de lo que se ha hecho y de
-lo que conviene revisar a mano.
+lo que conviene revisar a mano. Lo ha desarrollado la Universitat de València (IDAL) para el
+Ajuntament de València.
 
 Admite documentos digitales, escaneados o mezclados, desde una página hasta expedientes de
 cientos. Se usa desde una **página web** propia o desde su **API**.
