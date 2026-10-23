@@ -49,6 +49,17 @@
       <h2><span class="step">2</span>Qué se va a ocultar</h2>
       <span class="count" id="activos"></span>
     </div>
+    <div class="tratamiento" role="radiogroup" aria-labelledby="tratamientoTitulo">
+      <span class="sr" id="tratamientoTitulo"></span>
+      <label><input type="radio" name="tratamiento" id="tratAnonimizar" value="anonymize" checked>
+        <span id="tratAnonimizarTexto"></span></label>
+      <label><input type="radio" name="tratamiento" id="tratMetadatos" value="metadata_only">
+        <span id="tratMetadatosTexto"></span></label>
+    </div>
+    <div class="banner warn hidden" id="avisoMetadatos">
+      <span class="mark">!</span><span id="avisoMetadatosTexto"></span>
+    </div>
+    <div id="paraAnonimizar">
     <p class="hint" id="ayudaTipos"></p>
     <div id="grupos"></div>
     <p class="visibles hidden" id="visibles"></p>
@@ -56,6 +67,7 @@
       <summary id="nuncaTitulo"></summary>
       <ul id="nuncaLista"></ul>
     </details>
+    </div>
     <div class="applies hidden" id="seAplica"></div>
   </section>
 

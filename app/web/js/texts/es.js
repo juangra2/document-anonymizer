@@ -73,6 +73,14 @@ export const TEXTOS = {
       "taparán igualmente. Por ejemplo, el QR de la sede electrónica contiene " +
       "una dirección web y un código seguro de verificación: para conservarlo, " +
       "desmarca también esos dos tipos.",
+    tratamiento: "Qué hacer con los documentos",
+    tratAnonimizar: "Anonimizar: ocultar los datos personales",
+    tratMetadatos: "Solo quitar metadatos",
+    avisoMetadatos:
+      "El contenido del documento NO se revisa ni se anonimiza: los datos " +
+      "personales que se vean en él siguen ahí. Solo se quitan los metadatos, " +
+      "los comentarios y el texto oculto, y los campos de formulario dejan de " +
+      "ser rellenables.",
     nuncaSeOculta: "¿Qué no se oculta nunca?",
     nuncaSeOcultaDetalle: [
       "Nombres, teléfonos y direcciones de organismos públicos.",
@@ -86,6 +94,7 @@ export const TEXTOS = {
     vacio: "Añade uno o varios documentos para empezar.",
     sinEmpezar: "Pulsa «Anonimizar» y aquí verás el avance de cada documento.",
     anonimizar: "Anonimizar",
+    quitarMetadatos: "Quitar metadatos",
     resumen: (partes) => partes.join(" · "),
     resumenTerminados: (n) => `${n} ${n === 1 ? "terminado" : "terminados"}`,
     resumenParciales: (n) => `${n} ${n === 1 ? "parcial" : "parciales"}`,
@@ -127,6 +136,9 @@ export const TEXTOS = {
     terminado: (datos, paginas) =>
       `Terminado · ${datos} ${datos === 1 ? "dato ocultado" : "datos ocultados"} ` +
       `en ${paginas} ${paginas === 1 ? "página" : "páginas"}`,
+    soloMetadatos: (paginas) =>
+      `Terminado · metadatos quitados en ${paginas} ${paginas === 1 ? "página" : "páginas"} · ` +
+      `el contenido NO se ha revisado ni anonimizado`,
     parcial: (hasta, total) =>
       `Parcial · páginas 1 a ${hasta} de ${total} · el resto no se ha anonimizado`,
     revisar: "Revísalo antes de usarlo: hay partes que no se han podido leer con seguridad",
@@ -172,6 +184,12 @@ export const TEXTOS = {
     safety_net_acted: ({ paginas }) =>
       `La comprobación final aún leía datos en ${lasPaginas(paginas)} y se han tapado. ` +
       `Conviene echarle un vistazo.`,
+    content_not_reviewed: () =>
+      "Solo se han quitado los metadatos: los datos personales que se ven en el " +
+      "documento siguen ahí.",
+    digital_signature_invalidated: () =>
+      "El documento llevaba firma digital y, al modificarlo, la firma deja de ser " +
+      "válida. Si necesitas la firma, usa el original.",
     safety_net_still_readable: ({ paginas, tipos }) =>
       `Puede que siga legible ${losDatos(tipos)} en ${lasPaginas(paginas)}. ` +
       `Revísalo antes de usarlo.`,

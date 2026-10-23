@@ -41,6 +41,11 @@ h2{font-size:15px;font-weight:600;margin:0;letter-spacing:-0.01em}
 .step{color:var(--faint);font-weight:400;margin-right:6px}
 .count{font-size:12px;color:var(--faint);white-space:nowrap}
 .hint{font-size:13px;color:var(--muted);margin:0 0 16px}
+.tratamiento{display:flex;flex-wrap:wrap;gap:8px 20px;margin:0 0 16px;font-size:14px}
+.tratamiento label{display:flex;gap:8px;align-items:center;cursor:pointer}
+.tratamiento input:focus-visible{outline:2px solid var(--accent, currentColor);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#avisoMetadatos{margin:0 0 16px}
 
 .drop{border:1px dashed #C7CDD4;border-radius:var(--radius);background:var(--page);padding:26px 16px;text-align:center}
 .drop strong{display:block;font-weight:500;font-size:15px}

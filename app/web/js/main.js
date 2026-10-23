@@ -35,7 +35,11 @@ async function arrancar() {
   $("organizacion").textContent = T.app.organizacion;
   $("ayudaTipos").textContent = T.paso2.ayuda;
   $("vacio").textContent = T.paso3.vacio;
-  $("anonimizar").textContent = T.paso3.anonimizar;
+  $("tratamientoTitulo").textContent = T.paso2.tratamiento;
+  $("tratAnonimizarTexto").textContent = T.paso2.tratAnonimizar;
+  $("tratMetadatosTexto").textContent = T.paso2.tratMetadatos;
+  $("avisoMetadatosTexto").textContent = T.paso2.avisoMetadatos;
+  pintarTratamiento();
   $("elegir").textContent = T.paso1.elegir;
   $("zonaTitulo").textContent = T.paso1.soltar;
   $("nuncaTitulo").textContent = T.paso2.nuncaSeOculta;
@@ -62,6 +66,8 @@ function conectarEventos() {
   };
   $("ficheros").onchange = (e) => añadirFicheros([...e.target.files]);
   $("anonimizar").onclick = lanzarTanda;
+  $("tratAnonimizar").onchange = pintarTratamiento;
+  $("tratMetadatos").onchange = pintarTratamiento;
   $("avisoCerrar").onclick = () => $("aviso").classList.add("hidden");
 
   const zona = $("zona");
@@ -319,8 +325,28 @@ function avisarSiTandaGrande() {
   }
 }
 
+function soloMetadatos() {
+  return $("tratMetadatos").checked;
+}
+
+// Con «solo quitar metadatos» no se elige qué ocultar: no se oculta nada, y el
+// aviso de que el contenido no se revisa ocupa su sitio.
+function pintarTratamiento() {
+  const solo = soloMetadatos();
+  $("paraAnonimizar").classList.toggle("hidden", solo);
+  $("avisoMetadatos").classList.toggle("hidden", !solo);
+  $("activos").classList.toggle("hidden", solo);
+  $("anonimizar").textContent = solo ? T.paso3.quitarMetadatos : T.paso3.anonimizar;
+}
+
 async function lanzarTanda() {
   $("anonimizar").disabled = true;
+  if (soloMetadatos()) {
+    await seguimiento.subirPendientes({ tratamiento: "metadata_only", desactivar: [], activar: [] });
+    $("anonimizar").disabled = false;
+    pintarTodo();
+    return;
+  }
   // Se envia lo que difiere del catalogo: los desmarcados que vienen activos y
   // los marcados que vienen apagados (el servicio parte del mismo catalogo).
   await seguimiento.subirPendientes({
@@ -635,6 +661,9 @@ function filaDocumento(documento) {
         resultado.pages,
         resultado.pages_total_original,
       );
+    } else if (resultado?.treatment === "metadata_only") {
+      linea.classList.add("part");
+      linea.textContent = T.documento.soloMetadatos(resultado.pages ?? 0);
     } else {
       linea.textContent = T.documento.terminado(
         resultado?.entities_redacted ?? 0,
@@ -790,6 +819,9 @@ function nombreInforme(documento) {
 
 function nombreDescarga(documento, parcial) {
   const base = documento.nombre.replace(/\.pdf$/i, "");
+  if (documento.trabajo?.result?.treatment === "metadata_only") {
+    return `${base}_sin_metadatos_contenido_sin_revisar.pdf`;
+  }
   if (!parcial) return `${base}_anonimizado.pdf`;
   const r = documento.trabajo.result;
   return `${base}_anonimizado_parcial_1-${r.pages}_de_${r.pages_total_original}.pdf`;

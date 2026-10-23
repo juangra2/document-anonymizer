@@ -84,6 +84,7 @@ export async function tiposDeDato() {
 export function subirDocumento(fichero, tipos, alProgresar) {
   return new Promise((resolver, rechazar) => {
     const parametros = [
+      ...(tipos.tratamiento === "metadata_only" ? ["treatment=metadata_only"] : []),
       ...tipos.desactivar.map((t) => `disabled_types=${encodeURIComponent(t)}`),
       ...tipos.activar.map((t) => `enabled_types=${encodeURIComponent(t)}`),
     ].join("&");

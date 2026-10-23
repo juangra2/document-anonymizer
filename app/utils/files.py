@@ -53,9 +53,13 @@ def assert_pdf_magic(path: Path) -> None:
 
 
 DOWNLOAD_STEM = "documento_anonimizado"
+# Solo se quitaron metadatos: el nombre lo dice, porque el documento sigue
+# llevando los datos personales que tuviera.
+METADATA_ONLY_STEM = "documento_sin_metadatos_contenido_sin_revisar"
 
 
-def download_filename(extension: str, *, partial_pages: tuple[int, int] | None = None) -> str:
+def download_filename(extension: str, *, partial_pages: tuple[int, int] | None = None,
+                      metadata_only: bool = False) -> str:
     """Nombre GENÉRICO con el que se sirve la descarga.
 
     El servidor no conoce el nombre del fichero que subió el usuario y no debe
@@ -64,6 +68,8 @@ def download_filename(extension: str, *, partial_pages: tuple[int, int] | None =
     horas.  Quien descarga desde la interfaz le pone el nombre que tiene en
     memoria; quien llama a la API directamente recibe este.
     """
+    if metadata_only:
+        return f"{METADATA_ONLY_STEM}.{extension}"
     if partial_pages:
         hasta, total = partial_pages
         return f"{DOWNLOAD_STEM}_parcial_1-{hasta}_de_{total}.{extension}"

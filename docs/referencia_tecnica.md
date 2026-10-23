@@ -223,7 +223,9 @@ la barra del valor tampoco muerde el rótulo de encima.
   hexadecimales); la de OCR es opcional (`VERIFY_OCR_LAYER_ENABLED`). Los documentos muy largos se
   verifican por trozos, y las páginas que no se pudieron verificar se avisan.
 - **Avisos con código** en el informe (`coded_warnings`): `plan_titleblock_only_verified`,
-  `pages_not_verified`, `safety_net_acted`, `safety_net_still_readable`. Los motivos de revisión
+  `pages_not_verified`, `safety_net_acted`, `safety_net_still_readable`, `content_not_reviewed`
+  (solo se quitaron metadatos) y `digital_signature_invalidated` (la entrada llevaba firma digital,
+  en los dos modos). Los motivos de revisión
   manual van en `manual_review_reasons`.
 
 ---
@@ -276,6 +278,24 @@ busca las herramientas en `EXIFTOOL`/`QPDF` o en el PATH y se salta si faltan.
 (`tests/casos_metadatos.py`: PDF digital con toda la carga y una foto de móvil pegada; página que es
 solo una foto; documento mixto; guardado incremental con una versión anterior sin tachar), por los
 tres caminos.
+
+**Inventario.** `inventario_metadatos` cuenta, antes de tocar la entrada y sin cambiarla, lo que
+lleva fuera del contenido visible; va al informe como `metadata_removed` (solo recuentos por
+categoría: `document_info`, `xmp`, `comments`, `form_fields`, `bookmarks`, `javascript`,
+`attachments`, `photo_metadata`, `thumbnails`, `links`, `accessibility_tags`, `text_copies`,
+`previous_versions` y, en el modo siguiente, `hidden_text`). Los campos de firma (`/FT /Sig`)
+dan el aviso `digital_signature_invalidated`.
+
+**Solo quitar metadatos** (`app/services/pdf/solo_metadatos.py`, `treatment=metadata_only`): no se
+analiza ni se tacha. Se eliminan todas las anotaciones que no son campos (los comentarios no se
+integran: nadie revisa lo que lleven), los campos pasan a la página (`bake`), se quita el texto
+que no se ve de cualquier tamaño (modo invisible o transparente, tapado por una imagen dibujada
+después, o blanco sobre una zona que se pinta blanca; un trozo que pisa texto visible se deja) y
+después el mismo `scrub` y `limpiar_para_entregar` que al anonimizar. La capa de texto de un
+escaneado con OCR es texto invisible: se quita y el PDF deja de poder buscarse. Sin GPU; pasa por
+la misma cola. El informe lleva `treatment: metadata_only`, el aviso `content_not_reviewed` y la
+descarga se llama `documento_sin_metadatos_contenido_sin_revisar.pdf`
+(`tests/test_solo_metadatos.py`, con los mismos casos cargados y ExifTool y qpdf).
 
 No se limpian: JPEG 2000, JPEG bajo otro filtro, imágenes en línea en el contenido. Las capas
 opcionales desactivadas no se han comprobado.
@@ -380,6 +400,9 @@ curl -o anonimizado.pdf "http://localhost:8000/jobs/3f2a…/result?output=pdf"
   `pages_total_original`). Pasa por la misma verificación que un documento entero.
 - **Un documento a la vez** (`MAX_CONCURRENT_DOCUMENTS=1`): el límite de la GPU; `POST /anonymize`
   comparte el turno.
+- **`treatment`**: `anonymize` (por defecto) o `metadata_only` (ver
+  [Metadatos](#metadatos-y-contenido-oculto)); otro valor, 422. Va también en el informe y en el
+  resumen del trabajo.
 - **`disabled_types` y `enabled_types`**: un valor por parámetro (`?disabled_types=DATE_TIME&
   disabled_types=URL`). Se quitan espacios, se pasa a mayúsculas y se ignoran los vacíos; una lista
   vacía equivale a no enviarla. Sin ninguna de las dos se aplica el catálogo. Un tipo inexistente o

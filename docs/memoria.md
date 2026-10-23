@@ -222,6 +222,14 @@ rellenos se integran en la página antes del análisis, para que lo que lleven s
 resto; los comentarios, adjuntos, marcadores, metadatos de las fotos y versiones anteriores se
 eliminan. Las fotos que se conservan pierden sus metadatos sin perder calidad.
 
+**Solo quitar metadatos** es un segundo modo, para cuando el contenido puede publicarse tal cual:
+la misma limpieza, sin analizar ni tachar nada. Los comentarios se eliminan (no se integran,
+porque nadie revisa lo que lleven), los campos de formulario pasan a la página y el texto que no
+se ve (en blanco sobre blanco, invisible o bajo una imagen, como la capa de OCR de un escaneado)
+se quita. La pantalla, el nombre de la descarga y el informe dicen que el contenido NO se ha
+revisado. En los dos modos, si el documento llevaba firma digital, se avisa de que deja de ser
+válida.
+
 Se comprueba con dos herramientas independientes del anonimizador, **ExifTool** y **qpdf**, que
 examinan el fichero entregado y dicen qué queda. Sobre documentos preparados a propósito con toda
 esa carga, en los tres tipos de documento, no queda nada.
@@ -257,7 +265,7 @@ Detalle: [referencia técnica](referencia_tecnica.md#retención-registro-y-acces
 
 - subir uno o varios documentos a la vez (hasta 10 por tanda, de hasta 200 MB y 300 páginas cada
   uno);
-- elegir qué tipos de dato ocultar, por grupos o uno a uno;
+- elegir qué tipos de dato ocultar, por grupos o uno a uno, o solo quitar los metadatos;
 - seguir el avance de cada documento página a página;
 - **parar** un documento y quedarse con las páginas ya hechas, o **eliminarlo** sin descargar nada;
 - descargar el resultado y su informe técnico.
@@ -265,7 +273,7 @@ Detalle: [referencia técnica](referencia_tecnica.md#retención-registro-y-acces
 La página no necesita internet y no guarda nada del documento en el navegador.
 
 **La API** (interfaz para otros programas) ofrece lo mismo: subir un documento a una cola
-(`POST /jobs`), consultar su estado (`GET /jobs/{id}`), descargar el resultado o el informe,
+(`POST /jobs`, con `?treatment=metadata_only` para solo quitar metadatos), consultar su estado (`GET /jobs/{id}`), descargar el resultado o el informe,
 pararlo o eliminarlo, consultar el catálogo de tipos (`GET /entity-types`) y comprobar el estado
 del servicio (`GET /health/ready`). Su documentación interactiva está en `/docs`.
 

@@ -59,6 +59,49 @@ def _quitar_claves(doc: fitz.Document, xref: int, claves) -> None:
         doc.update_object(xref, limpio)
 
 
+def inventario_metadatos(doc: fitz.Document) -> dict[str, int]:
+    """Lo que el documento lleva fuera del contenido visible, en recuentos.
+
+    Se mira ANTES de limpiar y no cambia nada: el informe dice que se quito y la
+    entrega sale sin ello.  `digital_signatures` no es algo que se quite sin mas:
+    avisa de que la limpieza invalida la firma.
+    """
+    info = sum(1 for k, v in (doc.metadata or {}).items()
+               if v and k not in ("format", "encryption"))
+    cuenta = dict.fromkeys(("xmp", "javascript", "photo_metadata", "text_copies",
+                            "digital_signatures"), 0)
+    for xref in range(1, doc.xref_length()):
+        try:
+            objeto = doc.xref_object(xref)
+            if "/Type /Metadata" in objeto or "/Type/Metadata" in objeto:
+                cuenta["xmp"] += 1
+            if "/JS" in objeto or "/S /JavaScript" in objeto:
+                cuenta["javascript"] += 1
+            if "/FT /Sig" in objeto or "/Type /Sig" in objeto:
+                cuenta["digital_signatures"] += 1
+            if "/ActualText" in objeto:
+                cuenta["text_copies"] += 1
+            if "/Subtype /Image" in objeto and "/DCTDecode" in objeto \
+                    and jpeg_con_metadatos(doc.xref_stream_raw(xref)):
+                cuenta["photo_metadata"] += 1
+        except Exception:  # un objeto roto no impide contar el resto
+            continue
+    paginas = list(doc)
+    catalogo = doc.pdf_catalog()
+    cuenta.update(
+        document_info=info,
+        comments=sum(len(list(p.annots())) for p in paginas),
+        form_fields=sum(len(list(p.widgets())) for p in paginas),
+        bookmarks=len(doc.get_toc(simple=True)),
+        attachments=doc.embfile_count(),
+        thumbnails=sum(1 for p in paginas if doc.xref_get_key(p.xref, "Thumb")[0] != "null"),
+        links=sum(len(p.get_links()) for p in paginas),
+        accessibility_tags=int(doc.xref_get_key(catalogo, "StructTreeRoot")[0] != "null"),
+        previous_versions=max(0, doc.version_count - 1),
+    )
+    return {k: v for k, v in cuenta.items() if v}
+
+
 def integrar_anotaciones(doc: fitz.Document) -> int:
     """Antes del analisis: lo visible a la pagina, lo invisible fuera.  Devuelve
     cuantas anotaciones y campos se han integrado."""

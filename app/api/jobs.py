@@ -71,6 +71,7 @@ def _to_response(job: Job) -> JobResponse:
             manual_review_reasons=job.report.manual_review_reasons,
             entity_types_disabled=job.report.entity_types_disabled,
             processing_ms=job.report.processing_ms,
+            treatment=job.report.treatment,
         )
 
     error = None
@@ -154,6 +155,14 @@ async def create_job(
             "normaliza como disabled_types; un tipo en las dos listas da 422."
         ),
     ),
+    treatment: Literal["anonymize", "metadata_only"] = Query(
+        default="anonymize",
+        description=(
+            "anonymize: se buscan y se borran los datos personales. metadata_only: "
+            "solo se quitan metadatos, comentarios y texto oculto, y los campos de "
+            "formulario pasan a la pagina; lo que se ve NO se revisa ni se anonimiza."
+        ),
+    ),
 ) -> JobResponse:
     """Encola un PDF para anonimizar y devuelve el trabajo con su identificador.
 
@@ -227,6 +236,7 @@ async def create_job(
         job,
         size_bytes=size_bytes,
         disabled_types=disabled,
+        treatment=treatment,
     )
 
     # Ruta relativa al prefijo servido: tras un proxy inverso, una URL absoluta
@@ -261,7 +271,8 @@ async def get_job_result(
         if report.partial and report.pages_total_original
         else None
     )
-    pdf_filename = download_filename("pdf", partial_pages=parcial)
+    solo_metadatos = report.treatment == "metadata_only"
+    pdf_filename = download_filename("pdf", partial_pages=parcial, metadata_only=solo_metadatos)
     headers = {
         "X-Job-Id": job.id,
         "X-Anonymization-Status": report.status,
@@ -273,7 +284,8 @@ async def get_job_result(
         with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
             zf.write(job.output_path, arcname=pdf_filename)
             zf.writestr("report.json", report.model_dump_json(indent=2) + "\n")
-        zip_filename = download_filename("zip", partial_pages=parcial)
+        zip_filename = download_filename("zip", partial_pages=parcial,
+                                         metadata_only=solo_metadatos)
         return Response(
             content=buffer.getvalue(),
             media_type="application/zip",

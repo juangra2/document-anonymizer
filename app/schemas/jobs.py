@@ -80,6 +80,11 @@ class JobResultSummary(BaseModel):
     )
     entity_types_disabled: list[str] = Field(default_factory=list)
     processing_ms: int | None = None
+    treatment: Literal["anonymize", "metadata_only"] = Field(
+        default="anonymize",
+        description="metadata_only: solo se quitaron metadatos; el contenido no "
+                    "se reviso ni se anonimizo.",
+    )
 
 
 class JobResponse(BaseModel):

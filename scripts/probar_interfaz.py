@@ -205,6 +205,40 @@ def flujo_documento_completo(p, pagina, tmp: Path) -> None:
     )
 
 
+def flujo_solo_metadatos(p, pagina, tmp: Path) -> None:
+    print("\n1c) Solo quitar metadatos: avisa de que el contenido no se revisa")
+    abrir(pagina)
+    entrada = pdf_simple(tmp / "solo_meta.pdf")
+    with fitz.open(entrada) as doc:
+        doc.set_metadata({"author": "Autor del expediente"})
+        doc.saveIncr()
+    pagina.check("#tratMetadatos")
+    p.comprobar(pagina.locator("#grupos").is_hidden() and pagina.locator("#activos").is_hidden(),
+                "no se eligen tipos ni se cuentan: no se oculta nada")
+    p.comprobar("NO se revisa" in pagina.locator("#avisoMetadatos").inner_text(),
+                "el aviso de que el contenido no se revisa se ve antes de empezar")
+    p.comprobar(pagina.locator("#anonimizar").inner_text() == "Quitar metadatos",
+                "el boton dice lo que va a hacer")
+    pagina.set_input_files("#ficheros", str(entrada))
+    pagina.click("#anonimizar")
+    ok = esperar_texto(pagina, ".doc .st", "metadatos quitados")
+    p.comprobar(ok and "NO se ha revisado" in pagina.locator(".doc .st").first.inner_text(),
+                "termina diciendo que el contenido NO se ha revisado")
+    p.captura(pagina, "16-solo-metadatos")
+    with pagina.expect_download(timeout=30000) as descarga:
+        pagina.click(".doc a.btn.primary")
+    fichero = descarga.value
+    p.comprobar(fichero.suggested_filename == "solo_meta_sin_metadatos_contenido_sin_revisar.pdf",
+                "el nombre de la descarga avisa de que el contenido no se ha revisado")
+    salida = tmp / "solo_meta_salida.pdf"
+    fichero.save_as(salida)
+    with fitz.open(salida) as doc:
+        p.comprobar(NOMBRE in doc[0].get_text(), "el contenido sale tal cual")
+        p.comprobar(not doc.metadata.get("author"), "sin el autor en los metadatos")
+    pagina.check("#tratAnonimizar")
+    p.comprobar(pagina.locator("#grupos").is_visible(), "al volver a anonimizar, los tipos vuelven")
+
+
 def flujo_expediente(p, pagina, tmp: Path) -> None:
     print("\n1b) El numero de expediente empieza marcado y la casilla manda")
     abrir(pagina)
@@ -408,6 +442,8 @@ def main() -> int:
 
     flujos = {
         "completo": flujo_documento_completo,
+        "solo-metadatos": flujo_solo_metadatos,
+        "solo-metadatos": flujo_solo_metadatos,
         "expediente": flujo_expediente,
         "tanda": flujo_tanda,
         "parar": flujo_parar,

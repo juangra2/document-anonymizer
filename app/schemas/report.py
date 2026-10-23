@@ -15,6 +15,10 @@ PLAN_TITLEBLOCK_ONLY_VERIFIED = "plan_titleblock_only_verified"
 PAGES_NOT_VERIFIED = "pages_not_verified"
 SAFETY_NET_ACTED = "safety_net_acted"
 SAFETY_NET_STILL_READABLE = "safety_net_still_readable"
+# Solo quitar metadatos: el contenido sale tal cual, sin revisar.
+CONTENT_NOT_REVIEWED = "content_not_reviewed"
+# El documento llevaba una firma digital: la limpieza la invalida.
+DIGITAL_SIGNATURE_INVALIDATED = "digital_signature_invalidated"
 # Motivos de revision manual (`ProcessingReport.manual_review_reasons`).  Los
 # que coinciden con un codigo de aviso (pages_not_verified,
 # safety_net_still_readable) los explica ese aviso; el resto, la nota generica.
@@ -28,7 +32,8 @@ REVIEW_NO_TEXT_DETECTED = "no_text_detected"
 
 #: Todos: cada uno necesita su frase en la pantalla (lo comprueba test_web.py).
 CODED_WARNING_CODES = (PLAN_TITLEBLOCK_ONLY_VERIFIED, PAGES_NOT_VERIFIED,
-                       SAFETY_NET_ACTED, SAFETY_NET_STILL_READABLE)
+                       SAFETY_NET_ACTED, SAFETY_NET_STILL_READABLE,
+                       CONTENT_NOT_REVIEWED, DIGITAL_SIGNATURE_INVALIDATED)
 
 
 class CodedWarning(BaseModel):
@@ -41,7 +46,10 @@ class CodedWarning(BaseModel):
                     "verificacion final no pudo comprobar; requiere revision manual), "
                     "`safety_net_acted` (la comprobacion tras tachar aun leia datos y "
                     "se taparon) o `safety_net_still_readable` (datos que siguen "
-                    "legibles tras la red; requiere revision manual).",
+                    "legibles tras la red; requiere revision manual), "
+                    "`content_not_reviewed` (solo se quitaron metadatos: el contenido "
+                    "no se reviso ni se anonimizo) o `digital_signature_invalidated` "
+                    "(el documento llevaba firma digital y deja de ser valida).",
         examples=[PLAN_TITLEBLOCK_ONLY_VERIFIED],
     )
     pages: list[int] = Field(default_factory=list,
@@ -196,6 +204,21 @@ class ProcessingReport(BaseModel):
         default_factory=list,
         description="Páginas tachadas enteras porque el OCR no pudo leerlas, "
                     "con el motivo de cada una.",
+    )
+
+    treatment: Literal["anonymize", "metadata_only"] = Field(
+        default="anonymize",
+        description="anonymize: se buscan y se borran los datos personales. "
+                    "metadata_only: solo se quitan metadatos y contenido oculto; "
+                    "lo que se ve en la pagina NO se revisa.",
+    )
+    metadata_removed: dict[str, int] = Field(
+        default_factory=dict,
+        description="Lo que el documento de entrada llevaba fuera del contenido "
+                    "visible y no sale en el entregado, por categoria (document_info, "
+                    "xmp, comments, form_fields, bookmarks, javascript, attachments, "
+                    "photo_metadata, thumbnails, links, accessibility_tags, "
+                    "text_copies, previous_versions, hidden_text).  Solo recuentos.",
     )
 
     redaction_strategy: str = "physical_pdf_redaction"

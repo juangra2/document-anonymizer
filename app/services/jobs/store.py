@@ -82,6 +82,8 @@ class Job:
     size_bytes: int = 0
 
     disabled_types: frozenset[str] = frozenset()
+    # "anonymize" o "metadata_only" (solo quitar metadatos, sin analizar).
+    treatment: str = "anonymize"
 
     status: JobStatus = "queued"
     # Cómo se pidió parar este documento: "delete" (eliminar sin entregar nada)
@@ -292,10 +294,12 @@ class JobStore:
         *,
         size_bytes: int,
         disabled_types: frozenset[str],
+        treatment: str = "anonymize",
     ) -> None:
         with self._lock:
             job.size_bytes = size_bytes
             job.disabled_types = disabled_types
+            job.treatment = treatment
         self._queue.put(job.id)
 
     def discard(self, job: Job) -> None:
@@ -454,18 +458,22 @@ class JobStore:
 
         try:
             with progress.track(on_progress), notices.track(on_notice),                     cancellation.track(lambda: job.stop_mode):
-                report = self._pipeline().process(
-                    job.input_path,
-                    job.output_path,
-                    job.id,
-                    settings.default_redaction_mode,
-                    # Nunca con los valores detectados: el informe de un trabajo
-                    # se conserva horas, y con ellos dentro sería conservar los
-                    # datos personales que acabamos de tapar.  Quien los
-                    # necesita para evaluar usa la ruta sincrona, que no retiene.
-                    False,
-                    job.disabled_types,
-                )
+                if job.treatment == "metadata_only":
+                    from app.services.pdf.solo_metadatos import quitar_metadatos
+                    report = quitar_metadatos(job.input_path, job.output_path, job.id)
+                else:
+                    report = self._pipeline().process(
+                        job.input_path,
+                        job.output_path,
+                        job.id,
+                        settings.default_redaction_mode,
+                        # Nunca con los valores detectados: el informe de un trabajo
+                        # se conserva horas, y con ellos dentro sería conservar los
+                        # datos personales que acabamos de tapar.  Quien los
+                        # necesita para evaluar usa la ruta sincrona, que no retiene.
+                        False,
+                        job.disabled_types,
+                    )
         except cancellation.JobCancelled:
             cancelled = True
         except cancellation.JobStopped:

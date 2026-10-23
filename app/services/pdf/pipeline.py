@@ -3,7 +3,10 @@ from pathlib import Path
 from time import perf_counter
 
 from app.core.config import settings
+import fitz
+
 from app.schemas.report import (
+    DIGITAL_SIGNATURE_INVALIDATED,
     PAGES_NOT_VERIFIED,
     REVIEW_RESIDUAL_PII,
     REVIEW_VERIFICATION_RISK_HIGH,
@@ -17,6 +20,7 @@ from app.services.layout.zone_config import ALL_PII_TYPES
 from app.services.ocr.factory import get_ocr_engine
 from app.services.pdf.hybrid_redactor import redact_pdf_hybrid_secure
 from app.services.pdf.inspector import PdfInspection, inspect_pdf_for_phase1
+from app.services.pdf.limpieza import inventario_metadatos
 from app.services.pdf.redactor import redact_pdf_digital
 from app.services.pdf.scanned_redactor import redact_pdf_scanned
 from app.services.pii.analyzer import PiiAnalyzer
@@ -49,6 +53,11 @@ class PdfAnonymizationPipeline:
     ) -> ProcessingReport:
         started = perf_counter()
         inspection = inspect_pdf_for_phase1(input_path)
+        # Lo que la entrada lleva fuera del contenido visible, antes de tocarla:
+        # el informe dice que se quito.  Solo se lee.
+        with fitz.open(input_path) as entrada:
+            quitado = inventario_metadatos(entrada)
+        firmas = quitado.pop("digital_signatures", 0)
 
         # Tipos que esta peticion no quiere anonimizar (bloque C).  Se aplica
         # con un clon del analizador que comparte el motor NER ya cargado, de
@@ -81,6 +90,11 @@ class PdfAnonymizationPipeline:
             t for t in ALL_PII_TYPES if t not in disabled
         )
         report.entity_types_disabled = sorted(disabled)
+        report.metadata_removed = quitado
+        if firmas:
+            # Tachar o limpiar cambia el fichero: la firma ya no corresponde.
+            report.coded_warnings.append(CodedWarning(
+                code=DIGITAL_SIGNATURE_INVALIDATED, counts={"signatures": firmas}))
         report.redaction_mode = mode
         report.processing_ms = int((perf_counter() - started) * 1000)
         return report
