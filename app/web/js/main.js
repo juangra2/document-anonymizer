@@ -762,6 +762,13 @@ function acciones(documento, parcial) {
       api.descargarConNombre(documento.id, nombreDescarga(documento, parcial));
     };
     caja.appendChild(descarga);
+    boton(T.acciones.informePdf, "", async () => {
+      try {
+        await api.descargarInformePdf(documento.id, nombreInformePdf(documento));
+      } catch (error) {
+        mostrarAviso(frase(error.codigo, { idTrabajo: documento.id }));
+      }
+    });
     boton(T.acciones.informe, "", async () => {
       try {
         await api.descargarInforme(documento.id, nombreInforme(documento));
@@ -808,6 +815,13 @@ function acciones(documento, parcial) {
     });
   }
   return caja;
+}
+
+// El nombre del fichero solo existe en el navegador: el informe por dentro no
+// lo lleva.
+function nombreInformePdf(documento) {
+  const base = documento.nombre ? documento.nombre.replace(/\.pdf$/i, "") : "documento";
+  return `${base}_informe.pdf`;
 }
 
 function nombreInforme(documento) {

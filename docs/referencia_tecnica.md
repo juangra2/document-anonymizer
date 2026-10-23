@@ -400,6 +400,17 @@ curl -o anonimizado.pdf "http://localhost:8000/jobs/3f2a…/result?output=pdf"
   `pages_total_original`). Pasa por la misma verificación que un documento entero.
 - **Un documento a la vez** (`MAX_CONCURRENT_DOCUMENTS=1`): el límite de la GPU; `POST /anonymize`
   comparte el turno.
+- **Informe en PDF** (`GET /jobs/{id}/report.pdf`, y `informe.pdf` dentro del zip):
+  `app/services/informe_pdf.py`, con `fitz.Story` (HTML y CSS a PDF, sin dependencias nuevas). Se
+  construye solo con recuentos, páginas y códigos (`entities_by_type`, `entities_by_page`,
+  `pages_redacted_in_full`, `pages_redacted_by_content`, `coded_warnings`,
+  `manual_review_reasons`, `metadata_removed`), nunca con `detected_entities`,
+  `descartes_padron` ni las frases de `warnings`. Sin nombre de fichero: fecha, páginas e
+  identificador. `tests/test_informe_pdf.py` comprueba que ningún valor aparece ni en el texto
+  ni dentro del fichero, aunque el JSON los lleve.
+- **`entities_by_page`**: datos por página (desde 1) y tipo; suma lo mismo que `entities_by_type`
+  en los tres caminos (`tests/test_recuento_por_pagina.py`). **`pages_redacted_by_content`**:
+  páginas tachadas enteras por ser copia de DNI (`dni_scan`) o autoliquidación (`tax_form`).
 - **`treatment`**: `anonymize` (por defecto) o `metadata_only` (ver
   [Metadatos](#metadatos-y-contenido-oculto)); otro valor, 422. Va también en el informe y en el
   resumen del trabajo.

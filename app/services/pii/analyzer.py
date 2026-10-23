@@ -1619,6 +1619,22 @@ class PiiAnalyzer:
         return merged
 
     @staticmethod
+    def count_by_page(
+        marcas: list[tuple[int, int]], entities: list[PiiEntity],
+    ) -> dict[int, dict[str, int]]:
+        """Recuento por pagina a partir de las marcas (indice de pagina, posicion
+        en `entities` al empezar esa pagina).  Paginas desde 1, solo con datos."""
+        recuento: dict[int, dict[str, int]] = {}
+        for i, (pagina, inicio) in enumerate(marcas):
+            fin = marcas[i + 1][1] if i + 1 < len(marcas) else len(entities)
+            if fin > inicio:
+                tipos = PiiAnalyzer.count_by_type(entities[inicio:fin])
+                previo = recuento.setdefault(pagina + 1, {})
+                for tipo, n in tipos.items():
+                    previo[tipo] = previo.get(tipo, 0) + n
+        return recuento
+
+    @staticmethod
     def count_by_type(entities: list[PiiEntity]) -> dict[str, int]:
         counts: dict[str, int] = defaultdict(int)
 

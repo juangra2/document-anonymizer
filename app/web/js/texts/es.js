@@ -151,7 +151,8 @@ export const TEXTOS = {
   acciones: {
     descargar: "Descargar",
     descargarParcial: "Descargar parcial",
-    informe: "Informe técnico",
+    informePdf: "Informe en PDF",
+    informe: "Informe técnico (JSON)",
     parar: "Parar",
     eliminar: "Eliminar",
     quitar: "Quitar de la lista",

@@ -204,6 +204,19 @@ def flujo_documento_completo(p, pagina, tmp: Path) -> None:
         "la descarga conserva el nombre original, que lo pone el navegador",
     )
 
+    with pagina.expect_download(timeout=30000) as descarga:
+        pagina.click(".doc button:has-text('Informe en PDF')")
+    informe = tmp / "informe_descargado.pdf"
+    descarga.value.save_as(informe)
+    p.comprobar(descarga.value.suggested_filename == "expediente_informe.pdf",
+                "el informe en PDF se descarga junto al documento")
+    with fitz.open(informe) as doc:
+        texto = " ".join(pg.get_text() for pg in doc)
+    p.comprobar("Universitat de València" in texto and "Qué se ha ocultado" in texto,
+                "el informe en PDF se lee en castellano")
+    p.comprobar(NOMBRE not in texto and "12345678Z" not in texto and "expediente.pdf" not in texto,
+                "el informe en PDF no lleva ningun dato ocultado ni el nombre del fichero")
+
 
 def flujo_solo_metadatos(p, pagina, tmp: Path) -> None:
     print("\n1c) Solo quitar metadatos: avisa de que el contenido no se revisa")

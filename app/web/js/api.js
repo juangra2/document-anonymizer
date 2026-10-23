@@ -163,6 +163,19 @@ export async function descargarInforme(id, nombre) {
   setTimeout(() => URL.revokeObjectURL(enlace.href), 30000);
 }
 
+/** El informe en PDF para leer, con el nombre que la página tiene en memoria. */
+export async function descargarInformePdf(id, nombre) {
+  const respuesta = await pedir(`jobs/${encodeURIComponent(id)}/report.pdf`, { espera: 60000 });
+  const contenido = await respuesta.blob();
+  const enlace = document.createElement("a");
+  enlace.href = URL.createObjectURL(contenido);
+  enlace.download = nombre;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  setTimeout(() => URL.revokeObjectURL(enlace.href), 30000);
+}
+
 /** Parar y entregar lo procesado. */
 export async function pararTrabajo(id) {
   await pedir(`jobs/${encodeURIComponent(id)}/stop`, { method: "POST" });

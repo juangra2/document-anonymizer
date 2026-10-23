@@ -35,6 +35,7 @@ from app.schemas.report import (
     CodedWarning,
     DetectedEntityInfo,
     OcrInfo,
+    PageRedactedByContent,
     PageRedactedInFull,
     ProcessingLimits,
     ProcessingReport,
@@ -148,6 +149,8 @@ def redact_pdf_scanned(
     output_doc = fitz.open()
 
     all_entities: list[PiiEntity] = []
+    # (pagina, posicion en all_entities al empezarla): recuento por pagina.
+    marcas: list[tuple[int, int]] = []
     all_residual_entities: list[PiiEntity] = []
     redacted_count = 0
     confidence_values: list[float] = []
@@ -428,6 +431,7 @@ def redact_pdf_scanned(
             try:
                 for page_index, page in enumerate(source_doc):
                     on_page(page_index)
+                    marcas.append((page_index, len(all_entities)))
                     cancellation.check()
 
                     # Pagina que no necesita OCR (documento mixto): se copia tal
@@ -692,6 +696,7 @@ def redact_pdf_scanned(
         entities_detected=len(all_entities),
         entities_redacted=redacted_count,
         entities_by_type=analyzer.count_by_type(all_entities),
+        entities_by_page=analyzer.count_by_page(marcas, all_entities),
         residual_entities=residual_count,
         residual_entities_by_type=residual_by_type,
         manual_review_required=(
@@ -709,6 +714,10 @@ def redact_pdf_scanned(
         pages_redacted_in_full=[
             PageRedactedInFull(page=idx + 1, reason=why)
             for idx, why in sorted(unreadable_pages.items())
+        ],
+        pages_redacted_by_content=[
+            PageRedactedByContent(page=idx + 1, reason=why)
+            for idx, why in sorted(full_redaction_pages.items())
         ],
         redaction_mode=mode,
         limits=ProcessingLimits(

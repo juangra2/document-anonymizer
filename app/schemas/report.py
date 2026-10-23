@@ -99,6 +99,15 @@ class OcrInfo(BaseModel):
     safety_net_still_readable: int = 0
 
 
+class PageRedactedByContent(BaseModel):
+    """Página tachada entera por lo que es: copia de un documento de identidad o
+    autoliquidación.  Intencionada, no un fallo de lectura."""
+
+    page: int = Field(description="Numeración de usuario: la primera es la 1.")
+    reason: str = Field(description="`dni_scan` (copia de DNI u otro documento de "
+                                    "identidad) o `tax_form` (autoliquidación).")
+
+
 class InputFileInfo(BaseModel):
     # El nombre del fichero original no figura aquí a propósito: el informe se
     # conserva horas y ese nombre suele llevar el del interesado.
@@ -180,6 +189,12 @@ class ProcessingReport(BaseModel):
     residual_entities: int = 0
 
     entities_by_type: dict[str, int] = Field(default_factory=dict)
+    entities_by_page: dict[int, dict[str, int]] = Field(
+        default_factory=dict,
+        description="Datos encontrados por pagina (numeracion de usuario, desde 1) y "
+                    "tipo; solo las paginas con alguno.  Suma lo mismo que "
+                    "entities_by_type.",
+    )
     # Redacciones estructurales (valor tras una etiqueta de formulario, columna
     # sensible de tabla) que no se atribuyen a ningún tipo del catálogo.  Van
     # aparte de entities_by_type para que ese resumen cuadre con
@@ -219,6 +234,12 @@ class ProcessingReport(BaseModel):
                     "xmp, comments, form_fields, bookmarks, javascript, attachments, "
                     "photo_metadata, thumbnails, links, accessibility_tags, "
                     "text_copies, previous_versions, hidden_text).  Solo recuentos.",
+    )
+
+    pages_redacted_by_content: list[PageRedactedByContent] = Field(
+        default_factory=list,
+        description="Páginas tachadas enteras por su contenido (copia de DNI, "
+                    "autoliquidación), con el motivo.",
     )
 
     redaction_strategy: str = "physical_pdf_redaction"

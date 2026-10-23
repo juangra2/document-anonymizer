@@ -35,6 +35,7 @@ from app.schemas.jobs import (
     JobResultSummary,
 )
 from app.schemas.report import InputFileInfo, ProcessingReport
+from app.services.informe_pdf import generar_informe_pdf
 from app.services.jobs import Job, QueueFullError, job_store
 from app.services.pdf.inspector import assert_pdf_within_limits
 from app.utils.files import (
@@ -284,6 +285,7 @@ async def get_job_result(
         with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
             zf.write(job.output_path, arcname=pdf_filename)
             zf.writestr("report.json", report.model_dump_json(indent=2) + "\n")
+            zf.writestr("informe.pdf", generar_informe_pdf(report, job.finished_at or job.created_at))
         zip_filename = download_filename("zip", partial_pages=parcial,
                                          metadata_only=solo_metadatos)
         return Response(
@@ -303,6 +305,20 @@ async def get_job_result(
         media_type="application/pdf",
         filename=pdf_filename,
         headers=headers,
+    )
+
+
+@router.get("/{job_id}/report.pdf")
+async def get_job_report_pdf(job_id: str) -> Response:
+    """Informe en PDF, en castellano, para quien no lee el JSON.  Sin ningun
+    valor de los datos ocultados ni el nombre del fichero."""
+    job = _require_job(job_id)
+    report = _require_finished_report(job)
+    pdf = generar_informe_pdf(report, job.finished_at or job.created_at)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="informe_anonimizacion.pdf"'},
     )
 
 

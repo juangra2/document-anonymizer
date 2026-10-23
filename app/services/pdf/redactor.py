@@ -27,6 +27,7 @@ from app.schemas.report import (
     REVIEW_FULL_REDACTION_PAGES,
     REVIEW_PLAN_WITHOUT_TITLEBLOCK,
     DetectedEntityInfo,
+    PageRedactedByContent,
     ProcessingLimits,
     ProcessingReport,
 )
@@ -330,6 +331,8 @@ def _redact_pdf_digital(
 
     try:
         all_entities: list[PiiEntity] = []
+        # (pagina, posicion en all_entities al empezarla): recuento por pagina.
+        marcas: list[tuple[int, int]] = []
         layout_rect_count = 0
         redacted_count = 0
         warnings: list[str] = []
@@ -354,6 +357,7 @@ def _redact_pdf_digital(
         try:
             for page_index, page in enumerate(doc):
                 on_page(page_index)
+                marcas.append((page_index, len(all_entities)))
                 # Parada pedida: el camino digital procesa varias páginas por
                 # segundo, así que aquí se corta practicamente al instante.
                 # Las páginas completas son las ANTERIORES a esta.
@@ -532,6 +536,11 @@ def _redact_pdf_digital(
         entities_detected=len(all_entities) + layout_rect_count,
         entities_redacted=redacted_count,
         entities_by_type=entities_by_type,
+        entities_by_page=analyzer.count_by_page(marcas, all_entities),
+        pages_redacted_by_content=[
+            PageRedactedByContent(page=i + 1, reason=why)
+            for i, why in sorted(full_redaction_pages.items())
+        ],
         structural_redactions_untyped=layout_rect_count,
         residual_entities=0,
         manual_review_required=bool(plan_pages_skipped) or bool(full_redaction_pages),

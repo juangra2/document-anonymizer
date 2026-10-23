@@ -268,14 +268,23 @@ Detalle: [referencia técnica](referencia_tecnica.md#retención-registro-y-acces
 - elegir qué tipos de dato ocultar, por grupos o uno a uno, o solo quitar los metadatos;
 - seguir el avance de cada documento página a página;
 - **parar** un documento y quedarse con las páginas ya hechas, o **eliminarlo** sin descargar nada;
-- descargar el resultado y su informe técnico.
+- descargar el resultado, un **informe en PDF** para leer y el informe técnico (JSON).
+
+El informe en PDF está escrito para quien no sabe informática. Empieza por si hay que revisar algo
+y qué; después cuántos datos de cada tipo se han ocultado, un mapa de páginas (con datos, sin
+datos, a revisar, tachadas enteras) y en qué página está cada uno, las páginas tachadas enteras y
+por qué, y los metadatos eliminados. **No lleva ningún valor** de los datos ocultados ni el nombre
+del fichero: solo la fecha, el número de páginas y el identificador del trabajo, porque se
+descarga y puede acabar en cualquier sitio.
 
 La página no necesita internet y no guarda nada del documento en el navegador.
 
 **La API** (interfaz para otros programas) ofrece lo mismo: subir un documento a una cola
-(`POST /jobs`, con `?treatment=metadata_only` para solo quitar metadatos), consultar su estado (`GET /jobs/{id}`), descargar el resultado o el informe,
-pararlo o eliminarlo, consultar el catálogo de tipos (`GET /entity-types`) y comprobar el estado
-del servicio (`GET /health/ready`). Su documentación interactiva está en `/docs`.
+(`POST /jobs`, con `?treatment=metadata_only` para solo quitar metadatos), consultar su estado
+(`GET /jobs/{id}`), descargar el resultado, el informe técnico o el informe en PDF
+(`GET /jobs/{id}/report.pdf`), pararlo o eliminarlo, consultar el catálogo de tipos
+(`GET /entity-types`) y comprobar el estado del servicio (`GET /health/ready`). Su documentación
+interactiva está en `/docs`.
 
 Detalle: [interfaz](referencia_tecnica.md#interfaz-web) y [API](referencia_tecnica.md#api).
 

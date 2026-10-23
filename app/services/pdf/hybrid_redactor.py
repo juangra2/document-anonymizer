@@ -112,6 +112,12 @@ def redact_pdf_hybrid_secure(
         "entities_by_type": dict(
             Counter(digital.entities_by_type) + Counter(escaneado.entities_by_type)
         ),
+        "entities_by_page": _sumar_paginas(digital.entities_by_page, escaneado.entities_by_page),
+        "pages_redacted_by_content": sorted(
+            {p.page: p for p in list(digital.pages_redacted_by_content)
+             + list(escaneado.pages_redacted_by_content)}.values(),
+            key=lambda p: p.page,
+        ),
         "structural_redactions_untyped": digital.structural_redactions_untyped,
         "manual_review_required": (
             digital.manual_review_required or escaneado.manual_review_required
@@ -126,3 +132,13 @@ def redact_pdf_hybrid_secure(
             list(digital.detected_entities) + list(escaneado.detected_entities)
         ),
     })
+
+
+def _sumar_paginas(a: dict[int, dict[str, int]], b: dict[int, dict[str, int]]) -> dict[int, dict[str, int]]:
+    """Recuento por pagina de los dos pases, sumado tipo a tipo."""
+    total = {pagina: dict(tipos) for pagina, tipos in a.items()}
+    for pagina, tipos in b.items():
+        destino = total.setdefault(pagina, {})
+        for tipo, n in tipos.items():
+            destino[tipo] = destino.get(tipo, 0) + n
+    return total
