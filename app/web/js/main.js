@@ -834,7 +834,7 @@ function nombreInforme(documento) {
 function nombreDescarga(documento, parcial) {
   const base = documento.nombre.replace(/\.pdf$/i, "");
   if (documento.trabajo?.result?.treatment === "metadata_only") {
-    return `${base}_sin_metadatos_contenido_sin_revisar.pdf`;
+    return `${base}_sin_metadatos.pdf`;
   }
   if (!parcial) return `${base}_anonimizado.pdf`;
   const r = documento.trabajo.result;

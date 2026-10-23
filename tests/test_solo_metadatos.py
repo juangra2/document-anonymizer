@@ -156,7 +156,8 @@ def test_por_la_api_devuelve_el_documento_sin_anonimizar_ni_metadatos(tmp_path):
     assert estado["result"]["treatment"] == "metadata_only"
     descarga = client.get(f"/jobs/{r.json()['job_id']}/result")
     assert "sin_metadatos" in descarga.headers["content-disposition"]
-    assert "contenido_sin_revisar" in descarga.headers["content-disposition"]
+    assert "documento_sin_metadatos.pdf" in descarga.headers["content-disposition"]
+    assert "sin_revisar" not in descarga.headers["content-disposition"]
     salida = tmp_path / "s.pdf"
     salida.write_bytes(descarga.content)
     assert "48291736K" in _texto(salida)

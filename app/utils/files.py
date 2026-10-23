@@ -55,7 +55,7 @@ def assert_pdf_magic(path: Path) -> None:
 DOWNLOAD_STEM = "documento_anonimizado"
 # Solo se quitaron metadatos: el nombre lo dice, porque el documento sigue
 # llevando los datos personales que tuviera.
-METADATA_ONLY_STEM = "documento_sin_metadatos_contenido_sin_revisar"
+METADATA_ONLY_STEM = "documento_sin_metadatos"
 
 
 def download_filename(extension: str, *, partial_pages: tuple[int, int] | None = None,

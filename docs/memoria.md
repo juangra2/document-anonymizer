@@ -226,8 +226,8 @@ eliminan. Las fotos que se conservan pierden sus metadatos sin perder calidad.
 la misma limpieza, sin analizar ni tachar nada. Los comentarios se eliminan (no se integran,
 porque nadie revisa lo que lleven), los campos de formulario pasan a la página y el texto que no
 se ve (en blanco sobre blanco, invisible o bajo una imagen, como la capa de OCR de un escaneado)
-se quita. La pantalla, el nombre de la descarga y el informe dicen que el contenido NO se ha
-revisado. En los dos modos, si el documento llevaba firma digital, se avisa de que deja de ser
+se quita. La pantalla y el informe dicen que el contenido NO se ha revisado, y la descarga se
+llama `…_sin_metadatos.pdf`. En los dos modos, si el documento llevaba firma digital, se avisa de que deja de ser
 válida.
 
 Se comprueba con dos herramientas independientes del anonimizador, **ExifTool** y **qpdf**, que

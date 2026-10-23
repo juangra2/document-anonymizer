@@ -241,8 +241,8 @@ def flujo_solo_metadatos(p, pagina, tmp: Path) -> None:
     with pagina.expect_download(timeout=30000) as descarga:
         pagina.click(".doc a.btn.primary")
     fichero = descarga.value
-    p.comprobar(fichero.suggested_filename == "solo_meta_sin_metadatos_contenido_sin_revisar.pdf",
-                "el nombre de la descarga avisa de que el contenido no se ha revisado")
+    p.comprobar(fichero.suggested_filename == "solo_meta_sin_metadatos.pdf",
+                "la descarga se llama _sin_metadatos")
     salida = tmp / "solo_meta_salida.pdf"
     fichero.save_as(salida)
     with fitz.open(salida) as doc:

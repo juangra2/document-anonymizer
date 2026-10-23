@@ -294,7 +294,7 @@ después, o blanco sobre una zona que se pinta blanca; un trozo que pisa texto v
 después el mismo `scrub` y `limpiar_para_entregar` que al anonimizar. La capa de texto de un
 escaneado con OCR es texto invisible: se quita y el PDF deja de poder buscarse. Sin GPU; pasa por
 la misma cola. El informe lleva `treatment: metadata_only`, el aviso `content_not_reviewed` y la
-descarga se llama `documento_sin_metadatos_contenido_sin_revisar.pdf`
+descarga se llama `documento_sin_metadatos.pdf`
 (`tests/test_solo_metadatos.py`, con los mismos casos cargados y ExifTool y qpdf).
 
 No se limpian: JPEG 2000, JPEG bajo otro filtro, imágenes en línea en el contenido. Las capas
