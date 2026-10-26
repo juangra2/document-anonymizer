@@ -314,9 +314,9 @@ def test_an_expired_job_is_swept_even_if_nobody_asks_for_it():
 
 # --- validación de la subida -------------------------------------------------
 
-def test_a_non_pdf_is_rejected_before_creating_a_job():
+def test_an_unsupported_type_is_rejected_before_creating_a_job():
     response = client.post(
-        "/jobs", files={"file": ("foto.png", BytesIO(b"\x89PNG"), "image/png")},
+        "/jobs", files={"file": ("notas.txt", BytesIO(b"hola"), "text/plain")},
     )
     assert response.status_code == 415
 

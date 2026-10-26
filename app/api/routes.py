@@ -31,12 +31,11 @@ from app.services.pii.entity_catalog import (
 from app.services.pdf.pipeline import PdfAnonymizationPipeline
 from app.services.storage.temp_storage import TempJobDirectory
 from app.utils.files import (
-    assert_pdf_magic,
     download_filename,
     save_upload_to_path,
 )
 
-from app.services.image.pipeline import ImageAnonymizationPipeline
+from app.services.image.imagen import FORMATOS, anonimizar_imagen, comprobar_imagen, formato_de
 
 
 router = APIRouter()
@@ -48,7 +47,6 @@ router = APIRouter()
 # indicador de la interfaz—, se moría, y desde fuera no se distinguía de un
 # servidor apagado.
 _pdf_pipeline: PdfAnonymizationPipeline | None = None
-_image_pipeline: ImageAnonymizationPipeline | None = None
 
 
 def get_pdf_pipeline() -> PdfAnonymizationPipeline:
@@ -56,13 +54,6 @@ def get_pdf_pipeline() -> PdfAnonymizationPipeline:
     if _pdf_pipeline is None:
         _pdf_pipeline = PdfAnonymizationPipeline()
     return _pdf_pipeline
-
-
-def get_image_pipeline() -> ImageAnonymizationPipeline:
-    global _image_pipeline
-    if _image_pipeline is None:
-        _image_pipeline = ImageAnonymizationPipeline()
-    return _image_pipeline
 
 
 def report_to_json_bytes(report) -> bytes:
@@ -218,40 +209,35 @@ async def anonymize(
         with TempJobDirectory() as temp_job:
             assert temp_job.path is not None
 
-            suffix = Path(file.filename or "").suffix.lower()
-
-            if file.content_type == "image/png" or suffix == ".png":
-                input_path = Path(temp_job.path) / "input.png"
-            elif file.content_type == "image/jpeg" or suffix in {".jpg", ".jpeg"}:
-                input_path = Path(temp_job.path) / "input.jpg"
-            elif file.content_type == "image/tiff" or suffix in {".tif", ".tiff"}:
-                input_path = Path(temp_job.path) / "input.tiff"
-            else:
-                input_path = Path(temp_job.path) / "input.pdf"
-
-            output_path = Path(temp_job.path) / "output_redacted.pdf"
-
-            size_bytes = await save_upload_to_path(file, input_path)
-
-            is_image = file.content_type in {
-                "image/png",
-                "image/jpeg",
-                "image/tiff",
-            } or suffix in {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
+            # El formato se decide por el contenido, no por la extension ni por
+            # el tipo que declara el navegador.
+            subida = Path(temp_job.path) / "subida"
+            size_bytes = await save_upload_to_path(file, subida)
+            with subida.open("rb") as fh:
+                formato = formato_de(fh.read(8))
+            if formato is None:
+                raise FileValidationError("Uploaded file is not a PDF, JPEG, PNG or TIFF.")
+            extension = FORMATOS[formato][0]
+            input_path = subida.rename(Path(temp_job.path) / f"input.{extension}")
+            output_path = Path(temp_job.path) / f"output_redacted.{extension}"
 
             # Esta ruta no pasa por la cola, pero sí compite por la misma GPU:
             # pide uno de los permisos de proceso concurrente para que dos
             # peticiones a la vez se serialicen en vez de agotar la memoria de
             # la tarjeta.  Se pide dentro del hilo de trabajo, no aquí, para no
             # bloquear el bucle de eventos mientras espera turno.
-            if is_image:
+            if formato != "pdf":
+                comprobar_imagen(input_path)
+
                 def _run() -> object:
                     with job_store.slot():
-                        return get_image_pipeline().process(
-                            input_path, output_path, temp_job.job_id, mode, disabled,
+                        return anonimizar_imagen(
+                            input_path, output_path, formato,
+                            lambda e, s: get_pdf_pipeline().process(
+                                e, s, temp_job.job_id, mode, include_entities, disabled,
+                            ),
                         )
             else:
-                assert_pdf_magic(input_path)
 
                 def _run() -> object:
                     with job_store.slot():
@@ -274,7 +260,7 @@ async def anonymize(
             size_bytes=size_bytes,
         )
 
-        pdf_filename = download_filename("pdf")
+        pdf_filename = download_filename(extension)
 
         report_json_bytes = report_to_json_bytes(report)
 
@@ -316,7 +302,7 @@ async def anonymize(
 
         return Response(
             content=output_bytes,
-            media_type="application/pdf",
+            media_type=FORMATOS[formato][1],
             headers=headers,
         )
 

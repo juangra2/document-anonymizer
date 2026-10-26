@@ -47,7 +47,7 @@ export const TEXTOS = {
 
   paso1: {
     titulo: "Documentos",
-    soltar: "Arrastra uno o varios PDF aquí, o selecciónalos",
+    soltar: "Arrastra uno o varios PDF o imágenes (JPEG, PNG, TIFF) aquí, o selecciónalos",
     limites: (docs, paginas, mb) =>
       `Hasta ${docs} documentos por tanda · máximo ${paginas} páginas y ${mb} MB cada uno`,
     elegir: "Seleccionar archivos",
@@ -213,17 +213,17 @@ export const TEXTOS = {
    */
   errores: {
     noEsPdf: {
-      titulo: "Este archivo no es un PDF",
+      titulo: "Este archivo no se puede anonimizar",
       texto:
-        "Solo se pueden anonimizar documentos PDF. Si es un Word, guárdalo como " +
-        "PDF desde Archivo › Guardar como. Si es una foto o un escaneo en " +
-        "imagen, conviértelo antes a PDF.",
+        "Se pueden anonimizar documentos PDF e imágenes JPEG, PNG o TIFF. Si es " +
+        "un Word, guárdalo como PDF desde Archivo › Guardar como.",
     },
     invalid_file: {
-      titulo: "Este archivo no es un PDF válido",
+      titulo: "Este archivo está dañado o no es lo que parece",
       texto:
-        "Tiene extensión .pdf pero por dentro no lo es, o está dañado. Ábrelo en " +
-        "tu ordenador: si se ve bien, imprímelo como PDF y sube esa copia.",
+        "Por dentro no es un PDF ni una imagen válidos, o está dañado. Ábrelo en " +
+        "tu ordenador: si se ve bien, guarda una copia nueva (o imprímela como " +
+        "PDF) y sube esa copia.",
     },
     encrypted_pdf: {
       titulo: "Este PDF está protegido con contraseña",

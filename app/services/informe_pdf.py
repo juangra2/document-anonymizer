@@ -147,6 +147,12 @@ def _mapa(r: ProcessingReport, revisar: set[int], enteras: set[int]) -> str:
     return f"<table>{''.join(filas)}</table><table class='leyenda'><tr>{leyenda}</tr></table>"
 
 
+def _unidad(r: ProcessingReport) -> str:
+    if r.document_type == "image":
+        return "imagen" if r.pages == 1 else "imágenes"
+    return "página" if r.pages == 1 else "páginas"
+
+
 def _html(r: ProcessingReport, fecha: datetime) -> str:
     etiquetas = {t.id: t.label for t in entity_catalog()}
     solo_metadatos = r.treatment == "metadata_only"
@@ -155,8 +161,8 @@ def _html(r: ProcessingReport, fecha: datetime) -> str:
         "<p class='org'>Universitat de València</p>",
         "<h1>Informe de anonimización</h1>" if not solo_metadatos
         else "<h1>Informe de limpieza de metadatos</h1>",
-        f"<p class='meta'>{local:%d/%m/%Y %H:%M} &#183; {r.pages} "
-        f"{'página' if r.pages == 1 else 'páginas'} &#183; identificador {_e(r.job_id)}</p>",
+        f"<p class='meta'>{local:%d/%m/%Y %H:%M} &#183; {r.pages} {_unidad(r)} "
+        f"&#183; identificador {_e(r.job_id)}</p>",
     ]
 
     # 1. Antes que nada: hay que revisar o no.

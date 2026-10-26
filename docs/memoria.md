@@ -30,7 +30,7 @@ El Ajuntament de València tiene que publicar o entregar a terceros documentos a
 de quienes aparecen en ellos. Hacerlo a mano es lento y es fácil que se escape algo.
 
 El anonimizador, desarrollado por la Universitat de València (IDAL) para el Ajuntament, es un
-servicio que recibe un PDF, encuentra los datos personales (nombres, DNI, direcciones, teléfonos,
+servicio que recibe un PDF o una imagen, encuentra los datos personales (nombres, DNI, direcciones, teléfonos,
 cuentas bancarias…) y devuelve el mismo documento con esos datos **eliminados de verdad**, junto
 con un informe de lo que ha hecho y de lo que conviene revisar a mano. Trabaja en castellano y en valenciano, con documentos digitales, escaneados o mezcla de
 ambos, desde una página hasta expedientes de cientos. Funciona en un servidor propio, sin enviar
@@ -149,6 +149,10 @@ que aún se vea; se verifica, se limpian los metadatos y sale el PDF con su info
 La decisión se toma **página a página**: en un expediente híbrido, las páginas digitales conservan
 su texto seleccionable y solo las escaneadas pasan por OCR. Si una página digital lleva una imagen
 pegada (la foto de un DNI dentro de un oficio), la imagen se lee aparte.
+
+Las **imágenes sueltas** (JPEG, PNG, TIFF) se tratan como una página escaneada, con todo lo que eso
+supone, y salen en su mismo formato: un JPEG anonimizado es un JPEG con los datos tapados y sin
+los datos de la cámara ni del GPS.
 
 ### El OCR: dos motores
 

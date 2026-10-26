@@ -39,6 +39,7 @@ from app.core.config import settings
 from app.core.errors import error_code_for
 from app.schemas.report import ProcessingReport
 from app.services import cancellation, notices, progress
+from app.services.image.imagen import FORMATOS
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,8 @@ class Job:
     disabled_types: frozenset[str] = frozenset()
     # "anonymize" o "metadata_only" (solo quitar metadatos, sin analizar).
     treatment: str = "anonymize"
+    # "pdf", "jpeg", "png" o "tiff": una imagen sale en su mismo formato.
+    formato: str = "pdf"
 
     status: JobStatus = "queued"
     # Cómo se pidió parar este documento: "delete" (eliminar sin entregar nada)
@@ -108,11 +111,11 @@ class Job:
 
     @property
     def input_path(self) -> Path:
-        return self.directory / "input.pdf"
+        return self.directory / f"input.{FORMATOS[self.formato][0]}"
 
     @property
     def output_path(self) -> Path:
-        return self.directory / "output_redacted.pdf"
+        return self.directory / f"output_redacted.{FORMATOS[self.formato][0]}"
 
     @property
     def is_terminal(self) -> bool:
@@ -458,7 +461,19 @@ class JobStore:
 
         try:
             with progress.track(on_progress), notices.track(on_notice),                     cancellation.track(lambda: job.stop_mode):
-                if job.treatment == "metadata_only":
+                if job.formato != "pdf" and job.treatment == "metadata_only":
+                    from app.services.image.imagen import solo_metadatos_imagen
+                    report = solo_metadatos_imagen(
+                        job.input_path, job.output_path, job.formato, job.id)
+                elif job.formato != "pdf":
+                    from app.services.image.imagen import anonimizar_imagen
+                    report = anonimizar_imagen(
+                        job.input_path, job.output_path, job.formato,
+                        lambda entrada, salida: self._pipeline().process(
+                            entrada, salida, job.id, settings.default_redaction_mode,
+                            False, job.disabled_types),
+                    )
+                elif job.treatment == "metadata_only":
                     from app.services.pdf.solo_metadatos import quitar_metadatos
                     report = quitar_metadatos(job.input_path, job.output_path, job.id)
                 else:

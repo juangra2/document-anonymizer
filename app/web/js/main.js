@@ -297,9 +297,10 @@ function añadirFicheros(ficheros) {
 
 /** Lo que se puede rechazar sin molestar al servidor: tipo y tamaño. */
 function validarEnLocal(fichero) {
-  const esPdf =
-    fichero.type === "application/pdf" || fichero.name.toLowerCase().endsWith(".pdf");
-  if (!esPdf) return { codigo: "noEsPdf", datos: {} };
+  const admitido =
+    ["application/pdf", "image/jpeg", "image/png", "image/tiff"].includes(fichero.type) ||
+    /\.(pdf|jpe?g|png|tiff?)$/i.test(fichero.name);
+  if (!admitido) return { codigo: "noEsPdf", datos: {} };
 
   const mb = fichero.size / (1024 * 1024);
   if (mb > estado.limites.max_upload_mb) {
@@ -820,23 +821,30 @@ function acciones(documento, parcial) {
 // El nombre del fichero solo existe en el navegador: el informe por dentro no
 // lo lleva.
 function nombreInformePdf(documento) {
-  const base = documento.nombre ? documento.nombre.replace(/\.pdf$/i, "") : "documento";
+  const base = documento.nombre ? documento.nombre.replace(/\.(pdf|jpe?g|png|tiff?)$/i, "") : "documento";
   return `${base}_informe.pdf`;
 }
 
 function nombreInforme(documento) {
   const base = documento.nombre
-    ? documento.nombre.replace(/\.pdf$/i, "")
+    ? documento.nombre.replace(/\.(pdf|jpe?g|png|tiff?)$/i, "")
     : "documento";
   return `${base}_informe.json`;
 }
 
+// Una imagen sale en su formato: la descarga conserva su extension.
+function extensionDe(documento) {
+  const m = documento.nombre.match(/\.(pdf|jpe?g|png|tiff?)$/i);
+  return m ? m[1].toLowerCase() : "pdf";
+}
+
 function nombreDescarga(documento, parcial) {
-  const base = documento.nombre.replace(/\.pdf$/i, "");
+  const base = documento.nombre.replace(/\.(pdf|jpe?g|png|tiff?)$/i, "");
+  const ext = extensionDe(documento);
   if (documento.trabajo?.result?.treatment === "metadata_only") {
-    return `${base}_sin_metadatos.pdf`;
+    return `${base}_sin_metadatos.${ext}`;
   }
-  if (!parcial) return `${base}_anonimizado.pdf`;
+  if (!parcial) return `${base}_anonimizado.${ext}`;
   const r = documento.trabajo.result;
   return `${base}_anonimizado_parcial_1-${r.pages}_de_${r.pages_total_original}.pdf`;
 }

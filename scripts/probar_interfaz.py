@@ -252,6 +252,42 @@ def flujo_solo_metadatos(p, pagina, tmp: Path) -> None:
     p.comprobar(pagina.locator("#grupos").is_visible(), "al volver a anonimizar, los tipos vuelven")
 
 
+def foto_jpeg(destino: Path) -> Path:
+    """Foto de movil con EXIF y un dato escrito, para el camino de imagen."""
+    from PIL import Image, ImageDraw
+
+    img = Image.new("RGB", (900, 600), "white")
+    d = ImageDraw.Draw(img)
+    d.text((40, 60), f"Interesado: {NOMBRE}", fill="black")
+    d.text((40, 100), "DNI: 12345678Z", fill="black")
+    exif = Image.Exif()
+    exif[0x010F] = "Fabricante del movil"
+    img.save(destino, format="JPEG", quality=90, exif=exif)
+    return destino
+
+
+def flujo_imagen(p, pagina, tmp: Path) -> None:
+    print("\n1d) Una foto JPEG sale JPEG, tapada y sin metadatos")
+    abrir(pagina)
+    pagina.set_input_files("#ficheros", str(foto_jpeg(tmp / "foto.jpg")))
+    p.comprobar(pagina.locator(".ficha.err").count() == 0, "la imagen se admite")
+    pagina.click("#anonimizar")
+    ok = esperar_texto(pagina, ".doc .st", "Terminado", ms=180000)
+    p.comprobar(ok, "la imagen termina")
+    with pagina.expect_download(timeout=30000) as descarga:
+        pagina.click(".doc a.btn.primary")
+    p.comprobar(descarga.value.suggested_filename == "foto_anonimizado.jpg",
+                "se descarga como JPEG con su nombre")
+    salida = tmp / "foto_salida.jpg"
+    descarga.value.save_as(salida)
+    from PIL import Image
+
+    with Image.open(salida) as img:
+        p.comprobar(img.format == "JPEG" and img.size == (900, 600),
+                    "es un JPEG del mismo tamano")
+        p.comprobar(len(img.getexif()) == 0, "sin los datos de la camara")
+
+
 def flujo_expediente(p, pagina, tmp: Path) -> None:
     print("\n1b) El numero de expediente empieza marcado y la casilla manda")
     abrir(pagina)
@@ -288,8 +324,8 @@ def flujo_tanda(p, pagina, tmp: Path) -> None:
     )
     p.comprobar(pagina.locator(".ficha").count() == 3, "los tres entran como fichas")
     p.comprobar(
-        "no es un PDF" in pagina.locator(".ficha.err .motivo").first.inner_text(),
-        "el que no es PDF se marca en su ficha con el motivo, donde se eligio",
+        "no se puede anonimizar" in pagina.locator(".ficha.err .motivo").first.inner_text(),
+        "el que no es PDF ni imagen se marca en su ficha con el motivo, donde se eligio",
     )
     pagina.click("#anonimizar")
     ok = esperar_texto(pagina, "#resumen", "terminado")
@@ -456,7 +492,7 @@ def main() -> int:
     flujos = {
         "completo": flujo_documento_completo,
         "solo-metadatos": flujo_solo_metadatos,
-        "solo-metadatos": flujo_solo_metadatos,
+        "imagen": flujo_imagen,
         "expediente": flujo_expediente,
         "tanda": flujo_tanda,
         "parar": flujo_parar,

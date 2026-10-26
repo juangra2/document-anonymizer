@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # servicio para siempre.
     max_upload_mb: int = 200
     max_pdf_pages: int = 300
+    # Imagen suelta (JPEG, PNG, TIFF): tope de megapixeles por pagina.  Una foto de
+    # movil ronda 12-50; por encima suele ser una imagen hecha para agotar memoria.
+    max_image_megapixels: float = 100.0
     min_digital_text_chars: int = 30
 
     pdf_processing_mode: Literal["auto", "raster_ocr", "hybrid_secure"] = "hybrid_secure"

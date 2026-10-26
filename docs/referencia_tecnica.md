@@ -133,8 +133,15 @@ caminos:
 
 Una página necesita OCR (`inspector.pagina_necesita_ocr`) si no tiene texto o si una imagen que no
 es fondo cubre al menos la mitad. Las demás conservan su texto seleccionable; sus imágenes pegadas
-se leen aparte. Las imágenes sueltas (PNG, JPG, TIFF) van por `services/image/pipeline.py` con
-EasyOCR y solo se admiten en `POST /anonymize`.
+se leen aparte. Las imágenes sueltas (JPEG, PNG, TIFF, también de varias páginas) se admiten en
+la cola y en `POST /anonymize` y salen en su mismo formato (`services/image/imagen.py`): cada
+página se mete en un PDF medido para que el camino escaneado la lea con sus píxeles (a
+`OCR_PDF_RENDER_DPI`), pasa por ese camino completo y se saca de la salida, a su tamaño original si
+el tope de megapíxeles la redujo. Antes se aplica el giro del EXIF. El formato se decide por el
+contenido, no por la extensión; tope `MAX_IMAGE_MEGAPIXELS` (100). Con «solo quitar metadatos», un
+JPEG derecho pierde sus segmentos de metadatos sin recomprimirse (conserva ICC y Adobe); uno girado
+por EXIF se endereza y se recomprime; un PNG pierde texto, fecha y EXIF con los píxeles intactos;
+un TIFF se reescribe sin etiquetas. `tests/test_imagenes.py`.
 
 **Zonas.** Cada página se divide en zonas tipadas (`HEADER`, `FOOTER`, `BODY`, `FORM`, `TABLE`,
 `SIGNATURE`, `QR_CODE`; `services/layout/`). Cada zona tiene su política en `zone_config.py`: qué
@@ -262,7 +269,7 @@ Todo en `app/services/pdf/limpieza.py`, en dos momentos.
 |---|---|---|---|---|
 | Diccionario de información | fuera | fuera | fuera | fuera |
 | XMP de documento, página e imagen | fuera | fuera | fuera | fuera |
-| EXIF, GPS, XMP, IPTC de las imágenes | fuera, sin recomprimir | se repinta | fuera / se repinta | fuera |
+| EXIF, GPS, XMP, IPTC de las imágenes | fuera, sin recomprimir | se repinta | fuera / se repinta | se repinta; sale sin ellos |
 | Versiones anteriores | fuera | fuera | fuera | — |
 | Notas de comentario, adjuntos, enlaces | fuera | fuera | fuera | — |
 | Texto libre, sellos, dibujos, campos | a la página y analizados | ídem (OCR) | ídem | — |
@@ -362,7 +369,7 @@ Documentación interactiva en `/docs`.
 | Método y ruta | Qué hace |
 |---|---|
 | `GET /entity-types` | Catálogo de tipos |
-| `POST /jobs` | Encola un PDF. **202** al terminar la subida, con `Location: /jobs/{id}` |
+| `POST /jobs` | Encola un PDF o una imagen (JPEG, PNG, TIFF). **202** al terminar la subida, con `Location: /jobs/{id}` |
 | `GET /jobs/{id}` | Estado, posición en cola, avance por páginas, avisos, resumen o error |
 | `GET /jobs/{id}/result?output=pdf\|zip` | El PDF anonimizado (o PDF + `report.json` en ZIP) |
 | `GET /jobs/{id}/report` | Informe completo en JSON |
@@ -385,8 +392,8 @@ curl -o anonimizado.pdf "http://localhost:8000/jobs/3f2a…/result?output=pdf"
 - **Avisos del informe con código** (`coded_warnings`, con `code`, `pages` y, si procede, `types` o
   `counts`): ver [Red de seguridad y verificación](#red-de-seguridad-y-verificación). Van también en
   el resumen de `GET /jobs/{id}`. `warnings` lleva la frase en inglés.
-- **Errores al encolar**: 415 si no es PDF, 413 si supera `MAX_UPLOAD_MB`, 400 si no es un PDF
-  válido, 422 si un tipo es inválido o está en las dos listas, 422 si supera `MAX_PDF_PAGES` o está
+- **Errores al encolar**: 415 si el tipo declarado no es PDF ni imagen, 413 si supera
+  `MAX_UPLOAD_MB` o `MAX_IMAGE_MEGAPIXELS`, 400 si por dentro no es un PDF, JPEG, PNG o TIFF válido, 422 si un tipo es inválido o está en las dos listas, 422 si supera `MAX_PDF_PAGES` o está
   cifrado o vacío, 503 con `Retry-After` si la cola está llena. **Al descargar**: 409 si no ha
   terminado o falló, 410 si caducó.
 - **Parar y eliminar**: `DELETE` elimina sin entregar; `POST …/stop` para y entrega las páginas

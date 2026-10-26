@@ -228,20 +228,6 @@ def test_el_contenido_visible_conserva_su_forma(caminos, tmp_path):
     assert re.search(r"ZZCAMPO", pagina.get_text())
 
 
-def test_la_imagen_suelta_sale_sin_segmentos_de_metadatos(tmp_path):
-    """Camino de imagen (JPG/PNG subido tal cual): al recodificar, PIL escribia
-    un JFIF; tambien pasa por la limpieza."""
-    from app.services.image.pipeline import ImageAnonymizationPipeline
-
-    salida = tmp_path / "foto.pdf"
-    ImageAnonymizationPipeline._save_image_as_pdf(Image.open(io.BytesIO(foto_movil())), salida)
-    doc = fitz.open(salida)
-    jpegs = [doc.xref_stream_raw(x) for x in range(1, doc.xref_length())
-             if "/DCTDecode" in doc.xref_object(x)]
-    assert jpegs and all(limpiar_jpeg(j) == j for j in jpegs)
-    assert _sin_nada_oculto(salida) == []
-
-
 def _pdf_etiquetado(destino):
     """Como lo escribe un generador etiquetado: la linea del DNI va marcada con un
     /ActualText (copia del texto) y la estructura lleva un texto alternativo."""

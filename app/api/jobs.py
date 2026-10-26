@@ -35,11 +35,11 @@ from app.schemas.jobs import (
     JobResultSummary,
 )
 from app.schemas.report import InputFileInfo, ProcessingReport
+from app.services.image.imagen import FORMATOS, comprobar_imagen, formato_de
 from app.services.informe_pdf import generar_informe_pdf
 from app.services.jobs import Job, QueueFullError, job_store
 from app.services.pdf.inspector import assert_pdf_within_limits
 from app.utils.files import (
-    assert_pdf_magic,
     download_filename,
     save_upload_to_path,
 )
@@ -47,7 +47,10 @@ from app.utils.files import (
 router = APIRouter(prefix="/jobs", tags=["trabajos"])
 
 
-_PDF_CONTENT_TYPES = {"application/pdf", "application/octet-stream"}
+# Tipos que declara el navegador y se admiten; el formato real se decide despues
+# por el contenido (un .pdf que es un JPEG se trata como JPEG).
+_CONTENT_TYPES = {"application/pdf", "application/octet-stream",
+                  "image/jpeg", "image/png", "image/tiff"}
 
 
 def _percent(done: int, total: int) -> int:
@@ -175,8 +178,9 @@ async def create_job(
     # modulos de rutas; la validacion de tipos es la misma en ambos caminos.
     from app.api.routes import _parse_disabled_types
 
-    if file.content_type not in _PDF_CONTENT_TYPES:
-        raise HTTPException(status_code=415, detail="Solo se admiten ficheros PDF.")
+    if file.content_type not in _CONTENT_TYPES:
+        raise HTTPException(status_code=415,
+                            detail="Solo se admiten ficheros PDF, JPEG, PNG o TIFF.")
 
     disabled = _parse_disabled_types(disabled_types, enabled_types)
 
@@ -191,12 +195,21 @@ async def create_job(
         ) from exc
 
     try:
-        size_bytes = await save_upload_to_path(file, job.input_path)
-        assert_pdf_magic(job.input_path)
+        subida = job.directory / "subida"
+        size_bytes = await save_upload_to_path(file, subida)
+        with subida.open("rb") as fh:
+            formato = formato_de(fh.read(8))
+        if formato is None:
+            raise FileValidationError("Uploaded file is not a PDF, JPEG, PNG or TIFF.")
+        job.formato = formato
+        subida.rename(job.input_path)
         # Las páginas se comprueban AQUÍ, no al procesarlo: abrir el PDF cuesta
         # milisegundos y así un documento de 400 páginas se rechaza ahora, no
         # cuando le toque el turno, que puede ser horas después.
-        assert_pdf_within_limits(job.input_path)
+        if formato == "pdf":
+            assert_pdf_within_limits(job.input_path)
+        else:
+            comprobar_imagen(job.input_path)
     except DocumentTooLargeError as exc:
         job_store.discard(job)
         raise HTTPException(
@@ -273,7 +286,8 @@ async def get_job_result(
         else None
     )
     solo_metadatos = report.treatment == "metadata_only"
-    pdf_filename = download_filename("pdf", partial_pages=parcial, metadata_only=solo_metadatos)
+    extension, tipo = FORMATOS[job.formato]
+    pdf_filename = download_filename(extension, partial_pages=parcial, metadata_only=solo_metadatos)
     headers = {
         "X-Job-Id": job.id,
         "X-Anonymization-Status": report.status,
@@ -302,7 +316,7 @@ async def get_job_result(
     # descarga no aporta nada.
     return FileResponse(
         path=job.output_path,
-        media_type="application/pdf",
+        media_type=tipo,
         filename=pdf_filename,
         headers=headers,
     )
