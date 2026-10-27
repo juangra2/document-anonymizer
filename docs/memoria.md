@@ -159,6 +159,13 @@ se lee, se endereza, se recorta la hoja del fondo corrigiendo la perspectiva y, 
 sobre oscuro, se prueba con los colores invertidos. Solo lo que sigue sin leerse se tapa entero, y
 la pantalla dice por qué.
 
+Los **documentos de Word** (.docx) salen como Word, sin barras: cada dato se sustituye por su tipo
+(«[DNI]», «[NOMBRE]») y el resto del documento conserva su texto y su formato. Se revisa todo lo que
+un Word guarda: cabeceras, pies, tablas, cuadros de texto y notas; se aceptan los cambios con
+control de cambios y se quitan comentarios, propiedades, texto oculto y objetos incrustados; las
+fotos que lleve dentro pasan por el mismo tratamiento que las imágenes. Los .doc antiguos se
+rechazan con un mensaje que explica cómo guardarlos en el formato nuevo.
+
 ### El OCR: dos motores
 
 - **MinerU** es un modelo de inteligencia artificial que lee la página entera entendiendo su

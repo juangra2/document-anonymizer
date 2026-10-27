@@ -23,6 +23,8 @@ from app.core.errors import (
     EmptyPdfError,
     EncryptedPdfError,
     FileValidationError,
+    LegacyOfficeError,
+    OfficeMacrosError,
     TooManyPagesError,
     error_code_for,
 )
@@ -35,10 +37,9 @@ from app.schemas.jobs import (
     JobResultSummary,
 )
 from app.schemas.report import InputFileInfo, ProcessingReport
-from app.services.image.imagen import FORMATOS, comprobar_imagen, formato_de
+from app.services.formatos import FORMATOS, comprobar, reconocer
 from app.services.informe_pdf import generar_informe_pdf
 from app.services.jobs import Job, QueueFullError, job_store
-from app.services.pdf.inspector import assert_pdf_within_limits
 from app.utils.files import (
     download_filename,
     save_upload_to_path,
@@ -50,7 +51,9 @@ router = APIRouter(prefix="/jobs", tags=["trabajos"])
 # Tipos que declara el navegador y se admiten; el formato real se decide despues
 # por el contenido (un .pdf que es un JPEG se trata como JPEG).
 _CONTENT_TYPES = {"application/pdf", "application/octet-stream",
-                  "image/jpeg", "image/png", "image/tiff"}
+                  "image/jpeg", "image/png", "image/tiff",
+                  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                  "application/msword", "application/zip", "application/x-zip-compressed"}
 
 
 def _percent(done: int, total: int) -> int:
@@ -183,7 +186,7 @@ async def create_job(
 
     if file.content_type not in _CONTENT_TYPES:
         raise HTTPException(status_code=415,
-                            detail="Solo se admiten ficheros PDF, JPEG, PNG o TIFF.")
+                            detail="Solo se admiten ficheros PDF, JPEG, PNG, TIFF o Word (.docx).")
 
     disabled = _parse_disabled_types(disabled_types, enabled_types)
 
@@ -200,19 +203,12 @@ async def create_job(
     try:
         subida = job.directory / "subida"
         size_bytes = await save_upload_to_path(file, subida)
-        with subida.open("rb") as fh:
-            formato = formato_de(fh.read(8))
-        if formato is None:
-            raise FileValidationError("Uploaded file is not a PDF, JPEG, PNG or TIFF.")
-        job.formato = formato
+        job.formato = reconocer(subida)
         subida.rename(job.input_path)
-        # Las páginas se comprueban AQUÍ, no al procesarlo: abrir el PDF cuesta
-        # milisegundos y así un documento de 400 páginas se rechaza ahora, no
-        # cuando le toque el turno, que puede ser horas después.
-        if formato == "pdf":
-            assert_pdf_within_limits(job.input_path)
-        else:
-            comprobar_imagen(job.input_path)
+        # Se comprueba AQUÍ, no al procesarlo: abrir el documento cuesta
+        # milisegundos y así uno de 400 páginas se rechaza ahora, no cuando le
+        # toque el turno, que puede ser horas después.
+        comprobar(job.input_path, job.formato)
     except DocumentTooLargeError as exc:
         job_store.discard(job)
         raise HTTPException(
@@ -232,6 +228,12 @@ async def create_job(
                 "message": str(exc),
                 "limit_pages": settings.max_pdf_pages,
             },
+        ) from exc
+    except (LegacyOfficeError, OfficeMacrosError) as exc:
+        job_store.discard(job)
+        raise HTTPException(
+            status_code=415,
+            detail={"code": error_code_for(exc), "message": str(exc)},
         ) from exc
     except (EncryptedPdfError, EmptyPdfError) as exc:
         job_store.discard(job)

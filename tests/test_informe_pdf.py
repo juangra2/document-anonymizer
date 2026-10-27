@@ -179,3 +179,12 @@ def test_se_descarga_por_la_api_sin_valores(output):
 
 def test_sin_trabajo_no_hay_informe():
     assert client.get("/jobs/nodeexiste/report.pdf").status_code == 404
+
+
+def test_un_word_no_lleva_mapa_de_paginas_y_dice_que_es_un_word():
+    informe = _informe(document_type="docx", pages=1, entities_by_page={},
+                       pages_redacted_in_full=[], pages_redacted_by_content=[],
+                       metadata_removed={"tracked_changes": 2, "comments": 1, "embedded_objects": 1})
+    texto = " ".join(_texto(generar_informe_pdf(informe, FECHA)).split())
+    assert "documento de Word" in texto and "En qué páginas" not in texto
+    assert "control de cambios" in texto and "Objetos incrustados" in texto

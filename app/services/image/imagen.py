@@ -30,13 +30,6 @@ from app.core.errors import DocumentTooLargeError, FileValidationError, TooManyP
 from app.schemas.report import CONTENT_NOT_REVIEWED, CodedWarning, ProcessingReport
 from app.services.pdf.limpieza import jpeg_con_metadatos, limpiar_jpeg
 
-# formato -> (extension, tipo MIME)
-FORMATOS = {
-    "pdf": ("pdf", "application/pdf"),
-    "jpeg": ("jpg", "image/jpeg"),
-    "png": ("png", "image/png"),
-    "tiff": ("tif", "image/tiff"),
-}
 
 _ORIENTACION = 0x0112
 # Fragmentos de PNG que se conservan al quitar metadatos: los de la imagen y los

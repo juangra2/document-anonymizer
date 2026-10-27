@@ -35,7 +35,7 @@ from app.utils.files import (
     save_upload_to_path,
 )
 
-from app.services.image.imagen import FORMATOS, anonimizar_imagen, comprobar_imagen, formato_de
+from app.services.formatos import FORMATOS, comprobar, procesar, reconocer
 
 
 router = APIRouter()
@@ -197,6 +197,9 @@ async def anonymize(
         "image/png",
         "image/jpeg",
         "image/tiff",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword",
+        "application/zip",
     }
 
     if file.content_type not in supported_content_types:
@@ -213,38 +216,22 @@ async def anonymize(
             # el tipo que declara el navegador.
             subida = Path(temp_job.path) / "subida"
             size_bytes = await save_upload_to_path(file, subida)
-            with subida.open("rb") as fh:
-                formato = formato_de(fh.read(8))
-            if formato is None:
-                raise FileValidationError("Uploaded file is not a PDF, JPEG, PNG or TIFF.")
+            formato = reconocer(subida)
             extension = FORMATOS[formato][0]
             input_path = subida.rename(Path(temp_job.path) / f"input.{extension}")
             output_path = Path(temp_job.path) / f"output_redacted.{extension}"
+            comprobar(input_path, formato)
 
             # Esta ruta no pasa por la cola, pero sí compite por la misma GPU:
             # pide uno de los permisos de proceso concurrente para que dos
             # peticiones a la vez se serialicen en vez de agotar la memoria de
             # la tarjeta.  Se pide dentro del hilo de trabajo, no aquí, para no
             # bloquear el bucle de eventos mientras espera turno.
-            if formato != "pdf":
-                comprobar_imagen(input_path)
-
-                def _run() -> object:
-                    with job_store.slot():
-                        return anonimizar_imagen(
-                            input_path, output_path, formato,
-                            lambda e, s: get_pdf_pipeline().process(
-                                e, s, temp_job.job_id, mode, include_entities, disabled,
-                            ),
-                        )
-            else:
-
-                def _run() -> object:
-                    with job_store.slot():
-                        return get_pdf_pipeline().process(
-                            input_path, output_path, temp_job.job_id, mode,
-                            include_entities, disabled,
-                        )
+            def _run() -> object:
+                with job_store.slot():
+                    return procesar(formato, "anonymize", input_path, output_path,
+                                    temp_job.job_id, get_pdf_pipeline, mode, disabled,
+                                    include_entities)
 
             report = await run_in_threadpool(_run)
 

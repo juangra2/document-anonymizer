@@ -58,6 +58,12 @@ _METADATOS = {
     "text_copies": "Copias ocultas del texto",
     "previous_versions": "Versiones anteriores guardadas dentro del fichero",
     "hidden_text": "Fragmentos de texto que no se veían",
+    "tracked_changes": "Cambios con control de cambios (lo borrado se quita, lo añadido queda)",
+    "field_codes": "Códigos de campo",
+    "custom_xml": "Propiedades y datos personalizados",
+    "alt_text": "Textos alternativos de imágenes",
+    "embedded_objects": "Objetos incrustados (hojas de cálculo, gráficos...)",
+    "images_removed": "Imágenes en formatos que no se pueden revisar",
 }
 
 _CSS = """
@@ -148,6 +154,8 @@ def _mapa(r: ProcessingReport, revisar: set[int], enteras: set[int]) -> str:
 
 
 def _unidad(r: ProcessingReport) -> str:
+    if r.document_type == "docx":
+        return "documento de Word"
     if r.document_type == "image":
         return "imagen" if r.pages == 1 else "imágenes"
     return "página" if r.pages == 1 else "páginas"
@@ -161,7 +169,8 @@ def _html(r: ProcessingReport, fecha: datetime) -> str:
         "<p class='org'>Universitat de València</p>",
         "<h1>Informe de anonimización</h1>" if not solo_metadatos
         else "<h1>Informe de limpieza de metadatos</h1>",
-        f"<p class='meta'>{local:%d/%m/%Y %H:%M} &#183; {r.pages} {_unidad(r)} "
+        f"<p class='meta'>{local:%d/%m/%Y %H:%M} &#183; "
+        f"{'' if r.document_type == 'docx' else f'{r.pages} '}{_unidad(r)} "
         f"&#183; identificador {_e(r.job_id)}</p>",
     ]
 
@@ -208,7 +217,7 @@ def _html(r: ProcessingReport, fecha: datetime) -> str:
     enteras.update({p.page: p.reason for p in r.pages_redacted_in_full})
     revisar = {n for a in r.coded_warnings for n in a.pages} | {
         p + 1 for p in r.ocr.low_confidence_pages}
-    if r.pages and not solo_metadatos:
+    if r.pages and not solo_metadatos and r.document_type != "docx":
         partes.append("<h2>En qué páginas</h2>")
         partes.append(_mapa(r, revisar, set(enteras)))
         if r.entities_by_page:

@@ -11,16 +11,17 @@ El detalle para quien mantenga el código. La idea de cada parte —qué hace y 
 1. [Catálogo de tipos y reglas](#catálogo-de-tipos-y-reglas)
 2. [Detección](#detección)
 3. [Recorrido de un documento](#recorrido-de-un-documento)
-4. [Tratamientos especiales](#tratamientos-especiales)
-5. [OCR](#ocr)
-6. [Red de seguridad y verificación](#red-de-seguridad-y-verificación)
-7. [Metadatos y contenido oculto](#metadatos-y-contenido-oculto)
-8. [Retención, registro y acceso](#retención-registro-y-acceso)
-9. [Interfaz web](#interfaz-web)
-10. [API](#api)
-11. [Evaluación](#evaluación)
-12. [Despliegue](#despliegue)
-13. [Documentos reales de prueba](#documentos-reales-de-prueba)
+4. [Documentos de Word](#documentos-de-word)
+5. [Tratamientos especiales](#tratamientos-especiales)
+6. [OCR](#ocr)
+7. [Red de seguridad y verificación](#red-de-seguridad-y-verificación)
+8. [Metadatos y contenido oculto](#metadatos-y-contenido-oculto)
+9. [Retención, registro y acceso](#retención-registro-y-acceso)
+10. [Interfaz web](#interfaz-web)
+11. [API](#api)
+12. [Evaluación](#evaluación)
+13. [Despliegue](#despliegue)
+14. [Documentos reales de prueba](#documentos-reales-de-prueba)
 
 ---
 
@@ -168,6 +169,42 @@ píxeles de las imágenes que cubre. Antes de aplicar, cada marca se ajusta en a
 tapa, para no morder la etiqueta de encima; la marca que cubre una imagen no se ajusta. En
 escaneado se pintan los píxeles de la imagen de la página y el PDF se reconstruye con esa imagen;
 la barra del valor tampoco muerde el rótulo de encima.
+
+---
+
+## Documentos de Word
+
+`app/services/office/` (`docx.py`, `paquete.py`); el formato se reconoce por el contenido en
+`services/formatos.py`, que es también el despacho único de la cola y de `POST /anonymize`.
+
+- **Resultado**: un Word. No hay barras: cada dato pasa a ser un marcador con su tipo (`[DNI]`,
+  `[NOMBRE]`, `[DIRECCIÓN]`…, en castellano también en un documento en valenciano), con el formato
+  del tramo donde empezaba. Se trabaja sobre el XML de cada parte, no con python-docx, que no ve
+  cuadros de texto, notas al pie, controles de contenido ni texto borrado con control de cambios.
+- **Detección**: el texto de cada parte (cuerpo, cada cabecera y pie, notas) se analiza línea a línea
+  en orden: un párrafo es una línea, una fila de tabla es una línea con las celdas separadas por
+  tabuladores (así se leen rótulo y valor). Un dato no cruza de una celda a otra ni incluye la
+  etiqueta que lo precede (el analizador devuelve a veces «de contacto: 611…»; se corta tras los
+  últimos dos puntos seguidos de espacio). Después, cada valor detectado se sustituye en todo el
+  documento donde aparezca.
+- **Limpieza** (también en «solo quitar metadatos»): se aceptan los cambios (lo borrado se quita, lo
+  insertado queda como texto); fuera comentarios, texto oculto, códigos de campo, enlaces (el texto
+  se queda), textos alternativos, enlaces de datos de controles de contenido, identificadores de
+  sesión (`rsid`), permisos con nombre, propiedades del documento y personalizadas, datos XML
+  personalizados, miniatura, plantilla adjunta, variables, combinación de correspondencia,
+  glosario y todas las relaciones externas. Los objetos incrustados (OLE, gráficos con sus datos)
+  se quitan con el marcador `[OBJETO ELIMINADO]`.
+- **Imágenes incrustadas**: JPEG y PNG pasan por el camino de imágenes (tachado dentro de la imagen,
+  copia de DNI tapada entera, sin metadatos); las de otros formatos (EMF, WMF, GIF…), que no se
+  pueden revisar, se quitan con `[IMAGEN ELIMINADA]`.
+- **Comprobaciones al entregar**: el Word se vuelve a abrir (zip sano y python-docx) o no se entrega;
+  el verificador (`paquete.verificar`) busca cada valor detectado en el texto, los atributos y las
+  relaciones de todas las partes de la salida, y si queda alguno el informe pide revisión.
+- **Seguridad del paquete**: límites de partes, tamaño descomprimido y proporción de compresión;
+  nombres de parte sin rutas absolutas ni `..`; XML sin entidades ni red. Un `.doc`/`.xls` antiguo
+  se rechaza con `legacy_office` y un `.docm`/`.xlsm` con `office_macros` (415), con su frase.
+- **Informe en PDF**: sin mapa de páginas (un Word no tiene páginas fijas); dice «documento de
+  Word» y lista lo quitado (cambios, comentarios, objetos incrustados…).
 
 ---
 
@@ -401,7 +438,7 @@ Documentación interactiva en `/docs`.
 | Método y ruta | Qué hace |
 |---|---|
 | `GET /entity-types` | Catálogo de tipos |
-| `POST /jobs` | Encola un PDF o una imagen (JPEG, PNG, TIFF). **202** al terminar la subida, con `Location: /jobs/{id}` |
+| `POST /jobs` | Encola un PDF, una imagen (JPEG, PNG, TIFF) o un Word (.docx). **202** al terminar la subida, con `Location: /jobs/{id}` |
 | `GET /jobs/{id}` | Estado, posición en cola, avance por páginas, avisos, resumen o error |
 | `GET /jobs/{id}/result?output=pdf\|zip` | El PDF anonimizado (o PDF + `report.json` en ZIP) |
 | `GET /jobs/{id}/report` | Informe completo en JSON |
@@ -500,6 +537,24 @@ Dos efectos conocidos de la contabilidad: el lugar de nacimiento cuenta como fal
 el corpus no lo anota; y un teléfono partido en varias líneas se tacha entero, pero el informe lo
 devuelve con saltos de línea («+34\n706\n206\n505») y el evaluador, que compara texto exacto, lo
 cuenta a la vez como falso negativo y falso positivo.
+
+**Corpus de imágenes** (`evaluation/corpus_imagenes.py` y `evaluation/lectura_imagenes.py`): 38
+fotos y capturas inventadas con sus etiquetas (rectas, inclinadas, en perspectiva, giradas, con
+mesa y sombras, de móvil y pequeñas, carnets oscuros, JPEG comprimidos, PNG con transparencia, TIFF
+de dos páginas, copias de DNI de ejemplo). La transformación de cada foto se guarda y se deshace
+para leer entrada y salida en plano; además de la lectura, se mide por píxeles si la barra cubre el
+dato entero (asoma por debajo del 97 %) y si tapa los rótulos. Salidas en `evaluation/imagenes/`
+(ignorada por git). Medición del 27-10: 171 datos tapados, 0 fugas, 72,5 % de rótulos a la vista,
+0 imágenes tapadas enteras sin motivo.
+
+**Corpus de Word** (`evaluation/corpus_word.py` y `evaluation/lectura_word.py`): 12 documentos
+inventados (cartas, notificación en valenciano, formularios bilingües con tablas, contrato, acta,
+declaración con copia de DNI incrustada, informe con comentarios y control de cambios, dos sin
+datos personales) y uno «cargado» que esconde un dato en cada sitio donde un Word guarda texto (lo
+usan los tests). Mide que el fichero se abre, que ningún dato queda en ninguna parte, que la imagen
+incrustada sale tapada (OCR), que el texto legítimo se conserva y que un documento sin datos no
+cambia. Medición del 27-10: 12/12 se abren, 53/53 datos eliminados, 72/72 textos legítimos
+conservados, 2/2 documentos sin datos intactos.
 
 **Lectura de barras** (`evaluation/lectura_salida.py`): extrae el texto del PDF entregado (y OCR
 donde no hay texto) y busca cada dato etiquetado, tolerando erratas. Cada dato sale tapado, fuga, no

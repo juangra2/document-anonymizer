@@ -92,7 +92,7 @@ def test_the_phrases_cover_the_errors_the_user_meets_most():
     for codigo in (
         "encrypted_pdf", "too_many_pages", "document_too_large", "empty_pdf",
         "invalid_file", "cola_llena", "sin_conexion", "servicio_reiniciado",
-        "nothing_processed_yet", "parado_sin_paginas",
+        "nothing_processed_yet", "parado_sin_paginas", "legacy_office", "office_macros",
     ):
         assert f"{codigo}:" in textos, f"sin frase para {codigo}"
 
@@ -176,3 +176,24 @@ def test_every_full_redaction_reason_has_a_plain_phrase():
     textos = _texto_de("js/texts/es.js")
     for motivo in (DNI_SCAN, TAX_FORM, notices.OCR_UNREADABLE, notices.OCR_TIMEOUT):
         assert f"{motivo}:" in textos, f"sin frase para {motivo}"
+
+
+def _contraste_con_blanco(color: str) -> float:
+    canales = [int(color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    lineal = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in canales]
+    luminancia = 0.2126 * lineal[0] + 0.7152 * lineal[1] + 0.0722 * lineal[2]
+    return 1.05 / (luminancia + 0.05)
+
+
+def test_el_texto_blanco_de_los_iconos_cumple_el_contraste_minimo():
+    """DOCX en azul, XLSX en verde, PDF en rojo y el de fallo: 4,5:1 (texto pequeño)."""
+    js = _texto_de("js/main.js")
+    colores = re.findall(r"#[0-9A-Fa-f]{6}", js[js.index("const BANDAS"):js.index("function hoja")])
+    assert len(colores) >= 4
+    for color in colores:
+        assert _contraste_con_blanco(color) >= 4.5, color
+
+
+def test_la_pagina_admite_word():
+    assert ".docx" in _texto_de("index.html")
+

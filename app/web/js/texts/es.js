@@ -47,7 +47,7 @@ export const TEXTOS = {
 
   paso1: {
     titulo: "Documentos",
-    soltar: "Arrastra uno o varios PDF o imágenes (JPEG, PNG, TIFF) aquí, o selecciónalos",
+    soltar: "Arrastra uno o varios PDF, imágenes (JPEG, PNG, TIFF) o Word (.docx) aquí, o selecciónalos",
     limites: (docs, paginas, mb) =>
       `Hasta ${docs} documentos por tanda · máximo ${paginas} páginas y ${mb} MB cada uno`,
     elegir: "Seleccionar archivos",
@@ -225,8 +225,20 @@ export const TEXTOS = {
     noEsPdf: {
       titulo: "Este archivo no se puede anonimizar",
       texto:
-        "Se pueden anonimizar documentos PDF e imágenes JPEG, PNG o TIFF. Si es " +
-        "un Word, guárdalo como PDF desde Archivo › Guardar como.",
+        "Se pueden anonimizar documentos PDF, imágenes JPEG, PNG o TIFF y " +
+        "documentos de Word (.docx).",
+    },
+    legacy_office: {
+      titulo: "Este documento es del formato antiguo de Office",
+      texto:
+        "Los .doc y .xls no se pueden anonimizar. Ábrelo en Word o Excel y guárdalo " +
+        "como .docx o .xlsx (Archivo › Guardar como), y vuelve a subirlo.",
+    },
+    office_macros: {
+      titulo: "Este documento tiene macros",
+      texto:
+        "No se anonimizan documentos con macros (.docm, .xlsm). Guárdalo como " +
+        ".docx o .xlsx sin macros (Archivo › Guardar como) y vuelve a subirlo.",
     },
     invalid_file: {
       titulo: "Este archivo está dañado o no es lo que parece",

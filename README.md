@@ -1,8 +1,8 @@
 # Anonimizador de documentos
 
-Servicio que anonimiza de forma **irreversible** documentos PDF e imágenes (JPEG, PNG, TIFF) de la
-administración pública (Ajuntament de València), en castellano y valenciano. Detecta los datos personales —nombres, DNI y
-NIE, direcciones, teléfonos, cuentas bancarias, fechas de nacimiento y una treintena de tipos más—,
+Servicio que anonimiza de forma **irreversible** documentos PDF, imágenes (JPEG, PNG, TIFF) y
+documentos de Word (.docx) de la administración pública (Ajuntament de València), en castellano y
+valenciano. Detecta los datos personales —nombres, DNI y NIE, direcciones, teléfonos, cuentas bancarias, fechas de nacimiento y una treintena de tipos más—,
 los **borra del documento** (el texto tachado desaparece del PDF, no queda debajo de un recuadro) y
 entrega un PDF sin metadatos ni contenido oculto, junto con un informe de lo que se ha hecho y de
 lo que conviene revisar a mano. Lo ha desarrollado la Universitat de València (IDAL) para el

@@ -28,6 +28,9 @@ import fitz
 import httpx
 from playwright.sync_api import expect, sync_playwright
 
+# Para los documentos de prueba del corpus (evaluation/corpus_word.py).
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 BASE = "http://127.0.0.1:8000"
 NOMBRE = "Marcos Villalba Tena"
 
@@ -288,6 +291,36 @@ def flujo_imagen(p, pagina, tmp: Path) -> None:
         p.comprobar(len(img.getexif()) == 0, "sin los datos de la camara")
 
 
+def flujo_word(p, pagina, tmp: Path) -> None:
+    print("\n1e) Un Word sale Word, con el dato sustituido por su tipo")
+    import docx
+
+    from evaluation.corpus_word import PERSONAS, carta
+
+    abrir(pagina)
+    carta(tmp / "carta.docx", PERSONAS[0])
+    antiguo = tmp / "antiguo.doc"
+    antiguo.write_bytes(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 504)
+    pagina.set_input_files("#ficheros", [str(tmp / "carta.docx"), str(antiguo)])
+    icono = pagina.locator(".ficha:has-text('carta.docx') svg")
+    p.comprobar("DOCX" in (icono.text_content() or "") and "#2B579A" in icono.inner_html(),
+                "el icono del Word dice DOCX, en azul")
+    p.comprobar("formato antiguo" in pagina.locator(".ficha.err .motivo").first.inner_text(),
+                "el .doc antiguo se rechaza diciendo que hay que guardarlo como .docx")
+    pagina.click("#anonimizar")
+    ok = esperar_texto(pagina, ".doc .st", "Terminado", ms=180000)
+    p.comprobar(ok, "el Word termina")
+    with pagina.expect_download(timeout=30000) as descarga:
+        pagina.click(".doc a.btn.primary")
+    p.comprobar(descarga.value.suggested_filename == "carta_anonimizado.docx",
+                "se descarga como Word con su nombre")
+    salida = tmp / "carta_salida.docx"
+    descarga.value.save_as(salida)
+    texto = "\n".join(par.text for par in docx.Document(salida).paragraphs)
+    p.comprobar(PERSONAS[0]["nombre"] not in texto and "[NOMBRE]" in texto,
+                "el Word se abre y el nombre se ha sustituido por [NOMBRE]")
+
+
 def flujo_expediente(p, pagina, tmp: Path) -> None:
     print("\n1b) El numero de expediente empieza marcado y la casilla manda")
     abrir(pagina)
@@ -318,7 +351,7 @@ def flujo_tanda(p, pagina, tmp: Path) -> None:
         "#ficheros",
         [
             str(pdf_simple(tmp / "uno.pdf")),
-            str(no_es_pdf(tmp / "informe.docx")),
+            str(no_es_pdf(tmp / "notas.txt")),
             str(pdf_simple(tmp / "dos.pdf")),
         ],
     )
@@ -493,6 +526,7 @@ def main() -> int:
         "completo": flujo_documento_completo,
         "solo-metadatos": flujo_solo_metadatos,
         "imagen": flujo_imagen,
+        "word": flujo_word,
         "expediente": flujo_expediente,
         "tanda": flujo_tanda,
         "parar": flujo_parar,

@@ -37,6 +37,14 @@ class ProcessingError(AnonymizerError):
 class RedactionVerificationError(AnonymizerError):
     """Raised when residual PII is detected after redaction."""
 
+
+class LegacyOfficeError(UnsupportedDocumentError):
+    """Word o Excel del formato antiguo (.doc, .xls): hay que guardarlo como .docx/.xlsx."""
+
+
+class OfficeMacrosError(UnsupportedDocumentError):
+    """Word o Excel con macros (.docm, .xlsm): no se procesa codigo."""
+
 # Código estable por tipo de error, para que el cliente pueda reaccionar sin
 # leer el mensaje.  Los mensajes de la API son técnicos y en inglés; la frase
 # que ve el usuario la elige el frontend a partir de este código, que es lo que
@@ -47,6 +55,8 @@ _ERROR_CODES: list[tuple[type, str]] = [
     (EmptyPdfError, "empty_pdf"),
     (EncryptedPdfError, "encrypted_pdf"),
     (ScannedPdfNotSupportedError, "scanned_not_supported"),
+    (LegacyOfficeError, "legacy_office"),
+    (OfficeMacrosError, "office_macros"),
     (FileValidationError, "invalid_file"),
     (UnsupportedDocumentError, "unsupported_document"),
     (RedactionVerificationError, "verification_failed"),

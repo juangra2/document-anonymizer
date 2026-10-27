@@ -167,6 +167,8 @@ class ProcessingReport(BaseModel):
         "pdf_scanned_or_image_only",
         "pdf_rasterized_ocr",
         "image",
+        "docx",
+        "xlsx",
         "pdf_empty",
         "unsupported",
     ] = "pdf_digital"

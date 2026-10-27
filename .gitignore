@@ -88,3 +88,7 @@ data/samples/casos_dificiles/
 
 # Corpus de imagenes y sus salidas: se generan con evaluation/corpus_imagenes.py
 evaluation/imagenes/
+
+# Corpus de Word y Excel y sus salidas: se generan con evaluation/corpus_word.py y corpus_excel.py
+evaluation/word/
+evaluation/excel/
