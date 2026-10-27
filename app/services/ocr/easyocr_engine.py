@@ -11,6 +11,23 @@ from app.services.ocr.base import OcrEngine
 from app.services.ocr.models import OcrPage, OcrToken
 
 
+def _soltar_memoria_gpu() -> None:
+    """Devuelve a la GPU lo que PyTorch se guarda tras una lectura.
+
+    El detector de EasyOCR sobre una pagina de 8 megapixeles reserva varios GB;
+    PyTorch se los queda aunque no los use, y con el motor de layout cargado la
+    siguiente lectura (otro giro, una foto enderezada) ya no cabe en una GPU de
+    8 GB.  En Windows desborda a la memoria del sistema; en Linux falla.
+    """
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:  # sin torch o sin CUDA no hay nada que soltar
+        pass
+
+
 class EasyOcrEngine(OcrEngine):
     """Token-level OCR via EasyOCR.  Fallback engine when MinerU is unavailable."""
 
@@ -29,6 +46,19 @@ class EasyOcrEngine(OcrEngine):
     def engine_name(self) -> str:
         return "easyocr"
 
+    def palabras(self, imagen: Image.Image) -> list[OcrToken]:
+        """Una pieza por palabra (sin juntar las vecinas en una linea), para
+        tapar el tramo exacto de un dato dentro de una linea con su etiqueta."""
+        resultados = self._reader.readtext(np.array(imagen.convert("RGB")), detail=1,
+                                           paragraph=False, width_ths=0.1)
+        salida = []
+        for bbox, text, confidence in resultados:
+            if str(text).strip():
+                xs, ys = [p[0] for p in bbox], [p[1] for p in bbox]
+                salida.append(OcrToken(text=str(text), confidence=float(confidence),
+                                       rect=fitz.Rect(min(xs), min(ys), max(xs), max(ys))))
+        return salida
+
     def analyze_image(
         self,
         image_path: Path,
@@ -42,6 +72,7 @@ class EasyOcrEngine(OcrEngine):
             detail=1,
             paragraph=False,
         )
+        _soltar_memoria_gpu()
 
         tokens: list[OcrToken] = []
 

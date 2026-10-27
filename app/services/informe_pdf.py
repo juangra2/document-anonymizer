@@ -37,7 +37,7 @@ _REVISION = {
 }
 
 _TACHADA_ENTERA = {
-    "ocr_unreadable": "no se pudo leer, ni girándola",
+    "ocr_unreadable": "no se pudo leer, ni girándola, enderezándola o invirtiendo los colores",
     "ocr_timeout": "su lectura tardó demasiado y se tachó por seguridad",
     "dni_scan": "es una copia de un documento de identidad",
     "tax_form": "es una autoliquidación de impuestos",

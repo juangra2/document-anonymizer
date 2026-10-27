@@ -12,10 +12,13 @@ def _zoned():
 def test_only_decoded_small_codes_redacted(monkeypatch):
     doc = fitz.open()
     page = doc.new_page(width=595, height=842)
-    # Rendered at 300 DPI → ~2479x3508 px.  small ≈ 0.001 of area; huge ≈ 0.10.
+    # Rendered at 300 DPI → ~2479x3508 px.  small ≈ 0.001 of area; huge ≈ 0.69.
+    # Un codigo DESCODIFICADO grande (un 10 % del A4, como el QR de un carnet
+    # respecto a la tarjeta) ya se tapa; el tope de los descodificados es el
+    # 35 %.  Lo que no descodifica sigue sin taparse (test siguiente).
     fake = [
         (fitz.Rect(100, 100, 220, 220), "https://verifica/abc"),   # decoded, small → keep
-        (fitz.Rect(200, 200, 1400, 1300), "PAYLOAD"),              # decoded but huge → drop
+        (fitz.Rect(0, 0, 2000, 3000), "PAYLOAD"),                  # decoded but huge → drop
         (fitz.Rect(300, 300, 420, 420), ""),                       # no payload → drop
     ]
     monkeypatch.setattr(
@@ -83,3 +86,16 @@ def test_detect_redactable_codes_filters(monkeypatch):
     monkeypatch.setattr(cd, "detect_and_decode_visual_codes", lambda im, padding=8: fake)
     out = cd.detect_redactable_codes(img)
     assert len(out) == 1 and out[0][1] == "PAYLOAD"
+
+
+def test_a_decoded_code_of_a_tenth_of_the_page_is_redacted(monkeypatch):
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    monkeypatch.setattr(
+        "app.services.vision.code_detector.detect_and_decode_visual_codes",
+        lambda img, padding=8: [(fitz.Rect(200, 200, 1400, 1300), "PAYLOAD")],   # ≈ 0.10
+    )
+    zp = _zoned()
+    redactor._add_visual_qr_zones(page, zp)
+    doc.close()
+    assert [z.text for z in zp.zones if z.zone_type == ZoneType.QR_CODE] == ["PAYLOAD"]

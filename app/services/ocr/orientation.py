@@ -16,10 +16,18 @@ a dar muchos.  El umbral por defecto (8.0) separa los tres casos con margen: no
 dispara en páginas normales, sí en las giradas, y no vuelve a disparar una vez
 corregidas.
 
-La confianza media del OCR no sirve como métrica: es engañosa.  El modo
+La confianza media del OCR no sirve para ELEGIR el giro: es engañosa.  El modo
 `rotation_info` nativo de EasyOCR da confianzas altas con el texto más
 ilegible, porque rota cada caja por separado y rompe el orden de lectura; por
 eso se rota la imagen completa.
+
+Pero caracteres por token tampoco basta para decidir que una página es
+ILEGIBLE: una foto inclinada o un carnet con poco texto salen palabra a palabra,
+con pocos caracteres por token, y se leen perfectamente.  Antes de rendirse se
+intenta lo razonable (`ajustes`: enderezar, recortar la hoja y corregir la
+perspectiva, invertir los colores) y se decide con `legible`, que admite
+también piezas cortas si el OCR las lee con confianza y son palabras, no ruido.
+Una página que hoy se lee bien no pasa por nada de esto: cuesta lo de antes.
 """
 from __future__ import annotations
 
@@ -29,6 +37,7 @@ from dataclasses import dataclass
 from PIL import Image
 
 from app.core.config import settings
+from app.services.ocr import ajustes as aj
 from app.services.ocr.models import OcrPage
 
 logger = logging.getLogger(__name__)
@@ -45,6 +54,9 @@ class OrientationResult:
     ocr_page: OcrPage
     quality: float      # caracteres por token del resultado elegido
     poor_quality: bool  # True si ni la mejor orientación da texto legible
+    # Ajuste aplicado DESPUÉS del giro (enderezar, recortar la hoja, invertir),
+    # o None.  El OCR de `ocr_page` es el de la imagen ajustada.
+    ajuste: "aj.Ajuste | None" = None
 
 
 def text_quality(ocr_page: OcrPage) -> float:
@@ -73,6 +85,39 @@ def orientation_score(ocr_page: OcrPage) -> float:
         return 0.0
     confidence = sum(t.confidence for t in tokens) / len(tokens)
     return text_quality(ocr_page) * confidence
+
+
+# Confianza media y proporcion de palabras con que unas piezas cortas cuentan
+# como texto leido.  El ruido de una pagina girada da piezas de uno o dos
+# signos ("8", "g1", "%"): no son palabras aunque el OCR las puntue alto.
+_CONFIANZA_LEGIBLE = 0.70
+_PALABRAS_LEGIBLE = 0.6
+_MIN_TOKENS_LEGIBLE = 5
+
+
+def _es_palabra(texto: str) -> bool:
+    return sum(c.isalnum() for c in texto) >= 3
+
+
+def legible(ocr_page: OcrPage) -> bool:
+    """¿Se ha leído texto?  Muchos caracteres por pieza, o piezas que son
+    palabras leídas con confianza (palabra a palabra, como sale una foto
+    inclinada o un carnet)."""
+    tokens = [t for t in ocr_page.tokens if t.text and t.text.strip()]
+    if not tokens:
+        return False
+    if text_quality(ocr_page) >= settings.ocr_min_chars_per_token:
+        return True
+    if len(tokens) < _MIN_TOKENS_LEGIBLE:
+        return False
+    confianza = sum(t.confidence for t in tokens) / len(tokens)
+    palabras = sum(_es_palabra(t.text) for t in tokens) / len(tokens)
+    return confianza >= _CONFIANZA_LEGIBLE and palabras >= _PALABRAS_LEGIBLE
+
+
+def _leido(ocr_page: OcrPage) -> float:
+    """Caracteres leidos ponderados por confianza: para elegir entre ajustes."""
+    return sum(len(t.text.strip()) * t.confidence for t in ocr_page.tokens if t.text)
 
 
 def _looks_like_noise(ocr_page: OcrPage) -> bool:
@@ -118,7 +163,26 @@ def resolve_orientation(image: Image.Image, run_ocr) -> OrientationResult:
             "caracteres por token).", best_angle, text_quality(base), best_quality,
         )
 
-    # Si ni la mejor orientación da texto legible, el OCR ha fallado: hay que
-    # avisar en el informe en vez de devolver un documento aparentemente limpio.
-    poor = best_quality < settings.ocr_min_chars_per_token
-    return OrientationResult(best_angle, best_page, best_quality, poor_quality=poor)
+    if best_quality >= settings.ocr_min_chars_per_token:
+        return OrientationResult(best_angle, best_page, best_quality, poor_quality=False)
+
+    # Hoy esta pagina saldria tapada entera.  Antes, lo razonable: enderezar,
+    # recortar la hoja y corregir la perspectiva, invertir los colores.  Gana la
+    # lectura legible; entre legibles, la de muchos caracteres por pieza y,
+    # despues, la que mas lee con confianza.
+    girada = image.rotate(best_angle, expand=True) if best_angle else image
+    elegido, elegida = None, best_page
+    clave = (legible(best_page), best_quality >= settings.ocr_min_chars_per_token, _leido(best_page))
+    if settings.ocr_ajustes_enabled:
+        for ajuste in aj.candidatos(girada):
+            pagina = run_ocr(aj.para_leer(aj.aplicar(girada, ajuste), ajuste))
+            k = (legible(pagina), text_quality(pagina) >= settings.ocr_min_chars_per_token, _leido(pagina))
+            if k > clave:
+                elegido, elegida, clave = ajuste, pagina, k
+    if elegido is not None:
+        logger.info("Página ilegible tal cual: se lee con el ajuste %s (calidad %.1f -> %.1f).",
+                    elegido.tipo, best_quality, text_quality(elegida))
+    # Si ni así se lee, el OCR ha fallado: hay que avisar en el informe en vez
+    # de devolver un documento aparentemente limpio.
+    return OrientationResult(best_angle, elegida, text_quality(elegida),
+                             poor_quality=not legible(elegida), ajuste=elegido)

@@ -10,7 +10,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.schemas.report import CodedWarning
+from app.schemas.report import CodedWarning, PageRedactedByContent, PageRedactedInFull
 
 
 class JobProgress(BaseModel):
@@ -80,6 +80,13 @@ class JobResultSummary(BaseModel):
     )
     entity_types_disabled: list[str] = Field(default_factory=list)
     processing_ms: int | None = None
+    document_type: str | None = Field(default=None, description="pdf_digital, pdf_scanned, "
+                                      "pdf_hybrid o image.")
+    pages_redacted_in_full: list[PageRedactedInFull] = Field(
+        default_factory=list, description="Paginas tapadas enteras porque no se pudieron leer.")
+    pages_redacted_by_content: list[PageRedactedByContent] = Field(
+        default_factory=list, description="Paginas tapadas enteras por su contenido (copia de "
+                                          "DNI, autoliquidacion).")
     treatment: Literal["anonymize", "metadata_only"] = Field(
         default="anonymize",
         description="metadata_only: solo se quitaron metadatos; el contenido no "

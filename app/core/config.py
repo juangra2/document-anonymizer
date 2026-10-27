@@ -179,6 +179,9 @@ class Settings(BaseSettings):
     # ruido.  Una pagina normal queda muy por encima; una girada, muy por
     # debajo; la misma pagina enderezada vuelve a quedar por encima.
     ocr_min_chars_per_token: float = 8.0
+    # Antes de dar una pagina por ilegible: enderezar, recortar la hoja y
+    # corregir la perspectiva, invertir los colores (ocr/ajustes.py).
+    ocr_ajustes_enabled: bool = True
     # Tokens minimos para molestarse en probar otras orientaciones: por debajo
     # la pagina esta practicamente en blanco y rotarla no aporta.
     ocr_rotate_min_tokens: int = 8

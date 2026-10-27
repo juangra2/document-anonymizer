@@ -226,6 +226,10 @@ def detect_and_decode_visual_codes(
 # A real QR/barcode occupies a small fraction of a document page.  Detections
 # larger than this are almost always false positives on diagrams/seals/figures.
 _QR_MAX_AREA_FRAC = 0.05
+# Un codigo que SE DESCODIFICA es un codigo, no un sello ni un diagrama: puede
+# ocupar mas.  En un carnet o una tarjeta el QR es el 8-15 % de la imagen.  El
+# tope de arriba (pensado para un QR en un A4) sigue para lo que no descodifica.
+_QR_DECODIFICADO_MAX_AREA_FRAC = 0.35
 # Un código de barras lineal (aspect ≥3) es ancho por naturaleza y puede
 # superar con facilidad el tope pensado para QR compactos.
 _LINEAR_MAX_AREA_FRAC = 0.20
@@ -236,13 +240,13 @@ def _area_cap(rect: fitz.Rect, default: float) -> float:
     w, h = rect.x1 - rect.x0, rect.y1 - rect.y0
     if min(w, h) <= 0:
         return default
-    return _LINEAR_MAX_AREA_FRAC if max(w, h) / min(w, h) >= 3.0 else default
+    return max(default, _LINEAR_MAX_AREA_FRAC) if max(w, h) / min(w, h) >= 3.0 else default
 
 
 def detect_redactable_codes(
     image: Image.Image,
     padding: int = 8,
-    max_area_frac: float = _QR_MAX_AREA_FRAC,
+    max_area_frac: float = _QR_DECODIFICADO_MAX_AREA_FRAC,
 ) -> list[tuple[fitz.Rect, str]]:
     """Codes safe to redact: those that decode to a non-empty payload and are
     not implausibly large.  Shared by the digital and OCR redaction paths so the

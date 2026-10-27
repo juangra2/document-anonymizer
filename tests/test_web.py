@@ -166,3 +166,13 @@ def test_los_textos_cumplen_el_contraste_wcag_aa():
         assert r >= 4.5, f"--{texto} sobre --{fondo}: {r:.2f}:1"
     casilla = re.search(r"\.tick\.off\{[^}]*border:[^;}]*(#[0-9A-Fa-f]{6})", css).group(1)
     assert _contraste(casilla, var["card"]) >= 3, "borde de la casilla sin marcar"
+
+
+def test_every_full_redaction_reason_has_a_plain_phrase():
+    """Lo que se tapa entero se explica en la pantalla, por su motivo."""
+    from app.services import notices
+    from app.services.pdf.full_redaction import DNI_SCAN, TAX_FORM
+
+    textos = _texto_de("js/texts/es.js")
+    for motivo in (DNI_SCAN, TAX_FORM, notices.OCR_UNREADABLE, notices.OCR_TIMEOUT):
+        assert f"{motivo}:" in textos, f"sin frase para {motivo}"

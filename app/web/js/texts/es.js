@@ -142,6 +142,16 @@ export const TEXTOS = {
     parcial: (hasta, total) =>
       `Parcial · páginas 1 a ${hasta} de ${total} · el resto no se ha anonimizado`,
     revisar: "Revísalo antes de usarlo: hay partes que no se han podido leer con seguridad",
+    // Por que se ha tapado entera una pagina (o la imagen), en lenguaje llano.
+    tachadaImagen: (motivo) => `La imagen se ha tapado entera porque ${motivo}.`,
+    tachadaPagina: (n, motivo) => `Página ${n} tapada entera porque ${motivo}.`,
+    motivosTachada: {
+      dni_scan: "es una copia de un documento de identidad",
+      tax_form: "es una autoliquidación de impuestos",
+      ocr_unreadable:
+        "no se ha podido leer, ni girándola, enderezándola o invirtiendo los colores",
+      ocr_timeout: "su lectura tardó demasiado y se ha tapado por seguridad",
+    },
     paginasTachadas: (n) =>
       `${n} ${n === 1 ? "página tachada entera" : "páginas tachadas enteras"} porque no se ${
         n === 1 ? "pudo" : "pudieron"

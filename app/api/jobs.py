@@ -76,6 +76,9 @@ def _to_response(job: Job) -> JobResponse:
             entity_types_disabled=job.report.entity_types_disabled,
             processing_ms=job.report.processing_ms,
             treatment=job.report.treatment,
+            document_type=job.report.document_type,
+            pages_redacted_in_full=job.report.pages_redacted_in_full,
+            pages_redacted_by_content=job.report.pages_redacted_by_content,
         )
 
     error = None

@@ -677,7 +677,23 @@ function filaDocumento(documento) {
   }
   meta.appendChild(linea);
 
-  const tachadas = documento.trabajo?.notices_total || 0;
+  const enteras = [
+    ...(resultado?.pages_redacted_by_content || []),
+    ...(resultado?.pages_redacted_in_full || []),
+  ].sort((a, b) => a.page - b.page);
+  for (const pagina of enteras) {
+    const motivo = T.documento.motivosTachada[pagina.reason];
+    if (!motivo) continue;
+    const nota = document.createElement("span");
+    nota.className = "note";
+    nota.dataset.motivo = pagina.reason;
+    nota.textContent =
+      resultado.document_type === "image" && (resultado.pages || 1) === 1
+        ? T.documento.tachadaImagen(motivo)
+        : T.documento.tachadaPagina(pagina.page, motivo);
+    meta.appendChild(nota);
+  }
+  const tachadas = enteras.length ? 0 : documento.trabajo?.notices_total || 0;
   if (tachadas) {
     const nota = document.createElement("span");
     nota.className = "note";

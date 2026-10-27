@@ -16,6 +16,7 @@ Flow per page
 from __future__ import annotations
 
 import logging
+import contextvars
 import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
@@ -44,8 +45,9 @@ from app.services.layout.models import PageZone, ZoneToken, ZoneType
 from app.services.layout.segmenters import OcrPageSegmenter
 from app.services.layout.zone_config import ALL_PII_TYPES, get_detector_config
 from app.services.ocr.base import OcrEngine
+from app.services.ocr import ajustes
 from app.services.ocr.factory import get_ocr_engine, get_word_ocr_engine
-from app.services.ocr.models import OcrPage
+from app.services.ocr.models import OcrPage, OcrToken
 from app.services.ocr.orientation import resolve_orientation
 from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pdf.limpieza import integrar_anotaciones, limpiar_para_entregar
@@ -87,6 +89,21 @@ def _restore(image: Image.Image, angle: int) -> Image.Image:
     if not angle:
         return image
     return image.rotate(-angle, expand=True)
+
+
+def _fuera_de_la_hoja(imagen, girada, ajuste, leer, segmenter, analyzer, mode):
+    """Con la hoja recortada del fondo, lo de fuera no se ha analizado: se lee
+    aparte (la hoja en blanco) y se tapa lo que lleve datos.  Un segundo papel
+    sobre la mesa no puede salir a la vista por no ser la hoja elegida."""
+    import numpy as np
+
+    region = ajustes.region_de_trabajo(girada, ajuste)
+    fuera = np.asarray(imagen.convert("RGB")).copy()
+    fuera[region > 0] = 255
+    situados = _residuos_situados(segmenter.segment(leer(Image.fromarray(fuera))), analyzer, mode)
+    if situados:
+        _aplicar_red(imagen, situados, [])
+    return imagen
 
 
 def _blacked_out(image: Image.Image) -> Image.Image:
@@ -230,6 +247,23 @@ def redact_pdf_scanned(
                 stop.check()
                 if orientation.angle:
                     image = image.rotate(orientation.angle, expand=True)
+                # Ajuste para leer una pagina que tal cual no se leia (enderezar,
+                # recortar la hoja, invertir; ocr/ajustes.py).  Se trabaja en el
+                # espacio ajustado y lo tapado vuelve a la original al final.
+                ajuste = orientation.ajuste
+                girada = image
+                image = ajustes.aplicar(image, ajuste)
+                limpia = image.copy()
+
+                def _leer(img: Image.Image) -> OcrPage:
+                    return _ocr_word(ajustes.para_leer(img, ajuste))
+
+                def _entregar(trabajo: Image.Image) -> Image.Image:
+                    vuelta = ajustes.deshacer(trabajo, limpia, girada, ajuste)
+                    if ajuste is not None and ajuste.tipo == "perspectiva":
+                        vuelta = _fuera_de_la_hoja(vuelta, girada, ajuste, _leer, segmenter, analyzer, mode)
+                    return _restore(vuelta, orientation.angle)
+
                 ocr_page = orientation.ocr_page
                 work_image = image.copy()
 
@@ -242,11 +276,12 @@ def redact_pdf_scanned(
                         native_ocr_pages is not None
                         and page_index < len(native_ocr_pages)
                         and not orientation.angle
+                        and ajuste is None
                     ):
                         layout_page = native_ocr_pages[page_index]
                     else:
                         layout_path = tmp_dir / f"page_{page_index + 1}_layout.png"
-                        image.save(layout_path)
+                        ajustes.para_leer(image, ajuste).save(layout_path)
                         layout_page = ocr_engine.analyze_image(
                             image_path=layout_path, page_index=page_index,
                         )
@@ -315,7 +350,7 @@ def redact_pdf_scanned(
                                     fill="black",
                                 )
                             leftover = [
-                                t for t in _ocr_word(probe).tokens if t.text.strip()
+                                t for t in _leer(probe).tokens if t.text.strip()
                             ]
                             if leftover:
                                 crop_rects = []
@@ -352,7 +387,7 @@ def redact_pdf_scanned(
                         if e.entity_type in set(ALL_PII_TYPES)
                     ]
                     return {
-                        "image": _restore(work_image, orientation.angle),
+                        "image": _entregar(work_image),
                         "entities": audit_entities,
                         "residuals": [],
                         "rect_count": len(crop_rects) or 1,
@@ -365,13 +400,33 @@ def redact_pdf_scanned(
                         "texto": page_ocr_text,
                     }
 
-                page_rects, page_entities = _collect_redaction_rects(
-                    zoned_page=zoned_page,
-                    analyzer=analyzer,
-                    mode=mode,
-                    collect_entities=collect_entities,
-                    easy_words=easy_words,
-                )
+                import numpy as np
+
+                marca_tinta = _TINTA.set(np.asarray(work_image.convert("L")))
+                lector = getattr(word_engine, "palabras", None)
+
+                def _palabras(rect: fitz.Rect) -> list:
+                    margen = 4
+                    caja = (max(0, int(rect.x0) - margen), max(0, int(rect.y0) - margen),
+                            min(work_image.width, int(rect.x1) + margen),
+                            min(work_image.height, int(rect.y1) + margen))
+                    recorte = ajustes.para_leer(work_image.crop(caja), ajuste)
+                    return [OcrToken(text=t.text, confidence=t.confidence,
+                                     rect=fitz.Rect(t.rect) + (caja[0], caja[1], caja[0], caja[1]))
+                            for t in lector(recorte)]
+
+                marca_palabras = _PALABRAS.set(_palabras if callable(lector) else None)
+                try:
+                    page_rects, page_entities = _collect_redaction_rects(
+                        zoned_page=zoned_page,
+                        analyzer=analyzer,
+                        mode=mode,
+                        collect_entities=collect_entities,
+                        easy_words=easy_words,
+                    )
+                finally:
+                    _TINTA.reset(marca_tinta)
+                    _PALABRAS.reset(marca_palabras)
 
                 page_rects = _sin_pisar_rotulos(page_rects, ocr_page.tokens)
                 draw = ImageDraw.Draw(work_image)
@@ -385,11 +440,7 @@ def redact_pdf_scanned(
                 red = {"imagenes": 0, "zonas": 0, "persisten": 0}
                 stop.check()
                 if settings.ocr_second_pass_verification:
-                    redacted_path = tmp_dir / f"page_{page_index + 1}_redacted.png"
-                    work_image.save(redacted_path)
-                    residual_ocr = word_engine.analyze_image(
-                        image_path=redacted_path, page_index=page_index,
-                    )
+                    residual_ocr = _leer(work_image)
                     situados = _residuos_situados(
                         segmenter.segment(residual_ocr), analyzer, mode,
                     )
@@ -398,16 +449,14 @@ def redact_pdf_scanned(
                         # pegadas se situan en coordenadas del render sin girar:
                         # si la pagina se enderezo, no casan y se usa solo la
                         # regla de la zona, que es la prudente.
-                        marcos = list(imagenes_px) if not orientation.angle else []
+                        marcos = (list(imagenes_px)
+                                  if not orientation.angle and ajuste is None else [])
                         red["imagenes"], red["zonas"], _ = _aplicar_red(
                             work_image, situados, marcos,
                         )
                         # Tercera lectura: ¿se sigue viendo algo tras repasar?
                         stop.check()
-                        work_image.save(redacted_path)
-                        tercera = word_engine.analyze_image(
-                            image_path=redacted_path, page_index=page_index,
-                        )
+                        tercera = _leer(work_image)
                         persisten = _residuos_situados(
                             segmenter.segment(tercera), analyzer, mode,
                         )
@@ -415,7 +464,7 @@ def redact_pdf_scanned(
                         red["persisten"] = len(residuals)
 
                 return {
-                    "image": _restore(work_image, orientation.angle),
+                    "image": _entregar(work_image),
                     "entities": page_entities,
                     "residuals": residuals,
                     "red": red,
@@ -956,6 +1005,249 @@ def _is_id_like(token: str) -> bool:
     return len(token) >= 5 and any(ch.isdigit() for ch in token)
 
 
+#: Imagen de la pagina en curso (escala de grises), para ajustar a la tinta las
+#: barras que tapan un tramo de una pieza.  La pone _process_page_heavy.
+_TINTA: contextvars.ContextVar = contextvars.ContextVar("tinta_pagina", default=None)
+#: Lector de palabras sueltas de la pagina en curso: rect -> [OcrToken] en
+#: coordenadas de la pagina.  Lo pone _process_page_heavy si el motor lo admite.
+_PALABRAS: contextvars.ContextVar = contextvars.ContextVar("palabras_pagina", default=None)
+
+
+def _tramo_por_palabras(ent_tokens: set[str], word) -> fitz.Rect | None:
+    """La barra exacta de un dato dentro de una pieza con mas texto: se vuelve
+    a leer la pieza palabra a palabra y se toma el tramo seguido de palabras del
+    dato que lo cubre entero (si hay varios, el de mas a la derecha: el valor va
+    detras de su etiqueta, y la etiqueta puede repetir una palabra del valor).
+    None si no se puede (sin lector, o no casa el dato entero)."""
+    leer = _PALABRAS.get()
+    if leer is None:
+        return None
+    try:
+        palabras = sorted(leer(word.rect), key=lambda t: t.rect.x0)
+    except Exception:  # el ajuste fino no puede tumbar la pagina
+        logger.debug("lectura por palabras fallida", exc_info=True)
+        return None
+    if not palabras:
+        return None
+
+    def del_dato(t) -> tuple[set[str], int]:
+        """(palabras del dato, caracteres de etiqueta delante).  El detector de
+        EasyOCR pega a veces la etiqueta a la primera palabra del valor aunque
+        haya hueco ("DIRECCION:Avenida", "TELEFONO:+34"): se admite un prefijo
+        que no es del dato si todo lo que sigue si lo es."""
+        hits, prefijo = set(), 0
+        for m in _WORD_TOK_RE.finditer(t.text):
+            canon = _canon_tok(m.group())
+            hit = next((td for td in ent_tokens if canon and _casan(td, canon)), None)
+            if hit is None:
+                if hits:
+                    return set(), 0   # algo que no es del dato DESPUES del dato
+                prefijo = m.end()
+                continue
+            hits.add(hit)
+        return hits, prefijo
+
+    tramos, actual, cubre, inicio = [], [], set(), 0
+    for t in palabras + [None]:
+        hits, prefijo = del_dato(t) if t is not None else (set(), 0)
+        if hits and prefijo and actual:
+            tramos.append((actual, cubre, inicio))     # una etiqueta corta el tramo
+            actual, cubre = [], set()
+        if hits:
+            if not actual:
+                inicio = prefijo
+            actual.append(t)
+            cubre |= hits
+        elif actual:
+            tramos.append((actual, cubre, inicio))
+            actual, cubre = [], set()
+    completos = [x for x in tramos if x[1] >= ent_tokens]
+    if not completos:
+        return None
+    elegidas, _, prefijo = completos[-1]
+    # La comparacion admite erratas: un trozo del dato ("53.810.2" de
+    # "53.810.247-E", que la relectura partio en dos) podia pasar por el dato
+    # entero y la barra dejaba el resto a la vista.  El tramo tiene que tener
+    # casi todos los caracteres del dato; si no, se usa la estimacion prudente.
+    leidos = sum(len(_canon_tok(m.group()) or "") for t in elegidas
+                 for m in _WORD_TOK_RE.finditer(t.text[prefijo:] if t is elegidas[0] else t.text))
+    if leidos < 0.9 * sum(len(tok) for tok in ent_tokens):
+        return None
+    # Las piezas de una o dos letras no cuentan como palabras del dato (la letra
+    # de un DNI: "53.810.247" + "-E"): si van pegadas detras del tramo, son suyas.
+    alto = word.rect.y1 - word.rect.y0
+    siguientes = [t for t in palabras if t.rect.x0 >= elegidas[-1].rect.x1 - 1]
+    for t in siguientes:
+        cortas = [len(m.group()) for m in _WORD_TOK_RE.finditer(t.text)]
+        if t.rect.x0 - elegidas[-1].rect.x1 > 0.6 * alto or not cortas or max(cortas) > 2:
+            break
+        elegidas = elegidas + [t]
+    x0 = elegidas[0].rect.x0
+    if prefijo:
+        x0 = _inicio_tras_prefijo(elegidas[0], prefijo)
+    return _padded(fitz.Rect(x0, word.rect.y0,
+                             max(t.rect.x1 for t in elegidas), word.rect.y1))
+
+
+def _inicio_tras_prefijo(palabra, prefijo: int) -> float:
+    """Donde empieza el dato dentro de una pieza con la etiqueta pegada: el hueco
+    de tinta mas cercano a la estimacion por anchura de caracter.  En una pieza
+    tan corta no hay huecos dentro del dato con que confundirlo; sin hueco, la
+    estimacion con un caracter de margen hacia la etiqueta."""
+    texto = palabra.text
+    pesos = [_anchura_relativa(c) for c in texto]
+    ancho = palabra.rect.x1 - palabra.rect.x0
+    estimado = palabra.rect.x0 + ancho * sum(pesos[:prefijo]) / max(1e-6, sum(pesos))
+    gris = _TINTA.get()
+    bloques = _bloques_de_tinta(gris, palabra.rect) if gris is not None else []
+    huecos = [(bloques[i][1], bloques[i + 1][0]) for i in range(len(bloques) - 1)]
+    prudente = max(palabra.rect.x0, estimado - ancho / max(1, len(texto)))
+    if huecos:
+        _, fin = min(huecos, key=lambda h: abs((h[0] + h[1]) / 2 - estimado))
+        # El hueco tiene que dejar a cada lado una anchura acorde con lo que
+        # hay escrito (etiqueta delante, dato detras); si no, es un hueco de
+        # otra cosa (dentro del dato: "+34 622") y se usa la estimacion.
+        parte = (fin - palabra.rect.x0) / ancho
+        esperada = sum(pesos[:prefijo]) / max(1e-6, sum(pesos))
+        if abs(parte - esperada) <= 0.25 * max(esperada, 1 - esperada) and fin <= estimado + 0.15 * ancho:
+            return min(fin, max(prudente, fin))
+    return prudente
+
+
+def _otsu(zona) -> float:
+    import numpy as np
+
+    hist, bordes = np.histogram(zona, bins=64, range=(0, 255))
+    total, suma = hist.sum(), (hist * bordes[:-1]).sum()
+    mejor, umbral, peso, acumulado = -1.0, 128.0, 0.0, 0.0
+    for i in range(64):
+        peso += hist[i]
+        if peso == 0 or peso == total:
+            continue
+        acumulado += hist[i] * bordes[i]
+        m0, m1 = acumulado / peso, (suma - acumulado) / (total - peso)
+        varianza = peso * (total - peso) * (m0 - m1) ** 2
+        if varianza > mejor:
+            mejor, umbral = varianza, bordes[i + 1]
+    return float(umbral)
+
+
+def _bloques_de_tinta(gris, rect: fitz.Rect) -> list[tuple[float, float]]:
+    """Tramos horizontales con tinta dentro de *rect*: las palabras de la pieza.
+
+    Columnas con algun pixel de tinta (umbral de Otsu en el recorte; si el fondo
+    es oscuro, la tinta es lo claro), agrupadas cuando el hueco entre ellas es
+    menor que una fraccion de la altura: el espacio entre letras no separa, el
+    espacio entre palabras si.
+    """
+    import numpy as np
+
+    x0, y0 = max(0, int(rect.x0)), max(0, int(rect.y0))
+    x1, y1 = min(gris.shape[1], int(rect.x1) + 1), min(gris.shape[0], int(rect.y1) + 1)
+    if x1 - x0 < 4 or y1 - y0 < 4:
+        return []
+    zona = gris[y0:y1, x0:x1].astype(np.float32)
+    umbral = _otsu(zona)
+    tinta = zona > umbral if np.median(zona) < umbral else zona < umbral
+    # Dos pixeles de tinta por columna: un punto suelto del ruido de un JPEG muy
+    # comprimido no cuenta, y si contara rellenaria los huecos entre palabras.
+    columnas = tinta.sum(axis=0) >= 2
+    hueco_min = max(2, int(0.22 * (y1 - y0)))
+    bloques, inicio, fin, vacias = [], None, 0, 0
+    for i, c in enumerate(columnas):
+        if c:
+            if inicio is None:
+                inicio = i
+            vacias, fin = 0, i
+        elif inicio is not None:
+            vacias += 1
+            if vacias >= hueco_min:
+                bloques.append((x0 + inicio, x0 + fin + 1))
+                inicio = None
+    if inicio is not None:
+        bloques.append((x0 + inicio, x0 + fin + 1))
+    return bloques
+
+
+def _ajustar_a_tinta(estimado: fitz.Rect, word, c0: int, c1: int) -> fitz.Rect:
+    """Lleva cada extremo de la barra a un hueco de verdad entre palabras, sin
+    meterse nunca dentro del dato.
+
+    La estimacion por anchura de caracter se desvia (una etiqueta en negrita es
+    mas ancha que la media: la barra empezaba en la etiqueta y dejaba el final
+    del DNI a la vista).  En la imagen se ven los huecos entre palabras, pero el
+    dato tambien tiene huecos dentro ("+34 622 487 105"): acercarse al mas
+    proximo podia dejar su primer grupo a la vista.  Por eso el comienzo solo
+    retrocede (al ultimo hueco que no pasa de la estimacion, con medio caracter
+    de tolerancia) y el final solo avanza (al primer hueco que no queda antes);
+    si el dato acaba la pieza, hasta el final de la tinta.  Si la estimacion se
+    desvia, la barra se come algo de la etiqueta: nunca deja parte del dato.
+    No se empareja por numero de palabras: el texto del OCR no separa igual que
+    la imagen ("DIRECCION:Avenida", "andres. peiro").
+    """
+    gris = _TINTA.get()
+    if gris is None:
+        return estimado
+    bloques = _bloques_de_tinta(gris, word.rect)
+    if not bloques:
+        return estimado
+    huecos = [(bloques[i][1], bloques[i + 1][0]) for i in range(len(bloques) - 1)]
+    if not huecos:
+        # Sin huecos que ver (letras pegadas, ruido): la tinta no informa y
+        # estirar la barra hasta el principio de la linea tapaba frases enteras.
+        return estimado
+    tolerancia = 0.5 * (word.rect.x1 - word.rect.x0) / max(1, len(word.text))
+    x0, x1 = estimado.x0, estimado.x1
+    antes = [h for h in huecos if (h[0] + h[1]) / 2 <= x0 + tolerancia]
+    x0 = antes[-1][1] if c0 > 0 and antes else min(x0, bloques[0][0])
+    despues = [h for h in huecos if (h[0] + h[1]) / 2 >= x1 - tolerancia]
+    if c1 >= len(word.text.rstrip()) or not despues:
+        x1 = max(x1, bloques[-1][1])
+    else:
+        x1 = despues[0][0]
+    if x1 <= x0:
+        return estimado
+    return _padded(fitz.Rect(x0, word.rect.y0, x1, word.rect.y1))
+
+
+def _tramo(word, matches: list[tuple[int, int]]) -> fitz.Rect | None:
+    """Sub-rect de *word* entre el primer y el ultimo caracter casado, por
+    anchura de caracter y con un caracter medio de margen a cada lado, ajustado
+    despues a la tinta de la imagen si esta disponible."""
+    c0 = min(s for s, _ in matches)
+    c1 = max(e for _, e in matches)
+    n = len(word.text)
+    if n <= 0:
+        return None
+    pesos = [_anchura_relativa(c) for c in word.text]
+    total = sum(pesos)
+    width = word.rect.x1 - word.rect.x0
+    x0 = word.rect.x0 + width * (sum(pesos[:c0]) / total)
+    x1 = word.rect.x0 + width * (sum(pesos[:c1]) / total)
+    margen = width / n
+    estimado = _padded(fitz.Rect(max(word.rect.x0, x0 - margen), word.rect.y0,
+                                 min(word.rect.x1, x1 + margen), word.rect.y1))
+    return _ajustar_a_tinta(estimado, word, c0, c1)
+
+
+def _subrect_tramo(ent_tokens: set[str], word) -> fitz.Rect | None:
+    """Tramo del dato dentro de una pieza donde es MAYORIA (con etiqueta delante
+    o detras).  Exige que case todo el dato: si falta alguna palabra, la barra
+    cubre la pieza entera, que es lo prudente."""
+    # La ULTIMA aparicion de cada palabra del dato: el valor va detras de su
+    # etiqueta, y la etiqueta puede repetir una palabra del valor ("CORREO
+    # ELECTRONICO: lucia.ferrando@correo.es").
+    ultima: dict[str, tuple[int, int]] = {}
+    for m in _WORD_TOK_RE.finditer(word.text):
+        canon = _canon_tok(m.group())
+        hit = next((td for td in ent_tokens if canon and _casan(td, canon)), None)
+        if hit is not None:
+            ultima[hit] = (m.start(), m.end())
+    if set(ultima) != ent_tokens:
+        return None
+    return _tramo_por_palabras(ent_tokens, word) or _tramo(word, list(ultima.values()))
+
+
 def _subrect_for_line_token(ent_tokens: set[str], word) -> fitz.Rect | None:
     """Sub-rect of *word* spanning the entity's tokens when they are a minority
     of a long EasyOCR line token ("con IBAN ES13 … 6633 y SWIFT …",
@@ -983,8 +1275,28 @@ def _subrect_for_line_token(ent_tokens: set[str], word) -> fitz.Rect | None:
         need = 1
     else:
         need = max(2, (len(ent_tokens) + 1) // 2)
-    if len(matches) < need:
+    # Un dato partido entre dos piezas de linea ("...con DNI 53.810." y
+    # ".247-E y domicilio"): en la pieza donde solo esta un trozo, ese trozo va
+    # pegado a un borde.  Se acepta aunque no llegue al minimo, y la barra llega
+    # hasta ese borde; si no, la segunda mitad del dato se quedaba sin tapar.
+    alnum = [i for i, c in enumerate(word.text) if c.isalnum()]
+    al_principio = bool(matches) and bool(alnum) and matches[0][0] == alnum[0]
+    al_final = bool(matches) and bool(alnum) and matches[-1][1] == alnum[-1] + 1
+    trozo_en_borde = (al_principio or al_final) and any(
+        len(word.text[a:b]) >= 3 for a, b in matches)
+    if len(matches) < need and not trozo_en_borde:
         return None
+    if len(matches) < need:
+        c0 = 0 if al_principio else min(a for a, _ in matches)
+        c1 = len(word.text) if al_final else max(b for _, b in matches)
+        if al_principio:
+            # Lo que sigue pegado al trozo (la letra de un DNI: ".247-E") es suyo.
+            while c1 < len(word.text) and not word.text[c1].isspace():
+                c1 += 1
+        return _tramo(word, [(c0, c1)])
+    exacto = _tramo_por_palabras(ent_tokens, word)
+    if exacto is not None:
+        return exacto
     c0 = min(s for s, _ in matches)
     c1 = max(e for _, e in matches)
     n = len(word.text)
@@ -1000,8 +1312,9 @@ def _subrect_for_line_token(ent_tokens: set[str], word) -> fitz.Rect | None:
     x0 = word.rect.x0 + width * (sum(pesos[:c0]) / total)
     x1 = word.rect.x0 + width * (sum(pesos[:c1]) / total)
     margen = width / n
-    return _padded(fitz.Rect(max(word.rect.x0, x0 - margen), word.rect.y0,
-                             min(word.rect.x1, x1 + margen), word.rect.y1))
+    estimado = _padded(fitz.Rect(max(word.rect.x0, x0 - margen), word.rect.y0,
+                                 min(word.rect.x1, x1 + margen), word.rect.y1))
+    return _ajustar_a_tinta(estimado, word, c0, c1)
 
 
 def _anchura_relativa(c: str) -> float:
@@ -1140,7 +1453,15 @@ def _entity_rects_via_easy(
         if not shared:
             continue
         if len(shared) / len(w_tokens) > 0.5:
-            whole.append((word, shared))
+            # El dato es mayoria en la pieza, pero si la pieza lleva ademas
+            # otras palabras (la etiqueta de un formulario: "NOMBRE COMPLETO:
+            # Alejandro Martin Gomez"), la barra se recorta a su tramo.  Sin
+            # esto se tachaba la linea entera, etiqueta incluida.
+            sub = _subrect_tramo(ent_tokens, word) if w_tokens - shared else None
+            if sub is not None:
+                line_groups.append((sub, shared))
+            else:
+                whole.append((word, shared))
         else:
             # Word shares tokens but is mostly other text (a long line token):
             # take a proportional sub-rect of the entity's span within it.

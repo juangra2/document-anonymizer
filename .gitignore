@@ -85,3 +85,6 @@ data/ine_raw/
 
 # Casos dificiles inventados: se regeneran con scripts/casos_dificiles.py
 data/samples/casos_dificiles/
+
+# Corpus de imagenes y sus salidas: se generan con evaluation/corpus_imagenes.py
+evaluation/imagenes/
