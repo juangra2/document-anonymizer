@@ -191,14 +191,43 @@ la barra del valor tampoco muerde el rótulo de encima.
   nombres y las cotas pasaportes), y el informe lo dice. Sin cajetín, la página queda intacta y
   marcada para revisión. De la salida solo se quita el texto diminuto que no se ve.
 - **Códigos QR y de barras** (`vision/code_detector.py`): se localizan y se decodifican con zbar,
-  OpenCV y zxing; se tachan según la regla del catálogo.
+  OpenCV y zxing; se tachan según la regla del catálogo. Tope de tamaño: un código que se
+  descodifica puede ocupar hasta el 35 % de la página (el QR de un carnet es el 8-15 % de la
+  tarjeta); lo que no se descodifica sigue limitado al 5 %, que evita tapar sellos y diagramas.
 - **Firmas y sellos por visión**: existen (`DETECT_VISUAL_SIGNATURES`, `DETECT_VISUAL_STAMPS`) pero
   están desactivados: tachaban texto y logotipos legítimos.
 - **Páginas giradas** (`ocr/orientation.py`): si el OCR sale como ruido (pocos caracteres por
   token), se prueban 90°, 270° y 180° a resolución completa y se elige por longitud de token y
   confianza. Una página girada lleva unos 21 s más de media.
-- **Páginas ilegibles**: una página escaneada que el OCR no puede leer en ningún giro, o que agota
-  `OCR_PAGE_TIMEOUT_S`, se tacha entera (`REDACT_UNREADABLE_PAGES`).
+- **Antes de dar una página por ilegible** (`ocr/ajustes.py`, `OCR_AJUSTES_ENABLED`): si ni girada
+  se lee, se prueban tres ajustes y gana la lectura legible que más lee: enderezar una inclinación
+  de 0,7° a 20° (ángulo de las líneas por Hough), recortar la hoja del fondo y llevarla a un
+  rectángulo (perspectiva), e invertir los colores si la imagen es oscura (texto claro sobre fondo
+  oscuro; la inversión es solo para leer). Un ajuste geométrico solo vale si el texto queda derecho
+  (menos de 2° de inclinación residual): un recorte de hoja mal detectado deja el texto torcido y las
+  barras caerían desplazadas. La imagen ajustada no pasa de `OCR_MAX_MEGAPIXELS`. Se trabaja en el
+  espacio ajustado (OCR, zonas, barras, segunda y tercera lectura) y lo tapado vuelve a la imagen
+  original con la matriz inversa; con la hoja recortada, lo de fuera se lee aparte y se tapa lo que
+  lleve datos. Una página que hoy se lee bien no pasa por nada de esto.
+- **Legible** (`orientation.legible`): muchos caracteres por pieza (`OCR_MIN_CHARS_PER_TOKEN`), o al
+  menos 5 piezas leídas con confianza media de 0,70 y al menos un 60 % de palabras (tres letras o
+  cifras). Una foto inclinada o un carnet salen palabra a palabra y se leen bien; el ruido de una
+  página girada da piezas de uno o dos signos aunque el OCR las puntúe alto.
+- **Páginas ilegibles**: una página escaneada que el OCR no puede leer en ningún giro ni con ningún
+  ajuste, o que agota `OCR_PAGE_TIMEOUT_S`, se tacha entera (`REDACT_UNREADABLE_PAGES`). La
+  pantalla, el informe y el informe en PDF dicen por qué, por su motivo (`ocr_unreadable`,
+  `ocr_timeout`, `dni_scan`, `tax_form`).
+- **Barra al tramo del dato** (`scanned_redactor._entity_rects_via_easy`): cuando EasyOCR devuelve
+  una línea entera como una pieza («NOMBRE COMPLETO: Alejandro Martín Gómez»), la barra se recorta
+  al dato aunque sea mayoría. Primero se relee la pieza palabra a palabra (`EasyOcrEngine.palabras`)
+  y se toma el tramo seguido de palabras del dato que lo cubre entero, el de más a la derecha si hay
+  varios (la etiqueta puede repetir una palabra del valor), con al menos el 90 % de sus caracteres y
+  absorbiendo las piezas de una o dos letras pegadas detrás (la letra de un DNI). Si el detector
+  pega la etiqueta a la primera palabra del valor («DIRECCIÓN:Avenida»), se parte por el hueco de
+  tinta. Sin relectura válida, la estimación por anchura de carácter se ajusta a los huecos de tinta
+  entre palabras hacia el lado prudente: el comienzo solo retrocede y el final solo avanza, así que
+  si se desvía se come parte de la etiqueta, nunca del dato. Un trozo de dato pegado al borde de una
+  pieza (un DNI partido entre dos líneas del OCR) se tapa hasta ese borde.
 
 ---
 
@@ -210,7 +239,10 @@ la barra del valor tampoco muerde el rótulo de encima.
   transcripciones de decenas de minutos) y se limita la longitud de lo que genera por bloque. Las
   celdas donde pega rótulo y valor se despegan.
 - **EasyOCR** (`ocr/easyocr_engine.py`): da la caja de cada palabra para situar los tachados, hace
-  la segunda pasada sobre la imagen ya tachada y sustituye a MinerU si no está.
+  la segunda pasada sobre la imagen ya tachada y sustituye a MinerU si no está. Tras cada lectura se
+  devuelve a la GPU la memoria que PyTorch se guarda: sobre una página de 8 megapíxeles el detector
+  reserva varios GB y, con MinerU cargado, la siguiente lectura (otro giro, una foto enderezada) no
+  cabía en 8 GB (en Linux falla; en Windows desborda a la memoria del sistema).
 - La decisión de dispositivo es única (`core/dispositivo.py`): GPU si se pide y CUDA está
   disponible.
 

@@ -154,6 +154,11 @@ Las **imágenes sueltas** (JPEG, PNG, TIFF) se tratan como una página escaneada
 supone, y salen en su mismo formato: un JPEG anonimizado es un JPEG con los datos tapados y sin
 los datos de la cámara ni del GPS.
 
+Una foto de móvil o un escaneo con la hoja torcida no se dan por ilegibles a la primera. Si ni girada
+se lee, se endereza, se recorta la hoja del fondo corrigiendo la perspectiva y, si es texto claro
+sobre oscuro, se prueba con los colores invertidos. Solo lo que sigue sin leerse se tapa entero, y
+la pantalla dice por qué.
+
 ### El OCR: dos motores
 
 - **MinerU** es un modelo de inteligencia artificial que lee la página entera entendiendo su
@@ -410,7 +415,12 @@ las decisiones técnicas del despliegue, en la [referencia técnica](referencia_
 - **Lugar de nacimiento.** Solo se reconoce cuando va tras su etiqueta («Lugar de nacimiento:»).
 - **Rótulos tachados de más.** Cuando un rótulo sin dos puntos va seguido del dato en la línea de
   debajo («NIF / DNI del titular» y el número debajo), puede tacharse también parte del rótulo. Se
-  pierde texto que no es personal, no se filtra nada.
+  pierde texto que no es personal, no se filtra nada. En fotos y escaneados, cuando no se puede
+  asegurar dónde empieza el dato dentro de una línea, la barra se come la etiqueta («DNI:»,
+  «DIRECCIÓN:») antes que dejar a la vista parte del dato: es el lado prudente, aceptado.
+- **Carnets con poco texto decorativo.** Un carnet de fondo oscuro con letras decorativas y poco
+  texto puede no leerse ni con los colores invertidos y salir tapado entero. Es el fallo seguro y se
+  acepta: relajar la regla de qué es legible dejaría pasar por texto el ruido de una página girada.
 - **Varios nombres seguidos en una fila**, separados por un solo espacio: solo se detecta el último.
 - **Membrete de documentos escaneados.** El teléfono de la centralita puede salir tachado aunque es
   institucional, y un código postal compartido por el destinatario y la institución se tacha en los
