@@ -6,6 +6,8 @@ propia imagen (20-10-2026), no de memoria. Esto es un inventario técnico, no un
 
 ## Resumen
 
+- **El código propio del anonimizador** se publica bajo la **AGPL-3.0-or-later** (texto en
+  [`LICENSE`](LICENSE)). Lo que sigue son los componentes de terceros que lleva.
 - La gran mayoría de los paquetes tienen licencias libres permisivas (MIT, BSD, Apache-2.0, PSF,
   ISC): permiten el uso, la modificación y la redistribución conservando los avisos de copyright.
 - **PyMuPDF** es **AGPL-3.0** (o licencia comercial de Artifex). Si el programa se ofrece a usuarios

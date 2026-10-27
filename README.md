@@ -14,8 +14,10 @@ cientos. Se usa desde una **página web** propia o desde su **API**.
 Qué hace, cómo lo hace y cómo sabemos que funciona: [memoria](docs/memoria.md). El detalle para
 mantener el código: [referencia técnica](docs/referencia_tecnica.md). Las cifras de calidad, para
 quien no ha seguido el trabajo: [`evaluation/informe_final.html`](evaluation/informe_final.html).
-Las licencias de los componentes de terceros (librerías, modelos y datos del INE), y lo que obligan:
-[`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md); viaja también dentro de la imagen, en `/app`.
+**Licencia:** GNU Affero General Public License v3.0 o posterior (AGPL-3.0-or-later); el texto está
+en [`LICENSE`](LICENSE). Las licencias de los componentes de terceros (librerías, modelos y datos
+del INE), y lo que obligan: [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md). Los dos viajan
+también dentro de la imagen, en `/app`.
 
 ---
 
