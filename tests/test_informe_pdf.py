@@ -188,3 +188,14 @@ def test_un_word_no_lleva_mapa_de_paginas_y_dice_que_es_un_word():
     texto = " ".join(_texto(generar_informe_pdf(informe, FECHA)).split())
     assert "documento de Word" in texto and "En qué páginas" not in texto
     assert "control de cambios" in texto and "Objetos incrustados" in texto
+
+
+def test_un_excel_lista_las_columnas_sustituidas():
+    informe = _informe(document_type="xlsx", pages=2, entities_by_page={},
+                       pages_redacted_in_full=[], pages_redacted_by_content=[],
+                       replaced_columns=[{"sheet": "Solicitantes", "header": "DNI", "type": "ES_DNI", "cells": 12}],
+                       metadata_removed={"pivot_tables": 1, "comments": 2})
+    texto = " ".join(_texto(generar_informe_pdf(informe, FECHA)).split())
+    assert "libro de Excel" in texto and "Columnas sustituidas" in texto
+    assert "Solicitantes" in texto and "DNI / NIF" in texto and "Tablas dinámicas" in texto
+    assert "En qué páginas" not in texto

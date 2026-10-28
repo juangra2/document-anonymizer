@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.core.errors import FileValidationError, LegacyOfficeError, OfficeMacrosError, UnsupportedDocumentError
+from app.core.errors import FileValidationError, LegacyOfficeError, OfficeMacrosError
 
 # formato -> (extension, tipo MIME)
 FORMATOS = {
@@ -19,13 +19,14 @@ FORMATOS = {
     "png": ("png", "image/png"),
     "tiff": ("tif", "image/tiff"),
     "docx": ("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "xlsx": ("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
 }
 
 _OLE = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 
 
 def reconocer(ruta: Path) -> str:
-    """pdf, jpeg, png, tiff o docx.  Lanza el error que explica el rechazo."""
+    """pdf, jpeg, png, tiff, docx o xlsx.  Lanza el error que explica el rechazo."""
     from app.services.image.imagen import formato_de
     from app.services.office.paquete import tipo_office
 
@@ -38,13 +39,11 @@ def reconocer(ruta: Path) -> str:
         raise LegacyOfficeError("Old Word or Excel format (.doc, .xls): save it as .docx or .xlsx.")
     if cabecera[:4] == b"PK\x03\x04":
         tipo = tipo_office(ruta)
-        if tipo == "docx":
-            return "docx"
+        if tipo in ("docx", "xlsx"):
+            return tipo
         if tipo in ("docm", "xlsm"):
             raise OfficeMacrosError("Office document with macros: save it without macros.")
-        if tipo == "xlsx":
-            raise UnsupportedDocumentError("Excel documents are not supported yet.")
-    raise FileValidationError("Uploaded file is not a PDF, JPEG, PNG, TIFF or Word document.")
+    raise FileValidationError("Uploaded file is not a PDF, JPEG, PNG, TIFF, Word or Excel document.")
 
 
 def comprobar(ruta: Path, formato: str) -> None:
@@ -53,7 +52,7 @@ def comprobar(ruta: Path, formato: str) -> None:
         from app.services.pdf.inspector import assert_pdf_within_limits
 
         assert_pdf_within_limits(ruta)
-    elif formato == "docx":
+    elif formato in ("docx", "xlsx"):
         from app.services.office.paquete import Paquete
 
         Paquete.abrir(ruta)
@@ -73,6 +72,9 @@ def procesar(formato: str, tratamiento: str, entrada: Path, salida: Path, job_id
         if formato == "docx":
             from app.services.office.docx import solo_metadatos_docx
             return solo_metadatos_docx(entrada, salida, job_id)
+        if formato == "xlsx":
+            from app.services.office.xlsx import solo_metadatos_xlsx
+            return solo_metadatos_xlsx(entrada, salida, job_id)
         from app.services.image.imagen import solo_metadatos_imagen
         return solo_metadatos_imagen(entrada, salida, formato, job_id)
 
@@ -83,11 +85,13 @@ def procesar(formato: str, tratamiento: str, entrada: Path, salida: Path, job_id
 
     if formato == "pdf":
         return _pdf(entrada, salida)
-    if formato == "docx":
+    if formato in ("docx", "xlsx"):
         from app.services.office.docx import anonimizar_docx
+        from app.services.office.xlsx import anonimizar_xlsx
 
         base = pipeline()._analyzer
         analyzer = base.with_disabled_types(disabled) if disabled else base
-        return anonimizar_docx(entrada, salida, analyzer,
-                               lambda e, s, f: anonimizar_imagen(e, s, f, _pdf), job_id, mode)
+        anonimizar = anonimizar_docx if formato == "docx" else anonimizar_xlsx
+        return anonimizar(entrada, salida, analyzer,
+                          lambda e, s, f: anonimizar_imagen(e, s, f, _pdf), job_id, mode)
     return anonimizar_imagen(entrada, salida, formato, _pdf)

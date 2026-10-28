@@ -244,6 +244,12 @@ class ProcessingReport(BaseModel):
                     "autoliquidación), con el motivo.",
     )
 
+    replaced_columns: list[dict] = Field(
+        default_factory=list,
+        description="Excel: columnas cuyas celdas se sustituyeron por el marcador de su "
+                    "tipo, con la hoja, la cabecera, el tipo y cuantas celdas.",
+    )
+
     redaction_strategy: str = "physical_pdf_redaction"
     redaction_mode: Literal["strict"] = "strict"
 

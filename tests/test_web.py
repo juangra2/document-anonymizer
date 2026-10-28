@@ -194,6 +194,6 @@ def test_el_texto_blanco_de_los_iconos_cumple_el_contraste_minimo():
         assert _contraste_con_blanco(color) >= 4.5, color
 
 
-def test_la_pagina_admite_word():
-    assert ".docx" in _texto_de("index.html")
+def test_la_pagina_admite_word_y_excel():
+    assert ".docx" in _texto_de("index.html") and ".xlsx" in _texto_de("index.html")
 

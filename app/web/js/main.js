@@ -304,8 +304,9 @@ function validarEnLocal(fichero) {
   }
   const admitido =
     ["application/pdf", "image/jpeg", "image/png", "image/tiff",
-     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"].includes(fichero.type) ||
-    /\.(pdf|jpe?g|png|tiff?|docx)$/i.test(fichero.name);
+     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"].includes(fichero.type) ||
+    /\.(pdf|jpe?g|png|tiff?|docx|xlsx)$/i.test(fichero.name);
   if (!admitido) return { codigo: "noEsPdf", datos: {} };
 
   const mb = fichero.size / (1024 * 1024);
@@ -851,25 +852,25 @@ function acciones(documento, parcial) {
 // El nombre del fichero solo existe en el navegador: el informe por dentro no
 // lo lleva.
 function nombreInformePdf(documento) {
-  const base = documento.nombre ? documento.nombre.replace(/\.(pdf|jpe?g|png|tiff?|docx)$/i, "") : "documento";
+  const base = documento.nombre ? documento.nombre.replace(/\.(pdf|jpe?g|png|tiff?|docx|xlsx)$/i, "") : "documento";
   return `${base}_informe.pdf`;
 }
 
 function nombreInforme(documento) {
   const base = documento.nombre
-    ? documento.nombre.replace(/\.(pdf|jpe?g|png|tiff?|docx)$/i, "")
+    ? documento.nombre.replace(/\.(pdf|jpe?g|png|tiff?|docx|xlsx)$/i, "")
     : "documento";
   return `${base}_informe.json`;
 }
 
 // Una imagen sale en su formato: la descarga conserva su extension.
 function extensionDe(documento) {
-  const m = documento.nombre.match(/\.(pdf|jpe?g|png|tiff?|docx)$/i);
+  const m = documento.nombre.match(/\.(pdf|jpe?g|png|tiff?|docx|xlsx)$/i);
   return m ? m[1].toLowerCase() : "pdf";
 }
 
 function nombreDescarga(documento, parcial) {
-  const base = documento.nombre.replace(/\.(pdf|jpe?g|png|tiff?|docx)$/i, "");
+  const base = documento.nombre.replace(/\.(pdf|jpe?g|png|tiff?|docx|xlsx)$/i, "");
   const ext = extensionDe(documento);
   if (documento.trabajo?.result?.treatment === "metadata_only") {
     return `${base}_sin_metadatos.${ext}`;

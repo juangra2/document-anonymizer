@@ -53,7 +53,8 @@ router = APIRouter(prefix="/jobs", tags=["trabajos"])
 _CONTENT_TYPES = {"application/pdf", "application/octet-stream",
                   "image/jpeg", "image/png", "image/tiff",
                   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                  "application/msword", "application/zip", "application/x-zip-compressed"}
+                  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                  "application/msword", "application/vnd.ms-excel", "application/zip", "application/x-zip-compressed"}
 
 
 def _percent(done: int, total: int) -> int:
@@ -186,7 +187,7 @@ async def create_job(
 
     if file.content_type not in _CONTENT_TYPES:
         raise HTTPException(status_code=415,
-                            detail="Solo se admiten ficheros PDF, JPEG, PNG, TIFF o Word (.docx).")
+                            detail="Solo se admiten ficheros PDF, JPEG, PNG, TIFF, Word (.docx) o Excel (.xlsx).")
 
     disabled = _parse_disabled_types(disabled_types, enabled_types)
 

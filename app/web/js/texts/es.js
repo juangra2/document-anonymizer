@@ -47,7 +47,7 @@ export const TEXTOS = {
 
   paso1: {
     titulo: "Documentos",
-    soltar: "Arrastra uno o varios PDF, imágenes (JPEG, PNG, TIFF) o Word (.docx) aquí, o selecciónalos",
+    soltar: "Arrastra uno o varios PDF, imágenes (JPEG, PNG, TIFF), Word (.docx) o Excel (.xlsx) aquí, o selecciónalos",
     limites: (docs, paginas, mb) =>
       `Hasta ${docs} documentos por tanda · máximo ${paginas} páginas y ${mb} MB cada uno`,
     elegir: "Seleccionar archivos",
@@ -225,8 +225,8 @@ export const TEXTOS = {
     noEsPdf: {
       titulo: "Este archivo no se puede anonimizar",
       texto:
-        "Se pueden anonimizar documentos PDF, imágenes JPEG, PNG o TIFF y " +
-        "documentos de Word (.docx).",
+        "Se pueden anonimizar documentos PDF, imágenes JPEG, PNG o TIFF, " +
+        "documentos de Word (.docx) y hojas de Excel (.xlsx).",
     },
     legacy_office: {
       titulo: "Este documento es del formato antiguo de Office",

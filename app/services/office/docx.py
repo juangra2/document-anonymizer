@@ -42,7 +42,7 @@ from lxml import etree
 
 from app.core.errors import OfficeMacrosError, ProcessingError, UnsupportedDocumentError
 from app.schemas.report import CONTENT_NOT_REVIEWED, CodedWarning, ProcessingReport
-from app.services.office.paquete import Paquete, tipo_office, verificar
+from app.services.office.paquete import Paquete, limpiar_propiedades, tipo_office, verificar
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -52,7 +52,6 @@ PIC = "http://schemas.openxmlformats.org/drawingml/2006/picture"
 V = "urn:schemas-microsoft-com:vml"
 O = "urn:schemas-microsoft-com:office:office"
 CP = "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
-EP = "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"
 
 
 def w(tag: str) -> str:
@@ -209,30 +208,7 @@ def _limpiar_paquete(paq: Paquete, cuenta: Counter) -> None:
         for nombre in paq.nombres(prefijo):
             paq.borrar(nombre)
     paq.borrar("word/vbaProject.bin")
-    # Propiedades del documento: se vacian.
-    core = paq.xml("docProps/core.xml")
-    if core is not None:
-        for hijo in list(core):
-            if (hijo.text or "").strip():
-                cuenta["document_info"] += 1
-            core.remove(hijo)
-    app = paq.xml("docProps/app.xml")
-    if app is not None:
-        for tag in ("Company", "Manager", "HyperlinkBase", "Template"):
-            for e in app.findall(f"{{{EP}}}{tag}"):
-                if (e.text or "").strip():
-                    cuenta["document_info"] += 1
-                app.remove(e)
-    custom = paq.xml("docProps/custom.xml")
-    if custom is not None:
-        cuenta["custom_xml"] += len(custom)
-        paq.borrar("docProps/custom.xml")
-    for nombre in paq.nombres("customXml/"):
-        cuenta["custom_xml"] += nombre.endswith(".xml") and "/item" in nombre and "Props" not in nombre
-        paq.borrar(nombre)
-    for nombre in paq.nombres("docProps/thumbnail"):
-        cuenta["thumbnails"] += 1
-        paq.borrar(nombre)
+    limpiar_propiedades(paq, cuenta)
     ajustes = paq.xml("word/settings.xml")
     if ajustes is not None:
         for tag in ("attachedTemplate", "rsids", "docVars", "mailMerge", "writeProtection"):

@@ -321,6 +321,32 @@ def flujo_word(p, pagina, tmp: Path) -> None:
                 "el Word se abre y el nombre se ha sustituido por [NOMBRE]")
 
 
+def flujo_excel(p, pagina, tmp: Path) -> None:
+    print("\n1f) Un Excel sale Excel: la columna conserva su cabecera y lleva el marcador")
+    import openpyxl
+
+    from evaluation.corpus_excel import listado
+
+    abrir(pagina)
+    listado(tmp / "listado.xlsx")
+    pagina.set_input_files("#ficheros", str(tmp / "listado.xlsx"))
+    icono = pagina.locator(".ficha:has-text('listado.xlsx') svg")
+    p.comprobar("XLSX" in (icono.text_content() or "") and "#1D6F42" in icono.inner_html(),
+                "el icono del Excel dice XLSX, en verde")
+    pagina.click("#anonimizar")
+    ok = esperar_texto(pagina, ".doc .st", "Terminado", ms=180000)
+    p.comprobar(ok, "el Excel termina")
+    with pagina.expect_download(timeout=30000) as descarga:
+        pagina.click(".doc a.btn.primary")
+    p.comprobar(descarga.value.suggested_filename == "listado_anonimizado.xlsx",
+                "se descarga como Excel con su nombre")
+    salida = tmp / "listado_salida.xlsx"
+    descarga.value.save_as(salida)
+    ws = openpyxl.load_workbook(salida).active
+    p.comprobar(ws["D1"].value == "DNI" and ws["D2"].value == "[DNI]",
+                "el Excel se abre, la cabecera se queda y la celda lleva [DNI]")
+
+
 def flujo_expediente(p, pagina, tmp: Path) -> None:
     print("\n1b) El numero de expediente empieza marcado y la casilla manda")
     abrir(pagina)
@@ -527,6 +553,7 @@ def main() -> int:
         "solo-metadatos": flujo_solo_metadatos,
         "imagen": flujo_imagen,
         "word": flujo_word,
+        "excel": flujo_excel,
         "expediente": flujo_expediente,
         "tanda": flujo_tanda,
         "parar": flujo_parar,

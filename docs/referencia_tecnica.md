@@ -11,7 +11,7 @@ El detalle para quien mantenga el código. La idea de cada parte —qué hace y 
 1. [Catálogo de tipos y reglas](#catálogo-de-tipos-y-reglas)
 2. [Detección](#detección)
 3. [Recorrido de un documento](#recorrido-de-un-documento)
-4. [Documentos de Word](#documentos-de-word)
+4. [Documentos de Word y Excel](#documentos-de-word-y-excel)
 5. [Tratamientos especiales](#tratamientos-especiales)
 6. [OCR](#ocr)
 7. [Red de seguridad y verificación](#red-de-seguridad-y-verificación)
@@ -172,9 +172,9 @@ la barra del valor tampoco muerde el rótulo de encima.
 
 ---
 
-## Documentos de Word
+## Documentos de Word y Excel
 
-`app/services/office/` (`docx.py`, `paquete.py`); el formato se reconoce por el contenido en
+`app/services/office/` (`docx.py`, `xlsx.py`, `paquete.py`); el formato se reconoce por el contenido en
 `services/formatos.py`, que es también el despacho único de la cola y de `POST /anonymize`.
 
 - **Resultado**: un Word. No hay barras: cada dato pasa a ser un marcador con su tipo (`[DNI]`,
@@ -205,6 +205,33 @@ la barra del valor tampoco muerde el rótulo de encima.
   se rechaza con `legacy_office` y un `.docm`/`.xlsm` con `office_macros` (415), con su frase.
 - **Informe en PDF**: sin mapa de páginas (un Word no tiene páginas fijas); dice «documento de
   Word» y lista lo quitado (cambios, comentarios, objetos incrustados…).
+
+**Excel** (`xlsx.py`): la columna con datos personales conserva su cabecera y sus celdas llevan el
+marcador del tipo, como en Word; no se borran columnas.
+
+- **Cabecera**: la primera fila (de las veinte primeras) con al menos dos rótulos —texto corto, sin
+  arrobas y casi sin cifras— y datos debajo; un título encima, de una sola celda, no cuenta. Si
+  ninguna fila es así, la que más se parece a nombres de columna conocidos.
+- **Clasificación de columnas**: por el nombre de la cabecera (`xlsx.CABECERAS`, castellano y
+  valenciano: «DNI», «Nom i cognoms», «Data de naixement», «Correu electrònic»…) o, si no dice nada
+  («Col3»), por el contenido: al menos el 60 % de sus valores son DNI o NIE con letra válida,
+  correos, IBAN, teléfonos (también guardados como número) o nombres del padrón. Las fechas solo por
+  la cabecera. Texto libre (observaciones, descripción, motivo… o valores largos con espacios): se
+  analiza celda a celda y solo se sustituye el dato; lo mismo cualquier celda de texto suelta de 25
+  caracteres o más.
+- **Fórmulas**: la que trae un dato de una columna personal (`=A2`, `=LEFT(A2,1)…`) pasa a ser el
+  marcador; las que solo cuentan (`COUNTA`, `ROWS`…) se quedan. A todas se les quita el valor
+  guardado y el libro se recalcula al abrirse (`fullCalcOnLoad`).
+- **Lo que guarda aparte**: hojas ocultas (se tratan como las visibles); fuera comentarios (también
+  encadenados y sus personas, con su dibujo VML), tablas dinámicas (definición y copia de datos; sus
+  celdas quedan vacías con `[TABLA DINÁMICA ELIMINADA]`), copias de datos de los gráficos, vínculos a
+  otros libros con su copia, conexiones y consultas, nombres definidos con un valor fijo,
+  hipervínculos, el usuario que comparte el libro y las propiedades. Cabeceras y pies de página y
+  cuadros de texto se analizan. Un nombre de hoja que es un dato personal pasa a «Hoja N» en todo
+  el libro. La tabla de cadenas compartidas se rehace solo con las que siguen en uso.
+- **Comprobaciones**: el libro se vuelve a abrir (zip y openpyxl) o no se entrega; el verificador
+  busca cada valor sustituido en todas las partes. El informe lleva `replaced_columns` (hoja,
+  cabecera, tipo, celdas) y el informe en PDF las lista.
 
 ---
 
@@ -438,7 +465,7 @@ Documentación interactiva en `/docs`.
 | Método y ruta | Qué hace |
 |---|---|
 | `GET /entity-types` | Catálogo de tipos |
-| `POST /jobs` | Encola un PDF, una imagen (JPEG, PNG, TIFF) o un Word (.docx). **202** al terminar la subida, con `Location: /jobs/{id}` |
+| `POST /jobs` | Encola un PDF, una imagen (JPEG, PNG, TIFF), un Word (.docx) o un Excel (.xlsx). **202** al terminar la subida, con `Location: /jobs/{id}` |
 | `GET /jobs/{id}` | Estado, posición en cola, avance por páginas, avisos, resumen o error |
 | `GET /jobs/{id}/result?output=pdf\|zip` | El PDF anonimizado (o PDF + `report.json` en ZIP) |
 | `GET /jobs/{id}/report` | Informe completo en JSON |
@@ -555,6 +582,15 @@ usan los tests). Mide que el fichero se abre, que ningún dato queda en ninguna 
 incrustada sale tapada (OCR), que el texto legítimo se conserva y que un documento sin datos no
 cambia. Medición del 27-10: 12/12 se abren, 53/53 datos eliminados, 72/72 textos legítimos
 conservados, 2/2 documentos sin datos intactos.
+
+**Corpus de Excel** (`evaluation/corpus_excel.py` y `evaluation/lectura_excel.py`): 7 libros
+inventados (listado de solicitantes, inscritos en valenciano con título y cabecera en la fila 3,
+columnas «Col1…» que solo delata el contenido, observaciones de texto libre, libro «cargado» con hoja
+oculta, comentario, fórmulas, nombre definido y propiedades, libro con tabla dinámica, presupuesto
+sin datos). Mide que se abre, que ningún dato queda, que cada columna personal lleva su marcador,
+que las demás no cambian y que el texto legítimo se conserva. Medición del 28-10: 7/7 se abren,
+205 datos eliminados sin fugas, 23/23 columnas personales y 15/15 no personales bien, 57/57 textos
+legítimos conservados.
 
 **Lectura de barras** (`evaluation/lectura_salida.py`): extrae el texto del PDF entregado (y OCR
 donde no hay texto) y busca cada dato etiquetado, tolerando erratas. Cada dato sale tapado, fuga, no

@@ -166,6 +166,12 @@ control de cambios y se quitan comentarios, propiedades, texto oculto y objetos 
 fotos que lleve dentro pasan por el mismo tratamiento que las imágenes. Los .doc antiguos se
 rechazan con un mensaje que explica cómo guardarlos en el formato nuevo.
 
+Las **hojas de Excel** (.xlsx) se tratan por columnas: la columna con datos personales (por el nombre
+de su cabecera o, si no dice nada, por lo que contiene) conserva su cabecera y cada celda pasa a
+llevar el tipo de dato entre corchetes; las columnas de texto libre se analizan celda a celda. Se
+revisan también las hojas ocultas, las fórmulas que copian un dato, los comentarios, los nombres
+definidos y las tablas dinámicas, que se eliminan porque guardan una copia de los datos.
+
 ### El OCR: dos motores
 
 - **MinerU** es un modelo de inteligencia artificial que lee la página entera entendiendo su

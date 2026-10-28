@@ -192,6 +192,41 @@ def resolver(origen: str, destino: str) -> str:
     return posixpath.normpath(posixpath.join(posixpath.dirname(origen), destino)).lstrip("/")
 
 
+# --- propiedades ---------------------------------------------------------------
+
+EP = "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"
+
+
+def limpiar_propiedades(paq: "Paquete", cuenta) -> None:
+    """Fuera lo que el documento dice de si mismo: autor, ultimo en modificar,
+    titulo, asunto, palabras clave (se vacian), empresa, responsable, plantilla,
+    propiedades personalizadas, datos XML personalizados y miniatura.  Comun a
+    Word y Excel."""
+    core = paq.xml("docProps/core.xml")
+    if core is not None:
+        for hijo in list(core):
+            if (hijo.text or "").strip():
+                cuenta["document_info"] += 1
+            core.remove(hijo)
+    app = paq.xml("docProps/app.xml")
+    if app is not None:
+        for tag in ("Company", "Manager", "HyperlinkBase", "Template"):
+            for e in app.findall(f"{{{EP}}}{tag}"):
+                if (e.text or "").strip():
+                    cuenta["document_info"] += 1
+                app.remove(e)
+    custom = paq.xml("docProps/custom.xml")
+    if custom is not None:
+        cuenta["custom_xml"] += len(custom)
+        paq.borrar("docProps/custom.xml")
+    for nombre in paq.nombres("customXml/"):
+        cuenta["custom_xml"] += nombre.endswith(".xml") and "/item" in nombre and "Props" not in nombre
+        paq.borrar(nombre)
+    for nombre in paq.nombres("docProps/thumbnail"):
+        cuenta["thumbnails"] += 1
+        paq.borrar(nombre)
+
+
 # --- verificador ---------------------------------------------------------------
 
 def _normal(texto: str) -> str:

@@ -64,6 +64,11 @@ _METADATOS = {
     "alt_text": "Textos alternativos de imágenes",
     "embedded_objects": "Objetos incrustados (hojas de cálculo, gráficos...)",
     "images_removed": "Imágenes en formatos que no se pueden revisar",
+    "defined_names": "Nombres definidos con un valor",
+    "pivot_tables": "Tablas dinámicas (con su copia de los datos)",
+    "external_links": "Vínculos a otros libros, con su copia de datos",
+    "connections": "Conexiones y consultas a datos externos",
+    "chart_caches": "Copias de datos de los gráficos"
 }
 
 _CSS = """
@@ -156,6 +161,8 @@ def _mapa(r: ProcessingReport, revisar: set[int], enteras: set[int]) -> str:
 def _unidad(r: ProcessingReport) -> str:
     if r.document_type == "docx":
         return "documento de Word"
+    if r.document_type == "xlsx":
+        return "libro de Excel"
     if r.document_type == "image":
         return "imagen" if r.pages == 1 else "imágenes"
     return "página" if r.pages == 1 else "páginas"
@@ -170,7 +177,7 @@ def _html(r: ProcessingReport, fecha: datetime) -> str:
         "<h1>Informe de anonimización</h1>" if not solo_metadatos
         else "<h1>Informe de limpieza de metadatos</h1>",
         f"<p class='meta'>{local:%d/%m/%Y %H:%M} &#183; "
-        f"{'' if r.document_type == 'docx' else f'{r.pages} '}{_unidad(r)} "
+        f"{'' if r.document_type in ('docx', 'xlsx') else f'{r.pages} '}{_unidad(r)} "
         f"&#183; identificador {_e(r.job_id)}</p>",
     ]
 
@@ -217,7 +224,16 @@ def _html(r: ProcessingReport, fecha: datetime) -> str:
     enteras.update({p.page: p.reason for p in r.pages_redacted_in_full})
     revisar = {n for a in r.coded_warnings for n in a.pages} | {
         p + 1 for p in r.ocr.low_confidence_pages}
-    if r.pages and not solo_metadatos and r.document_type != "docx":
+    if r.replaced_columns and not solo_metadatos:
+        partes.append("<h2>Columnas sustituidas</h2>")
+        filas = "".join(
+            f"<tr><td>{_e(c.get('sheet', ''))}</td><td>{_e(c.get('header') or '(sin cabecera)')}</td>"
+            f"<td>{_e(etiquetas.get(c.get('type'), c.get('type')))}</td><td class='n'>{c.get('cells', 0)}</td></tr>"
+            for c in r.replaced_columns)
+        partes.append("<p>La cabecera se conserva; cada celda lleva el tipo de dato entre corchetes.</p>"
+                      f"<table><tr><th>Hoja</th><th>Columna</th><th>Tipo de dato</th><th>Celdas</th></tr>"
+                      f"{filas}</table>")
+    if r.pages and not solo_metadatos and r.document_type not in ("docx", "xlsx"):
         partes.append("<h2>En qué páginas</h2>")
         partes.append(_mapa(r, revisar, set(enteras)))
         if r.entities_by_page:

@@ -198,7 +198,9 @@ async def anonymize(
         "image/jpeg",
         "image/tiff",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "application/msword",
+        "application/vnd.ms-excel",
         "application/zip",
     }
 
