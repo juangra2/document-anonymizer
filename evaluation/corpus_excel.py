@@ -7,13 +7,16 @@ columnas cuyo nombre no dice nada ("Col3") pero cuyo contenido si; telefonos
 y DNI guardados como numero; fechas como fecha de Excel; una columna de texto
 libre (observaciones) con datos dentro; y lo que un Excel guarda aparte de lo
 que se ve: hojas ocultas, comentarios, formulas que copian un dato, nombres
-definidos con un valor y propiedades del documento.  Y hojas sin ningun dato
-personal (un presupuesto), para medir que no se toca nada de mas.
+definidos con un valor y propiedades del documento.  Importes de personas
+(MONEY) con sus totales, y un presupuesto de obra: con las casillas por defecto
+no se toca nada; con la de presupuesto marcada, sus precios se sustituyen.
 
 Etiqueta de cada libro (etiquetas.json):
   datos      valores que no pueden quedar en NINGUNA parte del fichero
   columnas   por hoja: cabecera -> tipo esperado (None si la columna no es personal)
   legitimos  texto que tiene que seguir tal cual (cabeceras, titulos, conceptos)
+  celdas     (opcional) por hoja: celda -> valor esperado en la salida
+  marcados   (opcional) tipos que se marcan ademas de los del catalogo
 
 Uso: python -m evaluation.corpus_excel [DESTINO]   (por defecto evaluation/excel/corpus)
 """
@@ -100,7 +103,7 @@ def listado(destino: Path) -> dict:
             "columnas": {"Solicitantes": {"Nº": None, "Nombre": "PERSON", "Apellidos": "PERSON", "DNI": "ES_DNI",
                                           "Fecha de nacimiento": "DATE_OF_BIRTH", "Teléfono": "PHONE_NUMBER",
                                           "Correo electrónico": "EMAIL_ADDRESS", "Domicilio": "ADDRESS",
-                                          "Importe concedido": None, "Estado": None}},
+                                          "Importe concedido": "MONEY", "Estado": None}},
             "legitimos": cab + ["Concedida", "Pendiente"]}
 
 
@@ -283,13 +286,56 @@ def con_tabla_dinamica(destino: Path) -> dict:
         for n, d in partes.items():
             z.writestr(n, d)
     return {"datos": _datos(ps, ["completo"], _TIPOS) + [{"text": ps[0]["dni"], "type": "ES_DNI"}],
-            "columnas": {"Ayudas": {"Beneficiario": "PERSON", "Importe": None}},
+            "columnas": {"Ayudas": {"Beneficiario": "PERSON", "Importe": "MONEY"}},
             "dinamica": {"hoja": "Resumen dinámico", "rango": f"A1:B{len(ps) + 2}"},
             "legitimos": cab}
 
 
+def ayudas_con_totales(destino: Path) -> dict:
+    """Importes de personas y, en otra hoja, sus totales: la suma y la media se
+    quedan con su valor; el maximo y el minimo senalan a una persona."""
+    ps = _personas(6, 8)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Ayudas"
+    cab = ["Beneficiario", "NIF", "Cuantía (€)", "Concepto"]
+    ws.append(cab)
+    for p in ps:
+        ws.append([p["completo"], p["dni"], p["importe"], "Ayuda al alquiler"])
+    resumen = wb.create_sheet("Resumen")
+    resumen.append(["Total concedido", "=SUM(Ayudas!C2:C7)"])
+    resumen.append(["Media por persona", "=AVERAGE(Ayudas!C2:C7)"])
+    resumen.append(["Ayuda más alta", "=MAX(Ayudas!C2:C7)"])
+    resumen.append(["Ayuda más baja", "=MIN(Ayudas!C2:C7)"])
+    resumen.append(["Número de ayudas", "=COUNTA(Ayudas!A2:A7)"])
+    wb.save(destino)
+    importes = [p["importe"] for p in ps]
+    return {"datos": _datos(ps, ["completo", "dni"], _TIPOS),
+            "columnas": {"Ayudas": {"Beneficiario": "PERSON", "NIF": "ES_DNI", "Cuantía (€)": "MONEY",
+                                    "Concepto": None}},
+            "celdas": {"Resumen": {"B1": f"={sum(importes):.15g}", "B2": f"={sum(importes) / len(importes):.15g}",
+                                   "B3": "[IMPORTE]", "B4": "[IMPORTE]", "B5": "=COUNTA(Ayudas!A2:A7)"}},
+            "legitimos": cab + ["Ayuda al alquiler", "Total concedido", "Media por persona", "Ayuda más alta",
+                                "Ayuda más baja", "Número de ayudas"]}
+
+
+def estadistica(destino: Path) -> dict:
+    """Importes sin personas ni presupuesto (por distritos): no se tocan."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Distritos"
+    filas = [["Distrito", "Solicitudes", "Importe concedido"], ["Ciutat Vella", 41, 18250.5],
+             ["Extramurs", 37, 16120.0], ["Campanar", 29, 12975.25], ["Total", "=SUM(B2:B4)", "=SUM(C2:C4)"]]
+    for f in filas:
+        ws.append(f)
+    wb.save(destino)
+    return {"datos": [], "columnas": {"Distritos": {c: None for c in filas[0]}},
+            "legitimos": [c for f in filas for c in f if isinstance(c, str) and not c.startswith("=")]}
+
+
 def presupuesto(destino: Path) -> dict:
-    """Sin ningun dato personal: no se puede tocar nada."""
+    """Un presupuesto de obra, sin datos personales.  Con las casillas por
+    defecto (la de presupuesto viene desmarcada) no se puede tocar nada."""
     wb = Workbook()
     ws = wb.active
     ws.title = "Presupuesto"
@@ -306,13 +352,25 @@ def presupuesto(destino: Path) -> dict:
     return {"datos": [], "columnas": {"Presupuesto": {c: None for c in filas[0]}}, "legitimos": textos}
 
 
+def presupuesto_marcado(destino: Path) -> dict:
+    """El mismo presupuesto, con la casilla de presupuesto marcada: precios,
+    mediciones, importes y el total pasan a ser el marcador."""
+    e = presupuesto(destino)
+    importes = {"Unidades", "Precio unitario", "Importe"}
+    return {**e, "marcados": ["BUDGET_AMOUNT"],
+            "columnas": {"Presupuesto": {c: ("BUDGET_AMOUNT" if c in importes else None)
+                                         for c in e["columnas"]["Presupuesto"]}},
+            "celdas": {"Presupuesto": {"E6": "[IMPORTE]"}}}
+
+
 def corpus(destino: Path = DESTINO) -> list[dict]:
     destino.mkdir(parents=True, exist_ok=True)
     etiquetas = []
     for nombre, hacer in [("listado", listado), ("valenciano_con_titulo", valenciano_con_titulo),
                           ("sin_cabecera_clara", sin_cabecera_clara), ("con_observaciones", con_observaciones),
                           ("cargado", cargado), ("con_tabla_dinamica", con_tabla_dinamica),
-                          ("presupuesto", presupuesto)]:
+                          ("ayudas_con_totales", ayudas_con_totales), ("estadistica", estadistica),
+                          ("presupuesto", presupuesto), ("presupuesto_marcado", presupuesto_marcado)]:
         ruta = destino / f"{nombre}.xlsx"
         e = hacer(ruta)
         etiquetas.append({"documento": ruta.name, **e})

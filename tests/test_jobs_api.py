@@ -351,7 +351,9 @@ def test_any_type_can_be_unmarked_here_too():
 def test_optional_types_are_honoured():
     job_id = _upload("?disabled_types=DATE_TIME").json()["job_id"]
     state = _wait(job_id)
-    assert state["result"]["entity_types_disabled"] == ["DATE_TIME"]
+    from app.services.pii.entity_catalog import default_disabled_ids
+
+    assert state["result"]["entity_types_disabled"] == sorted(default_disabled_ids() | {"DATE_TIME"})
 
 
 # --- concurrencia ------------------------------------------------------------

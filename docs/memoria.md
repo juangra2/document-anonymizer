@@ -52,8 +52,8 @@ Unos treinta tipos de dato, agrupados como los ve el usuario en la pantalla:
 | Datos técnicos | Dirección web, dirección IP, usuario | «192.168.10.4» |
 | Filas de tabla | Filas enteras de tablas de interesados o de cargos | una fila «expediente – interesado» |
 
-**Todo viene activado**, y el usuario puede desmarcar cualquier tipo antes de procesar un
-documento (por ejemplo, dejar visibles las fechas). Lo que se deja sin tachar
+**Todo viene activado salvo los importes de presupuesto de obra**, y el usuario puede desmarcar
+cualquier tipo antes de procesar un documento (por ejemplo, dejar visibles las fechas). Lo que se deja sin tachar
 queda escrito en el informe.
 
 **Decisiones de criterio:**
@@ -61,8 +61,9 @@ queda escrito en el informe.
 - **Firmas**: la rúbrica (el garabato) se conserva; el nombre escrito junto a ella sí se tacha.
 - **Número de colegiado**: nunca se tacha, por requisito del ayuntamiento.
 - **Importes**: solo se tachan si van ligados a una persona o a una cuenta (una nómina, una
-  transferencia). El presupuesto de un contrato público es un tipo aparte, activo por defecto, que
-  se puede desmarcar cuando deba quedar a la vista.
+  transferencia). Los importes de un presupuesto de obra (precios, mediciones, totales de partida
+  y de ejecución material) **no se tachan por defecto**: son un tipo aparte, con su casilla
+  desmarcada, que se puede marcar si también se quieren tachar.
 - **Fechas**: se tachan todas, no solo la de nacimiento.
 - **Instituciones públicas**: su nombre no se tacha, ni su teléfono o dirección en el membrete.
 - **Número de expediente**: se tacha, en todos sus formatos, también el municipal
@@ -170,7 +171,11 @@ Las **hojas de Excel** (.xlsx) se tratan por columnas: la columna con datos pers
 de su cabecera o, si no dice nada, por lo que contiene) conserva su cabecera y cada celda pasa a
 llevar el tipo de dato entre corchetes; las columnas de texto libre se analizan celda a celda. Se
 revisan también las hojas ocultas, las fórmulas que copian un dato, los comentarios, los nombres
-definidos y las tablas dinámicas, que se eliminan porque guardan una copia de los datos.
+definidos y las tablas dinámicas, que se eliminan porque guardan una copia de los datos. Los
+importes siguen la regla del PDF: los de una hoja que trata de personas pasan a «[IMPORTE]» (la suma
+y la media se quedan con su valor; el máximo y el mínimo, no, porque señalan a una persona); los de
+un presupuesto de obra, solo con su casilla marcada. Como en el PDF y en el Word, un tipo
+desmarcado se queda a la vista en toda la hoja: en su columna, en las fórmulas y en el texto libre.
 
 ### El OCR: dos motores
 

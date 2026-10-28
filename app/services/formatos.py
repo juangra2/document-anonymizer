@@ -91,7 +91,12 @@ def procesar(formato: str, tratamiento: str, entrada: Path, salida: Path, job_id
 
         base = pipeline()._analyzer
         analyzer = base.with_disabled_types(disabled) if disabled else base
+        from app.services.layout.zone_config import ALL_PII_TYPES
+
         anonimizar = anonimizar_docx if formato == "docx" else anonimizar_xlsx
-        return anonimizar(entrada, salida, analyzer,
-                          lambda e, s, f: anonimizar_imagen(e, s, f, _pdf), job_id, mode)
+        informe = anonimizar(entrada, salida, analyzer,
+                             lambda e, s, f: anonimizar_imagen(e, s, f, _pdf), job_id, mode)
+        informe.entity_types_applied = sorted(t for t in ALL_PII_TYPES if t not in disabled)
+        informe.entity_types_disabled = sorted(disabled)
+        return informe
     return anonimizar_imagen(entrada, salida, formato, _pdf)

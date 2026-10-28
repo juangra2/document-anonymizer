@@ -16,8 +16,14 @@ from fastapi.testclient import TestClient
 from app.api.query_normalization import normalize_query_string
 from app.core.config import settings
 from app.main import app
+from app.services.pii.entity_catalog import default_disabled_ids
 
 client = TestClient(app)
+
+
+def _con_catalogo(*tipos: str) -> list[str]:
+    """Los desmarcados de la peticion mas los que el catalogo trae apagados."""
+    return sorted(default_disabled_ids() | set(tipos))
 
 
 def _pdf() -> bytes:
@@ -53,7 +59,7 @@ def _job_dirs() -> set:
 def test_empty_list_is_the_same_as_omitting_the_parameter(query):
     response = _anonymize(query)
     assert response.status_code == 200
-    assert _disabled(response) == []
+    assert _disabled(response) == _con_catalogo()
 
 
 def test_empty_list_is_accepted_by_jobs_too():
@@ -70,13 +76,13 @@ def test_empty_list_is_accepted_by_jobs_too():
 def test_case_and_surrounding_spaces_are_normalized(value):
     response = _anonymize(f"&disabled_types={value}")
     assert response.status_code == 200
-    assert _disabled(response) == ["DATE_TIME"]
+    assert _disabled(response) == _con_catalogo("DATE_TIME")
 
 
 def test_an_empty_value_next_to_a_valid_one_is_ignored():
     response = _anonymize("&disabled_types=&disabled_types=url")
     assert response.status_code == 200
-    assert _disabled(response) == ["URL"]
+    assert _disabled(response) == _con_catalogo("URL")
 
 
 # --- lo que sigue rechazándose ---------------------------------------------------

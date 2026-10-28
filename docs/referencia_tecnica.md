@@ -43,7 +43,7 @@ agrupación de la interfaz está en `app/web/js/categorias.js`; un tipo sin grup
 | `IBAN_CODE` | Cuentas IBAN y cuentas antiguas de 20 dígitos (CCC) |
 | `CREDIT_CARD` | Tarjeta de crédito o débito |
 | `MONEY` | Importes ligados a una persona o cuenta (nóminas, transferencias, liquidaciones) |
-| `BUDGET_AMOUNT` | Precios, mediciones y totales de un presupuesto de obra |
+| `BUDGET_AMOUNT` | Precios, mediciones y totales de un presupuesto de obra. Único tipo que viene desmarcado: sin `enabled_types`, el presupuesto queda a la vista |
 | `POLICY_NUMBER` | Número de póliza de seguro |
 | `ADDRESS` | Domicilios: tipo de vía, número, piso y municipio |
 | `POSTAL_CODE` | Código postal |
@@ -219,9 +219,20 @@ marcador del tipo, como en Word; no se borran columnas.
   la cabecera. Texto libre (observaciones, descripción, motivo… o valores largos con espacios): se
   analiza celda a celda y solo se sustituye el dato; lo mismo cualquier celda de texto suelta de 25
   caracteres o más.
-- **Fórmulas**: la que trae un dato de una columna personal (`=A2`, `=LEFT(A2,1)…`) pasa a ser el
-  marcador; las que solo cuentan (`COUNTA`, `ROWS`…) se quedan. A todas se les quita el valor
-  guardado y el libro se recalcula al abrirse (`fullCalcOnLoad`).
+- **Importes** (la regla del PDF): una columna con cabecera de importe (`xlsx.IMPORTES`: importe,
+  cuantía, ayuda, subvención, nómina, precio, medición…) y contenido numérico es `MONEY` si la hoja
+  tiene alguna columna personal, y `BUDGET_AMOUNT` si la hoja es un presupuesto de obra (las palabras
+  de `analyzer._BUDGET_VETO_RE` o una columna «Partida»). Sin personas ni presupuesto (una
+  estadística por distritos), no se toca.
+- **Casillas**: una columna cuyo tipo viene desmarcado no se sustituye, ni las fórmulas que la
+  copian; el texto libre usa el analizador con las mismas casillas. Con las del catálogo, un
+  presupuesto queda intacto.
+- **Fórmulas**: la que trae un dato de una columna personal (`=A2`, `=LEFT(A2,1)`, `=MAX(C2:C9)`…)
+  pasa a ser el marcador; las que solo cuentan (`COUNTA`, `ROWS`…) se quedan. `SUM` y `AVERAGE` de dos
+  o más importes `MONEY` se quedan escritas con su valor (`=2748.3`), calculado con los importes de
+  antes de sustituir: las celdas que sumaban ya llevan el marcador. Si alguno de esos importes sale
+  de otra fórmula, se aplica la regla general. A todas se les quita el valor guardado y el libro se
+  recalcula al abrirse (`fullCalcOnLoad`).
 - **Lo que guarda aparte**: hojas ocultas (se tratan como las visibles); fuera comentarios (también
   encadenados y sus personas, con su dibujo VML), tablas dinámicas (definición y copia de datos; sus
   celdas quedan vacías con `[TABLA DINÁMICA ELIMINADA]`), copias de datos de los gráficos, vínculos a
@@ -583,14 +594,16 @@ incrustada sale tapada (OCR), que el texto legítimo se conserva y que un docume
 cambia. Medición del 27-10: 12/12 se abren, 53/53 datos eliminados, 72/72 textos legítimos
 conservados, 2/2 documentos sin datos intactos.
 
-**Corpus de Excel** (`evaluation/corpus_excel.py` y `evaluation/lectura_excel.py`): 7 libros
+**Corpus de Excel** (`evaluation/corpus_excel.py` y `evaluation/lectura_excel.py`): 10 libros
 inventados (listado de solicitantes, inscritos en valenciano con título y cabecera en la fila 3,
 columnas «Col1…» que solo delata el contenido, observaciones de texto libre, libro «cargado» con hoja
-oculta, comentario, fórmulas, nombre definido y propiedades, libro con tabla dinámica, presupuesto
-sin datos). Mide que se abre, que ningún dato queda, que cada columna personal lleva su marcador,
-que las demás no cambian y que el texto legítimo se conserva. Medición del 28-10: 7/7 se abren,
-205 datos eliminados sin fugas, 23/23 columnas personales y 15/15 no personales bien, 57/57 textos
-legítimos conservados.
+oculta, comentario, fórmulas, nombre definido y propiedades, libro con tabla dinámica, ayudas con sus
+totales, estadística por distritos, y un presupuesto de obra dos veces: con las casillas del
+catálogo, que no se toca, y con la de presupuesto marcada). Cada libro se procesa con las casillas
+del catálogo más las que marque su etiqueta. Mide que se abre, que ningún dato queda, que cada columna personal lleva su marcador,
+que las demás no cambian, que el texto legítimo se conserva y que los totales llevan el valor
+esperado. Medición del 28-10: 10/10 se abren, 217 datos eliminados sin fugas, 31/31 columnas
+personales y 19/19 no personales bien, 88/88 textos legítimos conservados, 6/6 totales bien.
 
 **Lectura de barras** (`evaluation/lectura_salida.py`): extrae el texto del PDF entregado (y OCR
 donde no hay texto) y busca cada dato etiquetado, tolerando erratas. Cada dato sale tapado, fuga, no

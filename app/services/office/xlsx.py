@@ -14,10 +14,19 @@ Por hoja:
      DNI y telefonos guardados como numero tambien).  Columna de texto libre
      (observaciones, descripcion...) o celda larga suelta: se analiza celda a
      celda y solo se sustituye el dato.
-  4. Una formula que trae un dato de una columna personal (=A2,
-     =LEFT(A2,1)...) pasa a ser el marcador; las que solo cuentan o suman se
-     quedan.  A todas se les quita el valor guardado (puede llevar el dato) y
-     el libro se recalcula al abrirse.
+  4. Importes, con la regla del PDF: una columna de importes (cabecera
+     "Importe", "Cuantía", "Ayuda"...) en una hoja con alguna columna personal
+     es MONEY; en una hoja de presupuesto de obra (partida, precio unitario,
+     medición...), precios, mediciones e importes son BUDGET_AMOUNT.  Una
+     estadística sin personas ni presupuesto no se toca.
+  5. Una formula que trae un dato de una columna personal (=A2,
+     =LEFT(A2,1), =MAX(C2:C9)...) pasa a ser el marcador; las que solo cuentan
+     se quedan, y la suma o la media de dos o mas importes de personas tambien:
+     no son el dato de nadie, y se escriben con su valor, porque las celdas
+     que sumaban ya llevan el marcador.  A todas se les quita el valor
+     guardado (puede llevar el dato) y el libro se recalcula al abrirse.
+Una columna cuyo tipo tiene la casilla desmarcada se queda como esta, con sus
+formulas.
 Las hojas ocultas se tratan igual que las visibles.
 
 Lo que un Excel guarda aparte: fuera comentarios (tambien los encadenados y
@@ -88,6 +97,14 @@ CABECERAS: list[tuple[str, list[str]]] = [
                 "inscrito", "inscrita", "firmante", "socio", "socia", "soci"]),
 ]
 
+#: Cabeceras de importe.  Solo cuentan en una hoja que trata de personas (MONEY)
+#: o en un presupuesto de obra (BUDGET_AMOUNT), y con contenido numerico.
+IMPORTES = ["importe", "importes", "import", "cuantia", "quantia", "cantidad", "quantitat", "total",
+            "salario", "sueldo", "nomina", "ayuda", "ajuda", "subvencion", "subvencio", "cuota", "quota",
+            "multa", "sancion", "sancio", "euros", "eur", "neto", "bruto", "liquido", "pago", "pagament",
+            "abono", "precio", "preu", "medicion", "amidament", "unidades", "coste", "cost", "parcial",
+            "presupuesto", "pressupost"]
+
 _LETRAS_DNI = "TRWAGMYFPDXBNJZSQVHLCKE"
 
 
@@ -99,6 +116,23 @@ def tipo_por_cabecera(cabecera: str) -> str | None:
         if any(re.search(rf"(?:^| ){re.escape(k)}(?: |$)", n) for k in claves):
             return tipo
     return None
+
+
+def es_cabecera_de_importe(cabecera: str) -> bool:
+    n = _normal(cabecera)
+    return bool(n) and any(re.search(rf"(?:^| ){k}(?: |$)", n) for k in IMPORTES)
+
+
+def _es_importe(v: str) -> bool:
+    return bool(re.fullmatch(r"-?\s*\d[\d.,\s]*(?:€|eur|euros)?", v.strip(), re.I))
+
+
+def _es_presupuesto(hoja: "Hoja") -> bool:
+    """Una hoja de presupuesto de obra: las palabras con que el PDF lo reconoce."""
+    from app.services.pii.analyzer import _BUDGET_VETO_RE
+
+    textos = [hoja.texto(c) or "" for (f, _), c in hoja.celdas.items() if f <= 20 and hoja.es_texto(c)]
+    return any(_BUDGET_VETO_RE.search(t) or _normal(t) == "partida" for t in textos)
 
 
 def _es_dni(v: str) -> bool:
@@ -116,11 +150,18 @@ def _es_telefono(v: str) -> bool:
     return bool(re.fullmatch(r"[6789]\d{8}", d))
 
 
+_PARTICULAS = {"de", "del", "la", "las", "los", "y", "i", "e", "da", "dos", "van", "von"}
+
+
 def _es_nombre(v: str) -> bool:
     from app.services.pii.gazetteer import given_names, normalize, surnames
 
-    palabras = [normalize(p) for p in re.findall(r"[^\W\d_]+", v)]
+    originales = re.findall(r"[^\W\d_]+", v)
+    palabras = [normalize(p) for p in originales]
     if len(palabras) < 2 or len(palabras) > 6 or re.search(r"\d", v):
+        return False
+    # Un nombre va en mayusculas, salvo las particulas: "Ayuda al alquiler" no lo es.
+    if any(p[0].islower() and p.lower() not in _PARTICULAS for p in originales):
         return False
     return any(p in given_names() for p in palabras) and any(p in surnames() for p in palabras[1:])
 
@@ -230,6 +271,9 @@ def _fila_cabecera(hoja: Hoja) -> int:
         llenas = [hoja.texto(c) for c in filas[f] if hoja.texto(c)]
         if not llenas or sum(1 for t in llenas if _es_rotulo(t)) < 0.6 * len(llenas):
             continue
+        # "Media por persona | =AVERAGE(...)" es una fila de datos, no una cabecera.
+        if any(not hoja.es_texto(c) for c in filas[f] if hoja.texto(c) or c.find(s("f")) is not None):
+            continue
         p = sum(1 for c in filas[f] if hoja.es_texto(c) and tipo_por_cabecera(hoja.texto(c) or ""))
         if p > puntos:
             mejor, puntos = f, p
@@ -242,6 +286,8 @@ _REF_RE = re.compile(
     r"(?:(?:'((?:[^']|'')+)'|([A-Za-z_][\w.]*))!)?\$?([A-Z]{1,3})\$?(\d+)(?::\$?([A-Z]{1,3})\$?(\d+))?")
 # Lo que solo cuenta o mide no trae el dato.
 _AGREGADOS = re.compile(r"\b(?:COUNTA?|COUNTBLANK|COUNTIFS?|ROWS|COLUMNS)\s*\([^()]*\)", re.I)
+# La suma o la media de importes de personas: se queda, con su valor.
+_SUMA_O_MEDIA = re.compile(r"\b(SUM|AVERAGE)\s*\(([^()]*)\)", re.I)
 
 
 def _referencias(formula: str, hoja_actual: str) -> list[tuple[str, int, int, int, int]]:
@@ -254,6 +300,26 @@ def _referencias(formula: str, hoja_actual: str) -> list[tuple[str, int, int, in
         c1, f1 = (_col_a_num(m.group(5)), int(m.group(6))) if m.group(5) else (c0, f0)
         salida.append((hoja, f0, c0, f1, c1))
     return salida
+
+
+def _totales_con_valor(formula: str, hoja_actual: str, personales, valores, con_formula) -> str:
+    """Cada SUM() o AVERAGE() de dos o mas importes de personas (MONEY) pasa a
+    ser su valor, calculado con los de antes de sustituir.  Si alguno sale de
+    una formula, se deja: el resto de la formula decide."""
+    def calcular(m):
+        celdas = [(nombre, f, c)
+                  for nombre, f0, c0, f1, c1 in _referencias(m.group(2), hoja_actual)
+                  for f in range(f0, f1 + 1) for c in range(c0, c1 + 1)]
+        if not celdas or any(personales.get((n, c), ("",))[0] != "MONEY" for n, _, c in celdas):
+            return m.group(0)
+        if any(clave in con_formula for clave in celdas):
+            return m.group(0)
+        numeros = [valores[clave] for clave in celdas if clave in valores]
+        if len(numeros) < 2:
+            return m.group(0)
+        total = sum(numeros) if m.group(1).upper() == "SUM" else sum(numeros) / len(numeros)
+        return f"{total:.15g}"
+    return _SUMA_O_MEDIA.sub(calcular, formula)
 
 
 # --- entrada ---------------------------------------------------------------------
@@ -505,23 +571,56 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
     informes_imagen = _imagenes(paq, procesar_imagen, cuenta)
     _renombrar_hojas(paq, hojas, analyzer, mode)
 
+    # Valores numericos de antes de sustituir, para los totales que se quedan.
+    valores: dict[tuple[str, int, int], float] = {}
+    con_formula: set[tuple[str, int, int]] = set()
+    for hoja in hojas:
+        for (f, col), c in hoja.celdas.items():
+            v = c.find(s("v"))
+            if c.find(s("f")) is not None:
+                con_formula.add((hoja.nombre, f, col))
+            elif c.get("t") in (None, "n") and v is not None and v.text:
+                try:
+                    valores[(hoja.nombre, f, col)] = float(v.text)
+                except ValueError:
+                    pass
+
     # Clasificar columnas.
     personales: dict[tuple[str, int], tuple[str, int]] = {}      # (hoja, col) -> (tipo, fila cabecera)
     columnas_info = []
     for hoja in hojas:
         cab = _fila_cabecera(hoja)
         cols = sorted({c for (_, c) in hoja.celdas})
+        clasificadas, importes = {}, []
         for col in cols:
             celda_cab = hoja.celdas.get((cab, col)) if cab else None
             cabecera = hoja.texto(celda_cab) if celda_cab is not None else None
-            datos = [hoja.texto(c) for (f, cc), c in hoja.celdas.items()
-                     if cc == col and f > cab and c.find(s("f")) is None]
+            celdas = [c for (f, cc), c in hoja.celdas.items() if cc == col and f > cab]
+            datos = [hoja.texto(c) for c in celdas if c.find(s("f")) is None]
             tipo = (tipo_por_cabecera(cabecera) if cabecera else None) or tipo_por_contenido(
                 [d for d in datos if d])
             if tipo:
-                personales[(hoja.nombre, col)] = (tipo, cab)
-                if tipo != TEXTO_LIBRE:
-                    columnas_info.append({"sheet": hoja.nombre, "header": cabecera or "", "type": tipo, "cells": 0})
+                clasificadas[col] = (tipo, cabecera)
+            elif cabecera and es_cabecera_de_importe(cabecera):
+                llenas = [d for d in datos if d]
+                numericas = [d for d in llenas if _es_importe(d)]
+                formulas = len(celdas) - len(datos)
+                if llenas or formulas:
+                    if len(numericas) + formulas >= 0.6 * (len(llenas) + formulas):
+                        importes.append((col, cabecera))
+        if importes:
+            # Un importe es dato si la hoja es un presupuesto de obra o trata de personas.
+            if _es_presupuesto(hoja):
+                clasificadas.update({col: ("BUDGET_AMOUNT", cabecera) for col, cabecera in importes})
+            elif any(t != TEXTO_LIBRE for t, _ in clasificadas.values()):
+                clasificadas.update({col: ("MONEY", cabecera) for col, cabecera in importes})
+        for col, (tipo, cabecera) in sorted(clasificadas.items()):
+            if tipo in analyzer.disabled_types:
+                # Casilla desmarcada: la columna se queda, y sus formulas tambien.
+                continue
+            personales[(hoja.nombre, col)] = (tipo, cab)
+            if tipo != TEXTO_LIBRE:
+                columnas_info.append({"sheet": hoja.nombre, "header": cabecera or "", "type": tipo, "cells": 0})
 
     # Sustituir.
     valores_quitados: set[str] = set()
@@ -532,7 +631,9 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
                 continue
             texto = hoja.texto(c)
             if tipo and tipo != TEXTO_LIBRE and texto and c.find(s("f")) is None:
-                valores_quitados.add(texto)
+                if tipo not in ("MONEY", "BUDGET_AMOUNT"):
+                    # Un importe ("18.5") puede estar en cualquier parte del XML.
+                    valores_quitados.add(texto)
                 _poner_texto(c, marcador(tipo))
                 tipos[tipo] += 1
                 info = next(i for i in columnas_info if i["sheet"] == hoja.nombre
@@ -553,6 +654,7 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
             formula = c.find(s("f"))
             if formula is None:
                 continue
+            formula.text = _totales_con_valor(formula.text or "", hoja.nombre, personales, valores, con_formula)
             trae = None
             for nombre, f0, c0, f1, c1 in _referencias(formula.text or "", hoja.nombre):
                 if nombre not in nombres_hoja:

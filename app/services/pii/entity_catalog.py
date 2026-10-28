@@ -62,8 +62,10 @@ _CATALOG: tuple[EntityTypeInfo, ...] = (
                    "transferencias, liquidaciones."),
     EntityTypeInfo("BUDGET_AMOUNT", "Importes de presupuesto de obra",
                    "Precios, mediciones y totales de un presupuesto de obra "
-                   "(partidas, capítulos, ejecución material). Desmárcalo si "
-                   "el presupuesto tiene que quedar a la vista."),
+                   "(partidas, capítulos, ejecución material). Viene "
+                   "desmarcado: márcalo si el presupuesto también se tiene "
+                   "que tachar.",
+                   default_enabled=False),
     EntityTypeInfo("CREDIT_CARD", "Tarjeta bancaria",
                    "Números de tarjeta de crédito o débito."),
     EntityTypeInfo("DATE_OF_BIRTH", "Fecha de nacimiento",

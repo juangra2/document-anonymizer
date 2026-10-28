@@ -9,6 +9,10 @@ Lo que se fija, sobre libros inventados (evaluation/corpus_excel.py):
     clasifica por el nombre de la cabecera o, si no dice nada, por su contenido;
   - el texto libre se analiza celda a celda: solo se sustituye el dato;
   - un libro sin datos personales no cambia;
+  - importes con la regla del PDF: los de personas pasan a [IMPORTE] (la suma
+    y la media se quedan con su valor; el maximo y el minimo no); un
+    presupuesto de obra solo se toca con su casilla marcada; una estadistica
+    sin personas, nunca;
   - el fichero se vuelve a abrir; por la cola, un Excel vuelve Excel.
 """
 import time
@@ -25,11 +29,18 @@ from app.main import app
 from app.services.office.paquete import verificar
 from app.services.office.xlsx import anonimizar_xlsx, solo_metadatos_xlsx
 from app.services.pii.analyzer import PiiAnalyzer
+from app.services.pii.entity_catalog import default_disabled_ids
 
 
 @pytest.fixture(scope="module")
 def analyzer():
     return PiiAnalyzer()
+
+
+@pytest.fixture(scope="module")
+def por_defecto(analyzer):
+    """Las casillas como vienen en la pantalla: la de presupuesto, desmarcada."""
+    return analyzer.with_disabled_types(default_disabled_ids())
 
 
 def _sin_imagenes(entrada, salida, formato):
@@ -69,7 +80,7 @@ def test_la_columna_conserva_su_cabecera_y_lleva_el_marcador(tmp_path, analyzer)
     assert set(_columna(ws, "Correo electrónico")) == {"[CORREO]"}
     assert set(_columna(ws, "Fecha de nacimiento")) == {"[FECHA DE NACIMIENTO]"}
     assert set(_columna(ws, "Estado")) == {"Concedida", "Pendiente"}, "lo que no es personal se queda"
-    assert all(isinstance(v, (int, float)) for v in _columna(ws, "Importe concedido"))
+    assert set(_columna(ws, "Importe concedido")) == {"[IMPORTE]"}, "importe ligado a personas"
     assert {c["header"] for c in informe.replaced_columns} >= {"Nombre", "DNI", "Teléfono"}
 
 
@@ -126,11 +137,49 @@ def test_la_tabla_dinamica_se_elimina(tmp_path, analyzer):
     assert informe.metadata_removed.get("pivot_tables") == 1
 
 
-def test_un_libro_sin_datos_no_cambia(tmp_path, analyzer):
-    _, entrada, salida, informe = _procesar(tmp_path, ce.presupuesto, analyzer)
-    a, b = openpyxl.load_workbook(entrada).active, openpyxl.load_workbook(salida).active
-    assert [[c.value for c in f] for f in a.iter_rows()] == [[c.value for c in f] for f in b.iter_rows()]
+def _filas(ruta: Path) -> list:
+    return [[c.value for c in f] for f in openpyxl.load_workbook(ruta).active.iter_rows()]
+
+
+@pytest.mark.parametrize("hacer", [ce.presupuesto, ce.estadistica])
+def test_un_libro_sin_datos_no_cambia(tmp_path, por_defecto, hacer):
+    _, entrada, salida, informe = _procesar(tmp_path, hacer, por_defecto)
+    assert _filas(entrada) == _filas(salida)
     assert not informe.replaced_columns
+
+
+def test_una_estadistica_sin_personas_no_cambia_ni_con_todo_marcado(tmp_path, analyzer):
+    _, entrada, salida, _ = _procesar(tmp_path, ce.estadistica, analyzer)
+    assert _filas(entrada) == _filas(salida)
+
+
+def test_con_la_casilla_marcada_el_presupuesto_se_sustituye(tmp_path, analyzer):
+    _, _, salida, informe = _procesar(tmp_path, ce.presupuesto_marcado, analyzer)
+    ws = openpyxl.load_workbook(salida)["Presupuesto"]
+    for cabecera in ("Unidades", "Precio unitario", "Importe"):
+        assert set(v for v in _columna(ws, cabecera) if v is not None) == {"[IMPORTE]"}, cabecera
+    assert _columna(ws, "Descripción")[0] == "Demolición de tabiquería"
+    assert _columna(ws, "Partida")[0] == "1.1"
+    assert {c["type"] for c in informe.replaced_columns} == {"BUDGET_AMOUNT"}
+
+
+def test_importes_de_personas_la_suma_y_la_media_se_quedan(tmp_path, analyzer):
+    etiqueta, _, salida, informe = _procesar(tmp_path, ce.ayudas_con_totales, analyzer)
+    wb = openpyxl.load_workbook(salida)
+    assert set(_columna(wb["Ayudas"], "Cuantía (€)")) == {"[IMPORTE]"}
+    assert set(_columna(wb["Ayudas"], "Concepto")) == {"Ayuda al alquiler"}
+    for celda, esperado in etiqueta["celdas"]["Resumen"].items():
+        assert wb["Resumen"][celda].value == esperado, celda
+    assert any(c["type"] == "MONEY" for c in informe.replaced_columns)
+
+
+def test_desmarcado_el_importe_se_queda_con_sus_formulas(tmp_path, analyzer):
+    _, entrada, salida, _ = _procesar(tmp_path, ce.ayudas_con_totales,
+                                      analyzer.with_disabled_types({"MONEY"}))
+    a, b = openpyxl.load_workbook(entrada), openpyxl.load_workbook(salida)
+    assert _columna(b["Ayudas"], "Cuantía (€)") == _columna(a["Ayudas"], "Cuantía (€)")
+    assert [c.value for c in b["Resumen"]["B"]] == [c.value for c in a["Resumen"]["B"]]
+    assert set(_columna(b["Ayudas"], "NIF")) == {"[DNI]"}
 
 
 def test_solo_metadatos_deja_las_celdas(tmp_path):

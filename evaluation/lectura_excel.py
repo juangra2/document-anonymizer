@@ -10,7 +10,10 @@ Para cada libro se pasa el servicio de verdad y se mira el fichero de SALIDA:
     ninguna celda ha cambiado (las que cambian cuentan como CELDAS DE MAS); el
     texto libre se mide por sus datos y por el texto legitimo;
   - cada texto legitimo es CONSERVADO si sigue en alguna celda, o de mas si no;
-  - en un libro sin datos, ninguna celda cambia.
+  - en un libro sin datos, ninguna celda cambia;
+  - las celdas con valor esperado (totales de importes) lo llevan.
+Cada libro se procesa con las casillas del catalogo, mas las que marque su
+etiqueta (marcados).
 
 Uso: python -m evaluation.lectura_excel [--solo NOMBRE]
 """
@@ -89,6 +92,11 @@ def medir(etiqueta: dict, entrada: Path, salida: Path) -> dict:
                 textos.update(str(c.value) for c in fila if c.value is not None)
     r["legitimos"] = [(t, "conservado" if t in textos or any(t in x for x in textos) else "de_mas")
                       for t in etiqueta["legitimos"]]
+    r["celdas"] = []
+    for hoja, esperadas in etiqueta.get("celdas", {}).items():
+        for celda, valor in esperadas.items():
+            obtenido = wb_out[hoja][celda].value if wb_out is not None else None
+            r["celdas"].append((hoja, celda, "bien" if obtenido == valor else "mal"))
     if "dinamica" in etiqueta and wb_out is not None:
         d = etiqueta["dinamica"]
         r["dinamica_eliminada"] = wb_out[d["hoja"]][d["rango"].split(":")[0]].value == "[TABLA DINÁMICA ELIMINADA]"
@@ -107,18 +115,22 @@ def resumen(resultados: list[dict]) -> None:
         c["celdas_de_mas"] += r["celdas_de_mas"]
         for _, e in r["legitimos"]:
             c[f"leg_{e}"] += 1
+        for *_, e in r.get("celdas", []):
+            c[f"celda_{e}"] += 1
     print(f"\nTOTAL: {c['libros']} libros, abren {c['abren']}/{c['libros']}")
     print(f"  datos: {c['eliminado']} eliminados / {c['fuga']} fugas")
     print(f"  columnas personales: {c['col_personal_bien']} bien / {c['col_personal_mal']} mal")
     print(f"  columnas no personales: {c['col_otra_bien']} intactas / {c['col_otra_mal']} tocadas "
           f"({c['celdas_de_mas']} celdas de mas)")
     print(f"  texto legitimo: {c['leg_conservado']} conservado / {c['leg_de_mas']} de mas")
+    print(f"  celdas esperadas (totales): {c['celda_bien']} bien / {c['celda_mal']} mal")
 
 
 def main(argv: list[str]) -> int:
     from app.core.config import settings
     from app.services.formatos import procesar
     from app.services.pdf.pipeline import PdfAnonymizationPipeline
+    from app.services.pii.entity_catalog import default_disabled_ids
 
     etiquetas = json.loads((CORPUS / "etiquetas.json").read_text(encoding="utf-8"))
     if "--solo" in argv:
@@ -129,12 +141,13 @@ def main(argv: list[str]) -> int:
     for e in etiquetas:
         entrada, salida = CORPUS / e["documento"], SALIDAS / e["documento"]
         procesar("xlsx", "anonymize", entrada, salida, "x", lambda: pipeline,
-                 settings.default_redaction_mode, frozenset())
+                 settings.default_redaction_mode, default_disabled_ids() - set(e.get("marcados", [])))
         r = medir(e, entrada, salida)
         resultados.append(r)
         fugas = [t for _, t, s in r["datos"] if s == "fuga"]
         mal = [(h, cab) for h, cab, _, s in r["columnas"] if s == "mal"]
         de_mas = [t for t, s in r["legitimos"] if s == "de_mas"]
+        mal += [(h, celda) for h, celda, s in r["celdas"] if s == "mal"]
         print(f"{e['documento']:28s} abre={r['abre']}  fugas={fugas}  columnas_mal={mal}  de_mas={de_mas}"
               + (f"  dinamica_eliminada={r['dinamica_eliminada']}" if "dinamica_eliminada" in r else ""),
               flush=True)
