@@ -143,7 +143,8 @@ def metadatos_exiftool(datos: bytes) -> str:
 def subir(client, caso: dict, corpus: Path = CORPUS, salidas: Path = SALIDAS) -> dict:
     entrada = corpus / caso["fichero"]
     empezado = time.time()
-    r = client.post("/jobs", files={"file": (caso["nombre_subida"], entrada.read_bytes(),
+    r = client.post(f"/jobs?treatment={caso.get('tratamiento', 'anonymize')}",
+                    files={"file": (caso["nombre_subida"], entrada.read_bytes(),
                                              "application/octet-stream")})
     if r.status_code != 202:
         try:
