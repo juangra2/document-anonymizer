@@ -1,0 +1,24 @@
+JUEGO SINTÉTICO DE DOCUMENTOS DOCX PARA PRUEBAS DE ANONIMIZACIÓN
+
+Contenido: doc01–doc12 e inventario_datos.json. Todos los nombres, identificadores, teléfonos, correos, domicilios y fechas son datos de prueba inventados. DNI/NIE e IBAN llevan controles matemáticos válidos; para el IBAN se usa el código de entidad 9999, deliberadamente ficticio/no asignado. Los teléfonos se han generado como valores sintéticos de prueba y no se han tomado de registros.
+
+Casos:
+- doc01: negrita parcial, cursiva y fecha de nacimiento.
+- doc02: w:vanish, fuente blanca y tamaño 1.
+- doc03: cuadro de texto VML con nombre y teléfono.
+- doc04: w:trackRevisions, w:del, w:ins y moveFrom/moveTo.
+- doc05: dos comentarios y una respuesta asociada vía commentsExtended.xml. Revisar en Word; LibreOffice no siempre representa las respuestas/hilos igual.
+- doc06: notas al pie/final auténticas, cabecera de primera página y cabecera par.
+- doc07: destino mailto y texto alternativo de imagen.
+- doc08: tabla de etiquetas/valores en celdas adyacentes.
+- doc09: apellido en w:bookmarkStart/@w:name y nombre en control de contenido w:sdt.
+- doc10: gráfico de Word con hoja XLSX incrustada y partes OOXML de SmartArt. SmartArt puede tener representación distinta en suites que no sean Microsoft Word; se incluye una tabla de respaldo visual con los mismos nombres para facilitar la comprobación en otros renderizadores, además del objeto SmartArt y sus datos OOXML.
+- doc11: carta en valenciano.
+- doc12: control negativo sin datos personales.
+
+Para los checks de eliminación, usar inventario_datos.json como ground truth. Los datos se marcan como ficticios dentro del cuerpo cuando es compatible con el caso; las ubicaciones invisibles se explican en este README y en el inventario.
+
+Notas de compatibilidad de la vista previa
+- doc06: la nota al pie y la nota final son partes OOXML reales y contienen los datos indicados en el inventario. El renderizador de vista previa basado en LibreOffice no mostró el texto de esas notas en las imágenes de control; abrir en Microsoft Word de escritorio para comprobar la visualización y la extracción. Las cabeceras de primera página y páginas pares sí se verificaron en la vista previa.
+- doc10: el fichero contiene un gráfico de Word con datos incrustados y un objeto SmartArt con sus datos internos. Para que el caso SmartArt también se pueda revisar en una vista previa compatible, se incluye una tabla de respaldo con los mismos nombres; la tabla no sustituye al objeto SmartArt.
+- Todas las identidades y los datos incluidos son fixtures inventados y se indican como ficticios para uso de pruebas. Los documentos no deben utilizarse como identificaciones ni datos bancarios reales.

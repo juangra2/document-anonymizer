@@ -140,8 +140,8 @@ def metadatos_exiftool(datos: bytes) -> str:
 
 # --- servicio ---------------------------------------------------------------------
 
-def subir(client, caso: dict) -> dict:
-    entrada = CORPUS / caso["fichero"]
+def subir(client, caso: dict, corpus: Path = CORPUS, salidas: Path = SALIDAS) -> dict:
+    entrada = corpus / caso["fichero"]
     empezado = time.time()
     r = client.post("/jobs", files={"file": (caso["nombre_subida"], entrada.read_bytes(),
                                              "application/octet-stream")})
@@ -165,7 +165,7 @@ def subir(client, caso: dict) -> dict:
     descarga = client.get(f"/jobs/{job}/result")
     nombre = re.search(r'filename="?([^";]+)', descarga.headers.get("content-disposition", ""))
     extension = Path(nombre.group(1)).suffix if nombre else ".bin"
-    salida = SALIDAS / f"{caso['id']}{extension}"
+    salida = salidas / f"{caso['id']}{extension}"
     salida.write_bytes(descarga.content)
     return {"estado": "completado", "salida": str(salida), "extension": extension, "segundos": segundos,
             "informe": client.get(f"/jobs/{job}/report").json()}

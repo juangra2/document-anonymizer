@@ -1,0 +1,282 @@
+[
+  {
+    "fichero": "doc01_formato_mixto.docx",
+    "valor": "48273165Y",
+    "tipo": "DNI",
+    "ubicacion": "cuerpo, dígitos 3–5 en negrita parcial; letra de control en texto normal",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc01_formato_mixto.docx",
+    "valor": "Núria Peris Ferrandis",
+    "tipo": "Nombre y apellidos",
+    "ubicacion": "cuerpo, nombre y primer apellido normales; segundo apellido en cursiva",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc01_formato_mixto.docx",
+    "valor": "14/03/1998",
+    "tipo": "Fecha de nacimiento",
+    "ubicacion": "cuerpo, texto normal",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc02_texto_oculto_blanco_tamano1.docx",
+    "valor": "27384916N",
+    "tipo": "DNI",
+    "ubicacion": "cuerpo, run con Fuente > Oculto (w:vanish)",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc02_texto_oculto_blanco_tamano1.docx",
+    "valor": "612 000 101",
+    "tipo": "Teléfono móvil",
+    "ubicacion": "cuerpo, run con fuente blanca",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc02_texto_oculto_blanco_tamano1.docx",
+    "valor": "pau.ferrer@example.com",
+    "tipo": "Correo electrónico",
+    "ubicacion": "cuerpo, run a tamaño 1 punto",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc03_cuadro_texto.docx",
+    "valor": "Marc Ferrandis Bellver",
+    "tipo": "Nombre y apellidos",
+    "ubicacion": "word/document.xml, w:txbxContent dentro de cuadro de texto VML",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc03_cuadro_texto.docx",
+    "valor": "623 000 207",
+    "tipo": "Teléfono móvil",
+    "ubicacion": "word/document.xml, w:txbxContent dentro de cuadro de texto VML",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc04_control_cambios.docx",
+    "valor": "59301724L",
+    "tipo": "DNI",
+    "ubicacion": "cuerpo, texto eliminado dentro de w:del/w:delText",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc04_control_cambios.docx",
+    "valor": "Júlia Vidal Llorens",
+    "tipo": "Nombre y apellidos",
+    "ubicacion": "cuerpo, texto insertado dentro de w:ins",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc04_control_cambios.docx",
+    "valor": "Carrer de la Brisa del Túria, 18, 46021 València",
+    "tipo": "Domicilio",
+    "ubicacion": "cuerpo, párrafo movido; aparece en w:moveFrom y w:moveTo",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc04_control_cambios.docx",
+    "valor": "22/09/2001",
+    "tipo": "Fecha de nacimiento",
+    "ubicacion": "cuerpo, párrafo movido; aparece en w:moveFrom y w:moveTo",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc05_comentarios_respuesta.docx",
+    "valor": "Aina Soler Benavent",
+    "tipo": "Nombre y apellidos",
+    "ubicacion": "word/comments.xml, comentario 0",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc05_comentarios_respuesta.docx",
+    "valor": "X3141592E",
+    "tipo": "NIE",
+    "ubicacion": "word/comments.xml, comentario 0; valor ficticio con letra de control válida",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc05_comentarios_respuesta.docx",
+    "valor": "634 000 308",
+    "tipo": "Teléfono móvil",
+    "ubicacion": "word/comments.xml, comentario 1",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc05_comentarios_respuesta.docx",
+    "valor": "laia.miralles@example.com",
+    "tipo": "Correo electrónico",
+    "ubicacion": "word/comments.xml, comentario 1",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc05_comentarios_respuesta.docx",
+    "valor": "17642839E",
+    "tipo": "DNI",
+    "ubicacion": "word/comments.xml, respuesta al comentario 0; valor ficticio con letra de control válida",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc05_comentarios_respuesta.docx",
+    "valor": "Biel Muntaner Reig",
+    "tipo": "Nombre y apellidos",
+    "ubicacion": "word/comments.xml, respuesta al comentario 0",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc05_comentarios_respuesta.docx",
+    "valor": "Laia Muntaner (autora fictícia)",
+    "tipo": "Autor de comentario",
+    "ubicacion": "word/comments.xml, atributo w:author de los tres comentarios/respuesta",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc06_notas_cabeceras.docx",
+    "valor": "84025731S",
+    "tipo": "DNI",
+    "ubicacion": "word/footnotes.xml, nota al pie; valor ficticio con letra de control válida",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc06_notas_cabeceras.docx",
+    "valor": "ES0999999999561234567890",
+    "tipo": "IBAN español",
+    "ubicacion": "word/endnotes.xml, nota final; control IBAN válido y código de entidad ficticio 9999",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc06_notas_cabeceras.docx",
+    "valor": "mariona.orts@example.es",
+    "tipo": "Correo electrónico",
+    "ubicacion": "word/header1.xml, cabecera de primera página (relación type=first)",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc06_notas_cabeceras.docx",
+    "valor": "962 000 202",
+    "tipo": "Teléfono fijo",
+    "ubicacion": "word/header2.xml, cabecera de páginas pares (relación type=even)",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc07_mailto_alt_texto.docx",
+    "valor": "mireia.sanchis@example.com",
+    "tipo": "Correo electrónico",
+    "ubicacion": "word/_rels/document.xml.rels, destino de hipervínculo mailto:",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc07_mailto_alt_texto.docx",
+    "valor": "Guillem Roca Montagut",
+    "tipo": "Nombre y apellidos",
+    "ubicacion": "word/document.xml, atributo descr de wp:docPr (texto alternativo de imagen)",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc08_tabla_etiqueta_valor.docx",
+    "valor": "Carme Tàrrega Blasco",
+    "tipo": "Nombre y apellidos",
+    "ubicacion": "cuerpo, tabla; etiqueta Nombre en celda izquierda y valor en celda contigua",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc08_tabla_etiqueta_valor.docx",
+    "valor": "48273165Y",
+    "tipo": "DNI",
+    "ubicacion": "cuerpo, tabla; etiqueta DNI en celda izquierda y valor en celda contigua",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc08_tabla_etiqueta_valor.docx",
+    "valor": "961 000 101",
+    "tipo": "Teléfono fijo",
+    "ubicacion": "cuerpo, tabla; etiqueta Teléfono en celda izquierda y valor en celda contigua",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc09_marcador_control_contenido.docx",
+    "valor": "Ferrandis",
+    "tipo": "Apellido en nombre de marcador",
+    "ubicacion": "word/document.xml, atributo w:name de w:bookmarkStart; no necesariamente visible en el texto",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc09_marcador_control_contenido.docx",
+    "valor": "Arnau Cerdà Fuster",
+    "tipo": "Nombre y apellidos",
+    "ubicacion": "cuerpo, contenido de control de texto w:sdt/w:sdtContent",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc10_grafico_smartart.docx",
+    "valor": "Mariona Orts Salvat",
+    "tipo": "Nombre y apellidos",
+    "ubicacion": "gráfico de Word: caché de categorías en word/charts/chart1.xml y datos de hoja incrustada word/embeddings/Microsoft_Excel_Worksheet1.xlsx",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc10_grafico_smartart.docx",
+    "valor": "Àlex Ribera Pons",
+    "tipo": "Nombre y apellidos",
+    "ubicacion": "gráfico de Word: caché de categorías en word/charts/chart1.xml y datos de hoja incrustada word/embeddings/Microsoft_Excel_Worksheet1.xlsx",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc10_grafico_smartart.docx",
+    "valor": "Carme Tàrrega Blasco",
+    "tipo": "Nombre y apellidos",
+    "ubicacion": "gráfico de Word: caché de categorías en word/charts/chart1.xml y datos de hoja incrustada word/embeddings/Microsoft_Excel_Worksheet1.xlsx",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc10_grafico_smartart.docx",
+    "valor": "Arnau Cerdà Fuster",
+    "tipo": "Nombre y apellidos",
+    "ubicacion": "SmartArt: word/diagrams/data1.xml, etiquetas de puntos del diagrama; también en tabla de respaldo visible para revisión de renderizado",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc10_grafico_smartart.docx",
+    "valor": "Biel Muntaner Reig",
+    "tipo": "Nombre y apellidos",
+    "ubicacion": "SmartArt: word/diagrams/data1.xml, etiquetas de puntos del diagrama; también en tabla de respaldo visible para revisión de renderizado",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc10_grafico_smartart.docx",
+    "valor": "Júlia Vidal Llorens",
+    "tipo": "Nombre y apellidos",
+    "ubicacion": "SmartArt: word/diagrams/data1.xml, etiquetas de puntos del diagrama; también en tabla de respaldo visible para revisión de renderizado",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc11_carta_valencia.docx",
+    "valor": "Aina Soler Benavent",
+    "tipo": "Nombre y apellidos",
+    "ubicacion": "cuerpo, carta en valenciano; destinataria",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc11_carta_valencia.docx",
+    "valor": "Carrer dels Tarongers Quietes, 42, 46023 València",
+    "tipo": "Domicilio",
+    "ubicacion": "cuerpo, carta en valenciano; dirección ficticia y código postal de València",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc11_carta_valencia.docx",
+    "valor": "27384916N",
+    "tipo": "DNI",
+    "ubicacion": "cuerpo, carta en valenciano; valor ficticio con letra de control válida",
+    "debe_eliminarse": true
+  },
+  {
+    "fichero": "doc11_carta_valencia.docx",
+    "valor": "963 000 303",
+    "tipo": "Teléfono fijo",
+    "ubicacion": "cuerpo, carta en valenciano",
+    "debe_eliminarse": true
+  }
+]
