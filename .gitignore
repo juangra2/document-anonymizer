@@ -92,3 +92,4 @@ evaluation/imagenes/
 # Corpus de Word y Excel y sus salidas: se generan con evaluation/corpus_word.py y corpus_excel.py
 evaluation/word/
 evaluation/excel/
+evaluation/excel_dificil/
