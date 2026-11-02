@@ -53,6 +53,7 @@ from app.schemas.report import CONTENT_NOT_REVIEWED, CodedWarning, ProcessingRep
 from app.services.office.barrido import barrer
 from app.services.office.docx import _sin_etiqueta, marcador
 from app.services.office.paquete import Paquete, limpiar_propiedades, rels_de, resolver, tipo_office, verificar
+from app.services.office.verificador import revisar
 
 S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -705,14 +706,14 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
     for r in informes_imagen:
         for tipo, n in (getattr(r, "entities_by_type", None) or {}).items():
             tipos[tipo] += n
-    avisos = [f"{len(quedan)} replaced values still found in the output."] if quedan else []
+    residuales, avisos, motivos = revisar(Path(salida), analyzer, mode, quedan)
     return ProcessingReport(
         job_id=job_id,
-        status="manual_review_required" if quedan else "completed",
+        status="manual_review_required" if residuales else "completed",
         document_type="xlsx", pages=len(hojas),
         entities_detected=sum(tipos.values()), entities_redacted=sum(tipos.values()),
-        entities_by_type=dict(tipos), residual_entities=len(quedan),
-        manual_review_required=bool(quedan), warnings=avisos,
+        entities_by_type=dict(tipos), residual_entities=residuales,
+        manual_review_required=bool(residuales), manual_review_reasons=motivos, warnings=avisos,
         metadata_removed={k: v for k, v in cuenta.items() if v},
         replaced_columns=[i for i in columnas_info if i["cells"]],
         redaction_strategy="xlsx_column_replacement",

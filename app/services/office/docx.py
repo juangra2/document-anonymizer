@@ -44,6 +44,7 @@ from app.core.errors import OfficeMacrosError, ProcessingError, UnsupportedDocum
 from app.schemas.report import CONTENT_NOT_REVIEWED, CodedWarning, ProcessingReport
 from app.services.office.barrido import barrer
 from app.services.office.paquete import Paquete, limpiar_propiedades, tipo_office, verificar
+from app.services.office.verificador import revisar
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -472,9 +473,7 @@ def anonimizar_docx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
     paq.guardar(Path(salida))
     _comprobar_que_se_abre(Path(salida))
     quedan = verificar(Path(salida), list(valores))
-    avisos = []
-    if quedan:
-        avisos.append(f"{len(quedan)} detected values still found in the output.")
+    residuales, avisos, motivos = revisar(Path(salida), analyzer, mode, quedan)
     if cuenta["images_removed"]:
         avisos.append(f"{cuenta['images_removed']} images in formats that cannot be reviewed were removed.")
     contenido = [p for r in informes_imagen for p in (getattr(r, "pages_redacted_by_content", None) or [])]
@@ -483,14 +482,15 @@ def anonimizar_docx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
     quitado = {k: v for k, v in cuenta.items() if v and k not in ("images",)}
     return ProcessingReport(
         job_id=job_id,
-        status="manual_review_required" if quedan else ("completed_with_warnings" if avisos else "completed"),
+        status="manual_review_required" if residuales else ("completed_with_warnings" if avisos else "completed"),
         document_type="docx",
         pages=1,
         entities_detected=sum(tipos.values()),
         entities_redacted=sum(tipos.values()),
         entities_by_type=dict(tipos),
-        residual_entities=len(quedan),
-        manual_review_required=bool(quedan),
+        residual_entities=residuales,
+        manual_review_required=bool(residuales),
+        manual_review_reasons=motivos,
         warnings=avisos,
         metadata_removed=quitado,
         redaction_strategy="docx_text_replacement",

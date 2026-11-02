@@ -229,7 +229,8 @@ Después de tachar, el anonimizador **vuelve a leer** el resultado. En las pági
 algún dato sigue leyéndose (porque una barra quedó corta, por ejemplo), se tapa en ese momento: es
 la **red de seguridad**. En el documento entero, un **verificador** repasa el texto que se puede
 extraer, los metadatos y el propio fichero en busca de datos que hayan sobrevivido; si encuentra
-algo, el informe pide revisión manual.
+algo, el informe pide revisión manual. En Word y en Excel hace lo mismo: vuelve a leer el documento
+entero, celda a celda y párrafo a párrafo, también lo que no se tocó, y lo pasa por el analizador.
 
 Y una regla de prudencia: **lo que no se puede leer no se entrega sin revisar**. Una página
 escaneada que el OCR no consigue leer, o que tarda demasiado, se tapa entera en lugar de entregarse

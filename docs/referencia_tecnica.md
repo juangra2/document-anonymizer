@@ -204,6 +204,15 @@ la barra del valor tampoco muerde el rótulo de encima.
 - **Comprobaciones al entregar**: el Word se vuelve a abrir (zip sano y python-docx) o no se entrega;
   el verificador (`paquete.verificar`) busca cada valor detectado en el texto, los atributos y las
   relaciones de todas las partes de la salida, y si queda alguno el informe pide revisión.
+- **Segunda opinión** (`verificador.py`, común a Word y Excel): el verificador de valores no puede
+  ver lo que no se detectó; este vuelve a leer la salida entera (cada párrafo o fila de Word, cada
+  celda de Excel, también las no sustituidas, y el resto del texto de todas las partes, como el
+  barrido) y la pasa por el analizador. Lo que encuentra no se toca: el informe pide revisión
+  (`residual_pii`) y dice cuántos posibles datos y de qué tipo, nunca los valores. Releer suelto, sin
+  el contexto del original, da nombres que no lo son («Ciutat Vella», «Vocal»): un nombre solo cuenta
+  si tiene al menos dos palabras y empieza por un nombre de pila del padrón seguido de un apellido
+  (o al revés, «Apellidos, Nombre»). En los cuatro corpus de Office solo marca datos que quedan de
+  verdad.
 - **Seguridad del paquete**: límites de partes, tamaño descomprimido y proporción de compresión;
   nombres de parte sin rutas absolutas ni `..`; XML sin entidades ni red. Un `.doc`/`.xls` antiguo
   se rechaza con `legacy_office` y un `.docm`/`.xlsm` con `office_macros` (415), con su frase.
@@ -254,7 +263,8 @@ marcador del tipo, como en Word; no se borran columnas.
   cuadros de texto se analizan. Un nombre de hoja que es un dato personal pasa a «Hoja N» en todo
   el libro. La tabla de cadenas compartidas se rehace solo con las que siguen en uso.
 - **Comprobaciones**: el libro se vuelve a abrir (zip y openpyxl) o no se entrega; el verificador
-  busca cada valor sustituido en todas las partes. El informe lleva `replaced_columns` (hoja,
+  busca cada valor sustituido en todas las partes, y la segunda opinión (la de Word) relee el libro
+  entero. El informe lleva `replaced_columns` (hoja,
   cabecera, tipo, celdas) y el informe en PDF las lista.
 
 ---
