@@ -140,7 +140,9 @@ página se mete en un PDF medido para que el camino escaneado la lea con sus pí
 `OCR_PDF_RENDER_DPI`), pasa por ese camino completo y se saca de la salida, a su tamaño original si
 el tope de megapíxeles la redujo. Antes se aplica el giro del EXIF. El formato se decide por el
 contenido, no por la extensión; tope `MAX_IMAGE_MEGAPIXELS` (100). Con «solo quitar metadatos», un
-JPEG derecho pierde sus segmentos de metadatos sin recomprimirse (conserva ICC y Adobe); uno girado
+JPEG derecho pierde sus segmentos de metadatos sin recomprimirse (conserva ICC y Adobe) y todo lo que
+va detrás del final de la imagen: la segunda imagen de un JPEG de móvil (MPF), que es la misma foto,
+o texto pegado (`limpieza._fin_de_imagen`, que recorre también los JPEG progresivos); uno girado
 por EXIF se endereza y se recomprime; un PNG pierde texto, fecha y EXIF con los píxeles intactos;
 un TIFF se reescribe sin etiquetas. `tests/test_imagenes.py`.
 

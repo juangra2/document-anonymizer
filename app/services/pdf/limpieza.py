@@ -251,6 +251,33 @@ def _conservar(marca: int, segmento: bytes) -> bool:
     return False
 
 
+def _fin_de_imagen(datos: bytes, i: int) -> int:
+    """Donde acaba la imagen que empieza en el segmento SOS de la posicion *i*:
+    justo despues de su marca de fin (EOI).  Lo que venga detras no es la foto:
+    la segunda imagen de un JPEG de movil (MPF), una miniatura o texto pegado.
+
+    Dentro de los datos comprimidos un 0xFF va seguido de 0x00 o de una marca
+    de reinicio (RST0-7); cualquier otra marca es un segmento (un JPEG
+    progresivo tiene varios barridos con tablas entre medias) o el final.  Si no
+    se encuentra el final, se deja todo como estaba."""
+    while i + 4 <= len(datos):
+        largo = int.from_bytes(datos[i + 2:i + 4], "big")       # el segmento (SOS, DHT...)
+        i += 2 + largo
+        while True:
+            j = datos.find(b"\xff", i)
+            if j < 0 or j + 1 >= len(datos):
+                return len(datos)
+            marca = datos[j + 1]
+            if marca == 0x00 or 0xD0 <= marca <= 0xD7 or marca == 0xFF:
+                i = j + 1 if marca == 0xFF else j + 2
+                continue
+            if marca == 0xD9:
+                return j + 2
+            i = j
+            break
+    return len(datos)
+
+
 def limpiar_jpeg(datos: bytes) -> bytes | None:
     """Quita los segmentos de metadatos de un JPEG sin tocar los datos de imagen.
 
@@ -267,8 +294,9 @@ def limpiar_jpeg(datos: bytes) -> bytes | None:
         if marca == 0xFF:            # relleno entre segmentos
             i += 1
             continue
-        if marca == 0xDA:            # inicio de los datos de imagen: el resto, tal cual
-            salida += datos[i:]
+        if marca == 0xDA:            # datos de imagen: tal cual, hasta su final
+            fin = _fin_de_imagen(datos, i)
+            salida += datos[i:fin]
             return bytes(salida)
         if 0xD0 <= marca <= 0xD7 or marca == 0x01:
             salida += datos[i:i + 2]

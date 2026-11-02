@@ -209,6 +209,40 @@ def test_solo_metadatos_jpeg_derecho_no_recomprime(tmp_path):
     assert "content_not_reviewed" in {c.code for c in informe.coded_warnings}
 
 
+def _jpeg_simple(ancho=320, alto=240, **opciones) -> bytes:
+    buffer = io.BytesIO()
+    Image.fromarray(np.random.default_rng(1).integers(0, 255, (alto, ancho, 3), np.uint8)).save(
+        buffer, format="JPEG", quality=85, **opciones)
+    return buffer.getvalue()
+
+
+@pytest.mark.parametrize("progresivo", [False, True])
+def test_solo_metadatos_quita_la_segunda_imagen_de_un_movil(tmp_path, progresivo):
+    """Un JPEG de movil (MPF) lleva otra imagen pegada detras de la primera: en
+    "solo quitar metadatos" se quedaba entera.  Tambien un JPEG progresivo, que
+    tiene varios bloques de datos con tablas entre medias."""
+    from evaluation.corpus_imagenes_dificil import _mpf
+
+    principal, segunda = _jpeg_simple(progressive=progresivo), _jpeg_simple(160, 120)
+    entrada = tmp_path / "movil.jpg"
+    entrada.write_bytes(_mpf(principal, segunda))
+    salida = tmp_path / "salida.jpg"
+    solo_metadatos_imagen(entrada, salida, "jpeg")
+    datos = salida.read_bytes()
+    assert datos.find(b"\xff\xd8\xff", 2) == -1, "la segunda imagen sigue dentro"
+    assert datos.endswith(b"\xff\xd9")
+    original = np.asarray(Image.open(io.BytesIO(principal)).convert("RGB"))
+    assert np.array_equal(np.asarray(Image.open(salida).convert("RGB")), original), "la foto ha cambiado"
+
+
+def test_solo_metadatos_quita_lo_pegado_al_final(tmp_path):
+    entrada = tmp_path / "con_cola.jpg"
+    entrada.write_bytes(_jpeg_simple() + b"Nombre: Marta Ferrer Soler, DNI 48291736K")
+    salida = tmp_path / "salida.jpg"
+    solo_metadatos_imagen(entrada, salida, "jpeg")
+    assert b"Ferrer" not in salida.read_bytes()
+
+
 def test_solo_metadatos_jpeg_girado_se_endereza(tmp_path):
     entrada = _jpeg_movil(tmp_path, orientacion=6)
     salida = tmp_path / "salida.jpg"
