@@ -42,6 +42,7 @@ from lxml import etree
 
 from app.core.errors import OfficeMacrosError, ProcessingError, UnsupportedDocumentError
 from app.schemas.report import CONTENT_NOT_REVIEWED, CodedWarning, ProcessingReport
+from app.services.office.barrido import barrer
 from app.services.office.paquete import Paquete, limpiar_propiedades, tipo_office, verificar
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -161,6 +162,12 @@ def _limpiar_texto(raiz: etree._Element, cuenta: Counter) -> None:
     for tag in ("dataBinding", "permStart", "permEnd"):
         for e in list(raiz.iter(w(tag))):
             _quitar(e)
+    # El nombre de un marcador lo pone quien escribe ("Ferrandis"): se renombra.
+    # Los que empiezan por "_" los crea Word (_Toc, _Hlk) y no dicen nada.
+    for e in raiz.iter(w("bookmarkStart")):
+        if not e.get(w("name"), "_").startswith("_"):
+            cuenta["bookmarks"] += 1
+            e.set(w("name"), f"Marcador{e.get(w('id'), '')}")
     for e in raiz.iter(f"{{{WP}}}docPr", f"{{{PIC}}}cNvPr"):
         if e.get("descr") or e.get("title"):
             cuenta["alt_text"] += e.tag == f"{{{WP}}}docPr"
@@ -455,6 +462,9 @@ def anonimizar_docx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
         for a, b, tipo in sorted(_barrido(bloque, valores, spans), reverse=True):
             _sustituir(bloque, a, b, marcador(tipo))
             tipos[tipo] += 1
+    # Lo que no es un parrafo: nombre y etiqueta de los controles de contenido,
+    # texto de formas y de marcas de agua...
+    barrer(paq, analyzer, mode, tipos, lambda parte, e: e.tag.startswith(f"{{{W}}}"))
     for r in informes_imagen:
         for tipo, n in (getattr(r, "entities_by_type", None) or {}).items():
             tipos[tipo] += n

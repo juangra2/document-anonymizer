@@ -171,7 +171,10 @@ Las **hojas de Excel** (.xlsx) se tratan por columnas: la columna con datos pers
 de su cabecera o, si no dice nada, por lo que contiene) conserva su cabecera y cada celda pasa a
 llevar el tipo de dato entre corchetes; las columnas de texto libre se analizan celda a celda. Se
 revisan también las hojas ocultas, las fórmulas que copian un dato, los comentarios, los nombres
-definidos y las tablas dinámicas, que se eliminan porque guardan una copia de los datos. Los
+definidos y las tablas dinámicas, que se eliminan porque guardan una copia de los datos. Lo que no
+es una celda ni un párrafo también es contenido del fichero: listas desplegables, reglas de formato,
+filtros, títulos de gráficos, textos dentro de fórmulas, nombres de marcador o de controles de Word.
+Todo ese texto pasa por el mismo analizador. Los
 importes siguen la regla del PDF: los de una hoja que trata de personas pasan a «[IMPORTE]» (la suma
 y la media se quedan con su valor; el máximo y el mínimo, no, porque señalan a una persona); los de
 un presupuesto de obra, solo con su casilla marcada. Como en el PDF y en el Word, un tipo

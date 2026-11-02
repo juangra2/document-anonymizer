@@ -50,6 +50,7 @@ from lxml import etree
 
 from app.core.errors import OfficeMacrosError, ProcessingError, UnsupportedDocumentError
 from app.schemas.report import CONTENT_NOT_REVIEWED, CodedWarning, ProcessingReport
+from app.services.office.barrido import barrer
 from app.services.office.docx import _sin_etiqueta, marcador
 from app.services.office.paquete import Paquete, limpiar_propiedades, rels_de, resolver, tipo_office, verificar
 
@@ -486,11 +487,12 @@ def _texto_suelto(paq: Paquete, analyzer, mode: str, tipos: Counter) -> None:
                     t.text = ""
 
 
-def _sustituir_en_texto(texto: str, analyzer, mode: str, tipos: Counter) -> str:
+def spans_de(texto: str, analyzer, mode: str) -> list[tuple[int, int, str]]:
+    """Los datos de *texto* (inicio, fin, tipo), sin la etiqueta y sin solapes."""
     from app.services.layout.zone_config import ALL_PII_TYPES
 
     if not texto or not texto.strip():
-        return texto
+        return []
     spans = sorted(_sin_etiqueta(texto, e.start, e.end, e.entity_type)
                    for e in analyzer.analyze(texto, mode=mode, zone_type=None, context_text=texto)
                    if e.entity_type in set(ALL_PII_TYPES))
@@ -499,7 +501,11 @@ def _sustituir_en_texto(texto: str, analyzer, mode: str, tipos: Counter) -> str:
         if limpios and sp[0] < limpios[-1][1]:
             continue
         limpios.append(sp)
-    for a, b, tipo in reversed(limpios):
+    return limpios
+
+
+def _sustituir_en_texto(texto: str, analyzer, mode: str, tipos: Counter) -> str:
+    for a, b, tipo in reversed(spans_de(texto, analyzer, mode)):
         texto = texto[:a] + marcador(tipo) + texto[b:]
         tipos[tipo] += 1
     return texto
@@ -557,6 +563,11 @@ def _compartidas_usadas(paq: Paquete, hojas: list[Hoja]) -> None:
         sst.append(viejas[viejo])
     sst.set("count", str(len(nuevo_indice)))
     sst.set("uniqueCount", str(len(nuevo_indice)))
+
+
+def _es_valor_de_celda(parte: str, e) -> bool:
+    """El valor de una celda (no su formula): ya se ha tratado por columnas."""
+    return e.tag in (s("v"), s("t")) and any(a.tag == s("c") for a in e.iterancestors())
 
 
 def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_id: str,
@@ -683,6 +694,9 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
                                 s("firstHeader"), s("firstFooter")):
             e.text = _sustituir_en_texto(e.text or "", analyzer, mode, tipos)
     _texto_suelto(paq, analyzer, mode, tipos)
+    # Lo que no es una celda: validaciones, formato condicional, filtros, titulos
+    # de graficos, nombres definidos, textos dentro de formulas...
+    barrer(paq, analyzer, mode, tipos, _es_valor_de_celda)
     _compartidas_usadas(paq, hojas)
 
     paq.guardar(Path(salida))

@@ -187,6 +187,10 @@ la barra del valor tampoco muerde el rótulo de encima.
   etiqueta que lo precede (el analizador devuelve a veces «de contacto: 611…»; se corta tras los
   últimos dos puntos seguidos de espacio). Después, cada valor detectado se sustituye en todo el
   documento donde aparezca.
+- **Fuera de los párrafos** (`barrido.py`, común con Excel): el resto del texto de todas las partes
+  pasa también por el analizador. En Word: nombre y etiqueta de los controles de contenido, texto de
+  formas y marcas de agua, textos alternativos que queden. Los nombres de marcador los pone quien
+  escribe («Ferrandis»): se renombran a `MarcadorN` (los que empiezan por «_» los crea Word).
 - **Limpieza** (también en «solo quitar metadatos»): se aceptan los cambios (lo borrado se quita, lo
   insertado queda como texto); fuera comentarios, texto oculto, códigos de campo, enlaces (el texto
   se queda), textos alternativos, enlaces de datos de controles de contenido, identificadores de
@@ -233,6 +237,15 @@ marcador del tipo, como en Word; no se borran columnas.
   antes de sustituir: las celdas que sumaban ya llevan el marcador. Si alguno de esos importes sale
   de otra fórmula, se aplica la regla general. A todas se les quita el valor guardado y el libro se
   recalcula al abrirse (`fullCalcOnLoad`).
+- **Fuera de las celdas** (`barrido.py`): todo el texto que no es el valor de una celda pasa por el
+  analizador: listas desplegables, formato condicional, autofiltros, títulos de gráficos, nombres
+  definidos, cuadros de texto. En las fórmulas (de celda, de regla, de validación, de nombre
+  definido) se miran solo los textos entre comillas, juntos (`CONCATENATE("Vicenta"," Ribes")` es un
+  nombre), y los números largos sueltos (un teléfono); las referencias no se tocan y la fórmula
+  sigue siendo válida: `="Llamar a [NOMBRE] al "&"[TELÉFONO]"`. De los atributos, solo los que
+  guardan texto del usuario (valor de un filtro, texto alternativo, título, mensaje de una
+  validación…): cualquier otro puede ser el nombre de una fuente, y «Times New Roman» parece un
+  nombre. Estilos, temas, fuentes, propiedades y relaciones no pasan por el barrido.
 - **Lo que guarda aparte**: hojas ocultas (se tratan como las visibles); fuera comentarios (también
   encadenados y sus personas, con su dibujo VML), tablas dinámicas (definición y copia de datos; sus
   celdas quedan vacías con `[TABLA DINÁMICA ELIMINADA]`), copias de datos de los gráficos, vínculos a
