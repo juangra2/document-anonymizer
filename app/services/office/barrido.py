@@ -141,10 +141,12 @@ def literales_de(formula: str) -> str:
     return " ".join([textos] + _NUMERO.findall(sin_textos))
 
 
-def barrer(paq: Paquete, analyzer, mode: str, tipos: Counter, contenido_principal) -> None:
+def barrer(paq: Paquete, analyzer, mode: str, tipos: Counter, contenido_principal, plazo=None) -> None:
     """Pasa por el analizador todo el texto de todas las partes que no es
     contenido principal, y sustituye lo que encuentra."""
-    for _, e, atributo, es_formula in list(textos_libres(paq, contenido_principal)):
+    for n, (_, e, atributo, es_formula) in enumerate(list(textos_libres(paq, contenido_principal))):
+        if plazo is not None and n % 200 == 0:
+            plazo.comprobar()
         if atributo is not None:
             nuevo = _sustituir(e.get(atributo), analyzer, mode, tipos)
             if nuevo != e.get(atributo):

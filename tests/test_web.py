@@ -93,6 +93,7 @@ def test_the_phrases_cover_the_errors_the_user_meets_most():
         "encrypted_pdf", "too_many_pages", "document_too_large", "empty_pdf",
         "invalid_file", "cola_llena", "sin_conexion", "servicio_reiniciado",
         "nothing_processed_yet", "parado_sin_paginas", "legacy_office", "office_macros",
+        "office_too_large", "processing_timeout",
     ):
         assert f"{codigo}:" in textos, f"sin frase para {codigo}"
 

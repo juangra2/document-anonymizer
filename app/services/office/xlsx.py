@@ -52,7 +52,8 @@ from app.core.errors import OfficeMacrosError, ProcessingError, UnsupportedDocum
 from app.schemas.report import CONTENT_NOT_REVIEWED, CodedWarning, ProcessingReport
 from app.services.office.barrido import barrer
 from app.services.office.docx import _sin_etiqueta, marcador
-from app.services.office.paquete import Paquete, limpiar_propiedades, rels_de, resolver, tipo_office, verificar
+from app.services.office.paquete import (Paquete, Plazo, limpiar_propiedades, rels_de, resolver, tipo_office,
+                                         verificar)
 from app.services.office.verificador import revisar
 
 S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
@@ -638,6 +639,7 @@ def _es_valor_de_celda(parte: str, e) -> bool:
 def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_id: str,
                     mode: str = "strict") -> ProcessingReport:
     empezado = perf_counter()
+    plazo = Plazo()
     paq = _abrir(Path(entrada))
     hojas, _ = _hojas(paq)
     cuenta: Counter = Counter()
@@ -665,21 +667,31 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
     personales: dict[tuple[str, int], tuple[str, int]] = {}      # (hoja, col) -> (tipo, fila cabecera)
     por_filas: dict[tuple[str, int], str] = {}                     # (hoja, fila) -> tipo (ficha vertical)
     columnas_info = []
+    info_de: dict[tuple, dict] = {}            # (hoja, col) o (hoja, tipo de fila) -> su entrada
     for hoja in hojas:
+        plazo.comprobar()
         vertical = _ficha_vertical(hoja)
         if vertical:
             for f, (tipo, rotulo) in vertical.items():
                 if tipo not in analyzer.disabled_types:
                     por_filas[(hoja.nombre, f)] = tipo
-                    columnas_info.append({"sheet": hoja.nombre, "header": rotulo, "type": tipo, "cells": 0})
+                    if (hoja.nombre, tipo) not in info_de:
+                        info_de[(hoja.nombre, tipo)] = {"sheet": hoja.nombre, "header": rotulo, "type": tipo,
+                                                        "cells": 0}
+                        columnas_info.append(info_de[(hoja.nombre, tipo)])
             continue
         cab = _fila_cabecera(hoja)
-        cols = sorted({c for (_, c) in hoja.celdas})
+        # Las celdas de cada columna, de una vez: recorrerlas todas por cada
+        # columna hacia lenta una hoja ancha y larga.
+        por_columna: dict[int, list[tuple[int, etree._Element]]] = {}
+        for (f, col), c in hoja.celdas.items():
+            por_columna.setdefault(col, []).append((f, c))
+        cols = sorted(por_columna)
         clasificadas, importes = {}, []
         for col in cols:
             celda_cab = hoja.celdas.get((cab, col)) if cab else None
             cabecera = hoja.texto(celda_cab) if celda_cab is not None else None
-            celdas = [c for (f, cc), c in hoja.celdas.items() if cc == col and f > cab]
+            celdas = [c for f, c in por_columna[col] if f > cab]
             datos = [hoja.texto(c) for c in celdas if c.find(s("f")) is None]
             tipo = (tipo_por_cabecera(cabecera) if cabecera else None) or tipo_por_contenido(
                 [d for d in datos if d])
@@ -694,8 +706,7 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
                         importes.append((col, cabecera))
         sin_clasificar = {col: hoja.texto(hoja.celdas[(cab, col)]) or "" for col in cols
                           if col not in clasificadas and cab and (cab, col) in hoja.celdas}
-        datos_col = {col: [hoja.texto(c) for (f, cc), c in hoja.celdas.items() if cc == col and f > cab]
-                     for col in sin_clasificar}
+        datos_col = {col: [hoja.texto(c) for f, c in por_columna[col] if f > cab] for col in sin_clasificar}
         for col in _cuenta_repartida(sin_clasificar, datos_col):
             clasificadas[col] = ("IBAN_CODE", sin_clasificar[col])
         if importes:
@@ -710,12 +721,16 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
                 continue
             personales[(hoja.nombre, col)] = (tipo, cab)
             if tipo != TEXTO_LIBRE:
-                columnas_info.append({"sheet": hoja.nombre, "header": cabecera or "", "type": tipo, "cells": 0})
+                info_de[(hoja.nombre, col)] = {"sheet": hoja.nombre, "header": cabecera or "", "type": tipo,
+                                               "cells": 0}
+                columnas_info.append(info_de[(hoja.nombre, col)])
 
     # Sustituir.
     valores_quitados: set[str] = set()
     for hoja in hojas:
-        for (f, col), c in hoja.celdas.items():
+        for n, ((f, col), c) in enumerate(hoja.celdas.items()):
+            if n % 2000 == 0:
+                plazo.comprobar()
             if col > 1 and (hoja.nombre, f) in por_filas:
                 tipo = por_filas[(hoja.nombre, f)]
                 if hoja.texto(c) and c.find(s("f")) is None:
@@ -723,7 +738,7 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
                         valores_quitados.add(hoja.texto(c))
                     _poner_texto(c, marcador(tipo))
                     tipos[tipo] += 1
-                    next(i for i in columnas_info if i["sheet"] == hoja.nombre and i["type"] == tipo)["cells"] += 1
+                    info_de[(hoja.nombre, tipo)]["cells"] += 1
                 continue
             tipo, cab = personales.get((hoja.nombre, col), (None, 0))
             if f <= cab:
@@ -736,10 +751,7 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
                     valores_quitados.add(texto)
                 _poner_texto(c, marcador(tipo))
                 tipos[tipo] += 1
-                info = next(i for i in columnas_info if i["sheet"] == hoja.nombre
-                            and i["type"] == tipo and (i["header"] == (hoja.texto(hoja.celdas[(cab, col)])
-                                                                       if cab and (cab, col) in hoja.celdas else "")))
-                info["cells"] += 1
+                info_de[(hoja.nombre, col)]["cells"] += 1
             elif texto and hoja.es_texto(c) and (tipo == TEXTO_LIBRE or (len(texto) >= 25 and " " in texto)):
                 nuevo = _sustituir_en_texto(texto, analyzer, mode, tipos)
                 if nuevo != texto:
@@ -750,7 +762,9 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
     # se les quita el valor guardado.
     nombres_hoja = {h.nombre for h in hojas}
     for hoja in hojas:
-        for (f, col), c in hoja.celdas.items():
+        for n, ((f, col), c) in enumerate(hoja.celdas.items()):
+            if n % 2000 == 0:
+                plazo.comprobar()
             formula = c.find(s("f"))
             if formula is None:
                 continue
@@ -789,7 +803,7 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
     _texto_suelto(paq, analyzer, mode, tipos)
     # Lo que no es una celda: validaciones, formato condicional, filtros, titulos
     # de graficos, nombres definidos, textos dentro de formulas...
-    barrer(paq, analyzer, mode, tipos, _es_valor_de_celda)
+    barrer(paq, analyzer, mode, tipos, _es_valor_de_celda, plazo)
     _compartidas_usadas(paq, hojas)
 
     paq.guardar(Path(salida))

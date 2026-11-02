@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     # Imagen suelta (JPEG, PNG, TIFF): tope de megapixeles por pagina.  Una foto de
     # movil ronda 12-50; por encima suele ser una imagen hecha para agotar memoria.
     max_image_megapixels: float = 100.0
+    # Word y Excel: tope de parrafos y de celdas (se comprueba al subirlo, en
+    # milisegundos) y de tiempo de tratamiento, como el presupuesto del OCR.  Un
+    # listado de 100 000 filas por 20 columnas son 2 millones de celdas.
+    max_office_cells: int = 2_000_000
+    max_office_paragraphs: int = 100_000
+    office_timeout_s: int = 600
     min_digital_text_chars: int = 30
 
     pdf_processing_mode: Literal["auto", "raster_ocr", "hybrid_secure"] = "hybrid_secure"

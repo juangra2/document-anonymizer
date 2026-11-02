@@ -234,6 +234,18 @@ export const TEXTOS = {
         "Los .doc y .xls no se pueden anonimizar. Ábrelo en Word o Excel y guárdalo " +
         "como .docx o .xlsx (Archivo › Guardar como), y vuelve a subirlo.",
     },
+    office_too_large: {
+      titulo: "El documento es demasiado grande para revisarlo de una vez",
+      texto:
+        "Tiene más celdas o párrafos de los que el servicio puede revisar de una vez. " +
+        "Divídelo en varios archivos (por hojas o por partes) y súbelos por separado.",
+    },
+    processing_timeout: {
+      titulo: "El documento ha tardado demasiado",
+      texto:
+        "Se ha parado para no bloquear el servicio y no se ha entregado nada. " +
+        "Divídelo en partes más pequeñas y súbelas por separado.",
+    },
     office_macros: {
       titulo: "Este documento tiene macros",
       texto:

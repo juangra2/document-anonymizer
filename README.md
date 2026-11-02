@@ -256,6 +256,9 @@ o en `.env` en la raíz del proyecto si se ejecuta sin Docker (plantilla en `.en
 | `EASYOCR_ALLOW_DOWNLOAD` | `false` en Docker | Permitir que EasyOCR descargue pesos. En el servidor, siempre `false` |
 | `OCR_PDF_RENDER_DPI` | `200` | Resolución a la que se leen las páginas escaneadas |
 | `OCR_PAGE_TIMEOUT_S` | `360` | Tiempo máximo de OCR por página; la que lo agota se tacha entera |
+| `MAX_OFFICE_CELLS` | `2000000` | Celdas como máximo de un Excel; uno mayor se rechaza al subirlo (`office_too_large`) |
+| `MAX_OFFICE_PARAGRAPHS` | `100000` | Párrafos como máximo de un Word; uno mayor se rechaza al subirlo |
+| `OFFICE_TIMEOUT_S` | `600` | Tiempo máximo de tratamiento de un Word o un Excel; si se pasa, falla con `processing_timeout` |
 | `REDACT_UNREADABLE_PAGES` | `true` | Tachar entera la página que no se puede leer |
 | `OCR_AUTO_ROTATE_ENABLED` | `true` | Corregir escaneos girados |
 | `PRESIDIO_SCORE_THRESHOLD` | `0.55` | Puntuación mínima de una detección |

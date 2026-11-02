@@ -5,8 +5,8 @@ sustituido: no puede ver lo que no se detecto.  Este lee la SALIDA de nuevo,
 entera, y pasa todo su texto por el analizador:
   - Word: cada parrafo (o fila de tabla) de cada parte de texto, como se
     analiza al anonimizar;
-  - Excel: el valor de cada celda, en todas las hojas, tambien las que no se
-    sustituyeron por columna (una ficha en vertical, una cabecera que no se
+  - Excel: el valor de cada celda, fila a fila, en todas las hojas, tambien las
+    que no se sustituyeron por columna (una ficha en vertical, una cabecera que no se
     reconocio, un numero que es un telefono);
   - en los dos, el resto del texto de todas las partes (barrido.textos_libres).
 Lo que encuentra no se toca: el documento pasa a revision manual y el informe
@@ -46,6 +46,8 @@ def _tipos_en(texto: str, analyzer, mode: str, cuenta: Counter) -> None:
 
     for a, b, tipo in spans_de(texto, analyzer, mode):
         dato = texto[a:b]
+        if "\n" in dato.strip():
+            continue            # cruza de una fila a otra
         if not re.search(r"\w", _MARCADOR.sub("", dato)):
             continue            # solo marcadores: "[NOMBRE],[NOMBRE]"
         if tipo == "PERSON" and not _parece_nombre(dato):
@@ -70,10 +72,26 @@ def segunda_opinion(ruta: Path, analyzer, mode: str) -> Counter:
 
         hojas, _ = _hojas(paq)
         for hoja in hojas:
-            for c in hoja.celdas.values():
+            # Fila a fila, con las celdas separadas por tabuladores (como una
+            # fila de tabla de Word): un nombre repartido en dos columnas se ve
+            # entero.
+            filas: dict[int, list[tuple[int, str]]] = {}
+            for (f, col), c in hoja.celdas.items():
                 texto = hoja.texto(c)
                 if texto and c.find(f"{{{_S}}}f") is None:
-                    _tipos_en(texto, analyzer, mode, cuenta)
+                    filas.setdefault(f, []).append((col, texto))
+            # Las filas, sin repetir, en bloques de unos 4000 caracteres (un salto
+            # de linea entre fila y fila): pocas llamadas al analizador tambien en
+            # una hoja de cien mil filas.
+            bloque, largo = [], 0
+            for texto in dict.fromkeys("\t".join(t for _, t in sorted(f)) for f in filas.values()):
+                if largo + len(texto) > 4000 and bloque:
+                    _tipos_en("\n".join(bloque), analyzer, mode, cuenta)
+                    bloque, largo = [], 0
+                bloque.append(texto)
+                largo += len(texto) + 1
+            if bloque:
+                _tipos_en("\n".join(bloque), analyzer, mode, cuenta)
         principal = _es_valor_de_celda
     for _, e, atributo, es_formula in textos_libres(paq, principal):
         texto = e.get(atributo) if atributo is not None else (literales_de(e.text) if es_formula else e.text)

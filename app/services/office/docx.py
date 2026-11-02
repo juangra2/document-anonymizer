@@ -43,7 +43,7 @@ from lxml import etree
 from app.core.errors import OfficeMacrosError, ProcessingError, UnsupportedDocumentError
 from app.schemas.report import CONTENT_NOT_REVIEWED, CodedWarning, ProcessingReport
 from app.services.office.barrido import barrer
-from app.services.office.paquete import Paquete, limpiar_propiedades, tipo_office, verificar
+from app.services.office.paquete import Paquete, Plazo, limpiar_propiedades, tipo_office, verificar
 from app.services.office.verificador import revisar
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -442,6 +442,7 @@ def anonimizar_docx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
                     mode: str = "strict") -> ProcessingReport:
     """`procesar_imagen(entrada, salida, formato)` tacha una imagen (camino de imagenes)."""
     empezado = perf_counter()
+    plazo = Plazo()
     paq = _abrir(Path(entrada))
     cuenta: Counter = Counter()
     _limpiar_paquete(paq, cuenta)
@@ -451,7 +452,9 @@ def anonimizar_docx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
     por_bloque = []
     valores: dict[str, str] = {}
     for nombre in partes:
-        for bloque in bloques(paq.xml(nombre)):
+        for n, bloque in enumerate(bloques(paq.xml(nombre))):
+            if n % 200 == 0:
+                plazo.comprobar()
             spans = _spans(bloque, analyzer, mode)
             por_bloque.append((bloque, spans))
             for a, b, tipo in spans:
@@ -465,7 +468,7 @@ def anonimizar_docx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
             tipos[tipo] += 1
     # Lo que no es un parrafo: nombre y etiqueta de los controles de contenido,
     # texto de formas y de marcas de agua...
-    barrer(paq, analyzer, mode, tipos, lambda parte, e: e.tag.startswith(f"{{{W}}}"))
+    barrer(paq, analyzer, mode, tipos, lambda parte, e: e.tag.startswith(f"{{{W}}}"), plazo)
     for r in informes_imagen:
         for tipo, n in (getattr(r, "entities_by_type", None) or {}).items():
             tipos[tipo] += n

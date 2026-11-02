@@ -12,6 +12,7 @@ os.environ.setdefault(
     "cuda" if usar_gpu(settings.ner_use_gpu) else "cpu",
 )
 
+import functools
 import logging
 import re
 from collections import defaultdict
@@ -2453,24 +2454,28 @@ class PiiAnalyzer:
         return normalized
 
     @staticmethod
-    def _false_positive_catalog() -> set[str]:
+    @functools.cache
+    def _false_positive_catalog() -> frozenset[str]:
+        # Los catalogos son constantes: se normalizan una vez (se consultaba
+        # normalizandolos enteros en cada candidato).
         values = (
             FIELD_LABEL_FALSE_POSITIVES
             | LABEL_SUFFIX_FALSE_VALUES
             | GENERIC_FALSE_POSITIVES
         )
 
-        return {
+        return frozenset(
             PiiAnalyzer._normalize_false_positive_text(item)
             for item in values
-        }
+        )
 
     @staticmethod
-    def _field_label_catalog() -> set[str]:
-        return {
+    @functools.cache
+    def _field_label_catalog() -> frozenset[str]:
+        return frozenset(
             PiiAnalyzer._normalize_false_positive_text(item)
             for item in FIELD_LABEL_FALSE_POSITIVES
-        }
+        )
 
     @staticmethod
     def _is_field_label_only(value: str) -> bool:

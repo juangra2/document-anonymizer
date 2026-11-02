@@ -53,9 +53,9 @@ def comprobar(ruta: Path, formato: str) -> None:
 
         assert_pdf_within_limits(ruta)
     elif formato in ("docx", "xlsx"):
-        from app.services.office.paquete import Paquete
+        from app.services.office.paquete import Paquete, comprobar_tamano
 
-        Paquete.abrir(ruta)
+        comprobar_tamano(Paquete.abrir(ruta))
     else:
         from app.services.image.imagen import comprobar_imagen
 

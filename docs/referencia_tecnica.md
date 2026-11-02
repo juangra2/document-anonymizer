@@ -214,7 +214,14 @@ la barra del valor tampoco muerde el rótulo de encima.
   (o al revés, «Apellidos, Nombre»). En los cuatro corpus de Office solo marca datos que quedan de
   verdad.
 - **Seguridad del paquete**: límites de partes, tamaño descomprimido y proporción de compresión;
-  nombres de parte sin rutas absolutas ni `..`; XML sin entidades ni red. Un `.doc`/`.xls` antiguo
+  nombres de parte sin rutas absolutas ni `..`, y sin repetir (dos partes con el mismo nombre: se
+  leería una y Word o Excel podrían mostrar la otra); XML sin entidades ni red; ninguna ruta de
+  dentro del zip se usa para escribir en disco. Al subirlo, un Excel de más de `MAX_OFFICE_CELLS`
+  celdas o un Word de más de `MAX_OFFICE_PARAGRAPHS` párrafos se rechaza (`office_too_large`, 413),
+  contando en el XML sin interpretarlo. El tratamiento tiene límite de tiempo, como el OCR
+  (`OFFICE_TIMEOUT_S`): si se pasa, el trabajo falla con `processing_timeout` y no se entrega nada.
+  La clasificación de columnas es lineal y la segunda opinión lee las filas en bloques: una hoja de
+  120 000 celdas tarda unos 35 s. Un `.doc`/`.xls` antiguo
   se rechaza con `legacy_office` y un `.docm`/`.xlsm` con `office_macros` (415), con su frase.
 - **Informe en PDF**: sin mapa de páginas (un Word no tiene páginas fijas); dice «documento de
   Word» y lista lo quitado (cambios, comentarios, objetos incrustados…).

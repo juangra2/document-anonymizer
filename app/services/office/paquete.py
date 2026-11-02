@@ -19,10 +19,12 @@ import re
 import unicodedata
 import zipfile
 from pathlib import Path
+from time import monotonic
 
 from lxml import etree
 
-from app.core.errors import FileValidationError
+from app.core.config import settings
+from app.core.errors import FileValidationError, OfficeTooLargeError, ProcessingTimeoutError
 
 CT = "http://schemas.openxmlformats.org/package/2006/content-types"
 PR = "http://schemas.openxmlformats.org/package/2006/relationships"
@@ -78,6 +80,10 @@ class Paquete:
             infos = z.infolist()
             if len(infos) > _MAX_PARTES:
                 raise FileValidationError("Office document with too many parts.")
+            # Dos partes con el mismo nombre: se leeria una y Word o Excel
+            # podrian mostrar la otra, sin anonimizar.
+            if len({i.filename for i in infos}) != len(infos):
+                raise FileValidationError("Office document with repeated part names.")
             total = sum(i.file_size for i in infos)
             comprimido = max(1, sum(i.compress_size for i in infos))
             if total > _MAX_DESCOMPRIMIDO or total / comprimido > _MAX_PROPORCION:
@@ -170,6 +176,38 @@ class Paquete:
             for nombre, datos in self.partes.items():
                 if nombre != "[Content_Types].xml":
                     z.writestr(nombre, datos)
+
+
+_CELDA = re.compile(rb"<(?:\w+:)?c[\s/>]")
+_PARRAFO = re.compile(rb"<(?:\w+:)?p[\s/>]")
+
+
+def comprobar_tamano(paq: Paquete) -> None:
+    """Demasiadas celdas (Excel) o parrafos (Word) para tratarlo de una vez: se
+    rechaza al subirlo, contando en el XML sin interpretarlo."""
+    if "word/document.xml" in paq.partes:
+        n = sum(len(_PARRAFO.findall(d)) for nombre, d in paq.partes.items()
+                if nombre.startswith("word/") and nombre.endswith(".xml"))
+        if n > settings.max_office_paragraphs:
+            raise OfficeTooLargeError(
+                f"Word document with {n} paragraphs; the maximum is {settings.max_office_paragraphs}.")
+        return
+    n = sum(len(_CELDA.findall(d)) for nombre, d in paq.partes.items()
+            if nombre.startswith("xl/worksheets/") and nombre.endswith(".xml"))
+    if n > settings.max_office_cells:
+        raise OfficeTooLargeError(f"Excel workbook with {n} cells; the maximum is {settings.max_office_cells}.")
+
+
+class Plazo:
+    """Limite de tiempo del tratamiento de un Word o un Excel (office_timeout_s)."""
+
+    def __init__(self, segundos: float | None = None) -> None:
+        self.segundos = settings.office_timeout_s if segundos is None else segundos
+        self.fin = monotonic() + self.segundos
+
+    def comprobar(self) -> None:
+        if monotonic() > self.fin:
+            raise ProcessingTimeoutError(f"The Office document took longer than {self.segundos} s.")
 
 
 def rels_de(nombre: str) -> str:

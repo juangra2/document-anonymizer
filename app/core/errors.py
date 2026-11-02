@@ -34,6 +34,14 @@ class ProcessingError(AnonymizerError):
     """Raised when processing fails unexpectedly."""
 
 
+class ProcessingTimeoutError(ProcessingError):
+    """Un Word o un Excel tarda mas que office_timeout_s: se para, como el OCR."""
+
+
+class OfficeTooLargeError(DocumentTooLargeError):
+    """Word con demasiados parrafos o Excel con demasiadas celdas para tratarlo de una vez."""
+
+
 class RedactionVerificationError(AnonymizerError):
     """Raised when residual PII is detected after redaction."""
 
@@ -50,6 +58,7 @@ class OfficeMacrosError(UnsupportedDocumentError):
 # que ve el usuario la elige el frontend a partir de este código, que es lo que
 # permite traducir la interfaz sin tocar el backend.
 _ERROR_CODES: list[tuple[type, str]] = [
+    (OfficeTooLargeError, "office_too_large"),
     (DocumentTooLargeError, "document_too_large"),
     (TooManyPagesError, "too_many_pages"),
     (EmptyPdfError, "empty_pdf"),
@@ -60,6 +69,7 @@ _ERROR_CODES: list[tuple[type, str]] = [
     (FileValidationError, "invalid_file"),
     (UnsupportedDocumentError, "unsupported_document"),
     (RedactionVerificationError, "verification_failed"),
+    (ProcessingTimeoutError, "processing_timeout"),
     (AnonymizerError, "processing_failed"),
 ]
 
