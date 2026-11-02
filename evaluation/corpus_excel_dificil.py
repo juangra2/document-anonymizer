@@ -287,7 +287,8 @@ def casos(destino: Path) -> list[dict]:
     wb.save(ruta)
     nuevo("X06", ruta.name, "Cabecera de grupo combinada encima de la cabecera real, y un nombre en "
           "una celda combinada de dos filas.", "Los datos se sustituyen; las cabeceras se quedan.",
-          [d for d in _datos_listado() if d["text"] != Q["nombre"]], ["Datos del solicitante", "Contacto"])
+          [d for d in _datos_listado() if d["text"] != Q["nombre"]],
+          ["Datos del solicitante", "Contacto", "Teléfono", "Correo electrónico"])
 
     # X07 Dos tablas en la misma hoja, con cabeceras distintas.
     wb, ws = libro()

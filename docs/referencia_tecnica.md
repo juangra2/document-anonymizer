@@ -232,6 +232,13 @@ marcador del tipo, como en Word; no se borran columnas.
   la cabecera. Texto libre (observaciones, descripción, motivo… o valores largos con espacios): se
   analiza celda a celda y solo se sustituye el dato; lo mismo cualquier celda de texto suelta de 25
   caracteres o más.
+- **Más formas de una columna personal**: abreviaturas y sinónimos de cabecera («Nº documento»,
+  «D.N.I.», «F. Nac.»); teléfonos guardados como número con el 34 delante; la cuenta repartida en
+  columnas (país, entidad, oficina, DC y cuenta son un solo dato: hace falta la columna de la cuenta
+  y otra de entidad, oficina o DC, porque «Entidad» sola es un organismo); y el número de expediente
+  (`CASE_NUMBER`, que se tacha por defecto). Una **ficha en vertical** (los rótulos en la columna A y
+  cada persona en una columna) se sustituye por filas: hacen falta dos rótulos de tipos distintos que
+  sean casi toda la columna A, para no confundirla con un listado con un título de grupo encima.
 - **Importes** (la regla del PDF): una columna con cabecera de importe (`xlsx.IMPORTES`: importe,
   cuantía, ayuda, subvención, nómina, precio, medición…) y contenido numérico es `MONEY` si la hoja
   tiene alguna columna personal, y `BUDGET_AMOUNT` si la hoja es un presupuesto de obra (las palabras

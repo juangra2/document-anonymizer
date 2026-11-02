@@ -162,12 +162,13 @@ def con_observaciones(destino: Path) -> dict:
         textos.append(obs)
         ws.append([f"EXP-2026-{300 + i}", "Licencia de obra menor", obs])
     wb.save(destino)
-    datos = []
+    # El numero de expediente se tacha por defecto (decision del ayuntamiento, 22-10).
+    datos = [{"text": f"EXP-2026-{300 + i}", "type": "CASE_NUMBER"} for i in range(len(ps))]
     for i, p in enumerate(ps):
         if i % 2:
             datos += [{"text": p["completo"], "type": "PERSON"}, {"text": p["telefono"], "type": "PHONE_NUMBER"}]
     return {"datos": datos,
-            "columnas": {"Expedientes": {"Expediente": None, "Tipo": None, "Observaciones": "TEXTO_LIBRE"}},
+            "columnas": {"Expedientes": {"Expediente": "CASE_NUMBER", "Tipo": None, "Observaciones": "TEXTO_LIBRE"}},
             "legitimos": cab + ["Licencia de obra menor", "Documentación completa, pendiente de informe técnico.",
                                 "para completar la documentación."]}
 

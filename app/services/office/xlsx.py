@@ -80,8 +80,12 @@ def _normal(texto: str) -> str:
 CABECERAS: list[tuple[str, list[str]]] = [
     ("PLACE_OF_BIRTH", ["lugar de nacimiento", "lloc de naixement"]),
     ("DATE_OF_BIRTH", ["fecha de nacimiento", "data de naixement", "f nacimiento", "nacimiento", "naixement",
-                       "fecha nac"]),
-    ("ES_DNI", ["dni", "nif", "nie", "documento de identidad", "document d identitat", "num documento"]),
+                       "fecha nac", "f nac", "fec nac", "f naix", "data naix"]),
+    ("ES_DNI", ["dni", "nif", "nie", "d n i", "n i f", "documento de identidad", "document d identitat",
+                "num documento", "no documento", "n o doc", "no doc", "n doc", "numero documento",
+                "doc identidad", "nif nie"]),
+    ("CASE_NUMBER", ["expediente", "no expediente", "n expediente", "num expediente", "n o expediente",
+                     "expedient", "expte", "no expte", "n expte"]),
     ("ES_NSS", ["seguridad social", "seguretat social", "nss", "naf"]),
     ("PASSPORT", ["pasaporte", "passaport"]),
     ("PHONE_NUMBER", ["telefono", "telefon", "tel", "tlf", "movil", "mobil"]),
@@ -129,6 +133,52 @@ def _es_importe(v: str) -> bool:
     return bool(re.fullmatch(r"-?\s*\d[\d.,\s]*(?:€|eur|euros)?", v.strip(), re.I))
 
 
+#: Una cuenta repartida en columnas: cada trozo solo no parece nada; juntos, son
+#: la cuenta.  Hace falta la columna de la cuenta y otra de entidad, oficina o DC:
+#: "Entidad" sola es un organismo.
+_TROZOS_DE_CUENTA = {"pais", "entidad", "banco", "oficina", "sucursal", "dc", "d c", "digito control",
+                     "cuenta", "no cuenta", "n cuenta", "num cuenta", "numero cuenta", "n o cuenta"}
+_CUENTA = {"cuenta", "no cuenta", "n cuenta", "num cuenta", "numero cuenta", "n o cuenta"}
+
+
+def _cuenta_repartida(cabeceras: dict[int, str], datos: dict[int, list[str]]) -> list[int]:
+    """Columnas que son trozos de una misma cuenta bancaria."""
+    trozos = {col: _normal(c) for col, c in cabeceras.items() if _normal(c) in _TROZOS_DE_CUENTA}
+    nombres = set(trozos.values())
+    if not (nombres & _CUENTA and nombres & {"entidad", "banco", "oficina", "sucursal", "dc", "d c"}):
+        return []
+    salida = []
+    for col, nombre in trozos.items():
+        valores = [v.replace(" ", "") for v in datos.get(col, []) if v]
+        patron = r"[A-Z]{2}\d{2}" if nombre == "pais" else r"\d{1,20}"
+        if valores and sum(bool(re.fullmatch(patron, v)) for v in valores) >= 0.6 * len(valores):
+            salida.append(col)
+    return salida
+
+
+def _ficha_vertical(hoja: "Hoja") -> dict[int, tuple[str, str]]:
+    """Fila -> (tipo, rotulo) si la hoja es una ficha en vertical: los rotulos en
+    la columna A ("Nombre", "DNI", "Teléfono"...) y cada persona en una columna.
+    Hacen falta dos filas con rotulo y datos a su derecha, de dos tipos distintos
+    como poco; que los rotulos sean casi toda la columna A (en un listado, la
+    columna A tiene un rotulo arriba y datos debajo); y mas rotulos en la columna
+    A que en la primera fila."""
+    filas, textos_a = {}, 0
+    for (f, col), c in hoja.celdas.items():
+        if col == 1 and hoja.texto(c):
+            textos_a += 1
+            tipo = tipo_por_cabecera(hoja.texto(c) or "") if hoja.es_texto(c) else None
+            if tipo and tipo != TEXTO_LIBRE:
+                filas[f] = (tipo, hoja.texto(c))
+    if len(filas) < 2 or len({t for t, _ in filas.values()}) < 2 or len(filas) < 0.6 * textos_a:
+        return {}
+    primera = min(f for f, _ in hoja.celdas)
+    en_cabecera = sum(1 for (f, col), c in hoja.celdas.items()
+                      if f == primera and col > 1 and hoja.es_texto(c) and tipo_por_cabecera(hoja.texto(c) or ""))
+    con_datos = [f for f in filas if any(ff == f and cc > 1 for ff, cc in hoja.celdas)]
+    return {f: filas[f] for f in con_datos} if len(con_datos) >= 2 and len(filas) > en_cabecera else {}
+
+
 def _es_presupuesto(hoja: "Hoja") -> bool:
     """Una hoja de presupuesto de obra: las palabras con que el PDF lo reconoce."""
     from app.services.pii.analyzer import _BUDGET_VETO_RE
@@ -149,6 +199,8 @@ def _es_dni(v: str) -> bool:
 def _es_telefono(v: str) -> bool:
     d = re.sub(r"[\s.\-()]", "", v)
     d = re.sub(r"^(\+34|0034)", "", d)
+    if len(d) == 11 and d.startswith("34"):
+        d = d[2:]                     # 34663418902: el prefijo sin "+"
     return bool(re.fullmatch(r"[6789]\d{8}", d))
 
 
@@ -256,17 +308,29 @@ def _fila_cabecera(hoja: Hoja) -> int:
     La primera fila con al menos dos rotulos (texto corto, sin arrobas y casi
     sin cifras) y datos debajo: un titulo encima tiene una sola celda y no
     cuenta.  Una palabra de cabecera en los datos ("Primer beneficiario",
-    "...@correo.es") no la mueve.  Si ninguna fila es asi, la que mas se
-    parece a nombres de columna conocidos.
+    "...@correo.es") no la mueve.  Una fila de grupo encima ("Datos del
+    solicitante | Contacto") tampoco: si la fila siguiente tiene mas nombres de
+    columna conocidos, la cabecera es esa.  Si ninguna fila es asi, la que mas
+    se parece a nombres de columna conocidos.
     """
     filas: dict[int, list] = {}
     for (f, col), c in hoja.celdas.items():
         if f <= 20:
             filas.setdefault(f, []).append(c)
+
+    def de_rotulos(f: int) -> bool:
+        llenas = [c for c in filas.get(f, []) if hoja.texto(c)]
+        return (len(llenas) >= 2 and all(hoja.es_texto(c) and _es_rotulo(hoja.texto(c)) for c in llenas)
+                and any(ff > f for ff in filas))
+
+    def conocidos(f: int) -> int:
+        return sum(1 for c in filas.get(f, []) if hoja.es_texto(c) and tipo_por_cabecera(hoja.texto(c) or ""))
+
     for f in sorted(filas):
-        llenas = [c for c in filas[f] if hoja.texto(c)]
-        if (len(llenas) >= 2 and all(hoja.es_texto(c) and _es_rotulo(hoja.texto(c)) for c in llenas)
-                and any(ff > f for ff in filas)):
+        if de_rotulos(f):
+            siguiente = min((ff for ff in filas if ff > f), default=None)
+            if siguiente and de_rotulos(siguiente) and conocidos(siguiente) >= 2 and conocidos(siguiente) > conocidos(f):
+                return siguiente
             return f
     mejor, puntos = 0, 0
     for f in sorted(filas):
@@ -599,8 +663,16 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
 
     # Clasificar columnas.
     personales: dict[tuple[str, int], tuple[str, int]] = {}      # (hoja, col) -> (tipo, fila cabecera)
+    por_filas: dict[tuple[str, int], str] = {}                     # (hoja, fila) -> tipo (ficha vertical)
     columnas_info = []
     for hoja in hojas:
+        vertical = _ficha_vertical(hoja)
+        if vertical:
+            for f, (tipo, rotulo) in vertical.items():
+                if tipo not in analyzer.disabled_types:
+                    por_filas[(hoja.nombre, f)] = tipo
+                    columnas_info.append({"sheet": hoja.nombre, "header": rotulo, "type": tipo, "cells": 0})
+            continue
         cab = _fila_cabecera(hoja)
         cols = sorted({c for (_, c) in hoja.celdas})
         clasificadas, importes = {}, []
@@ -613,18 +685,24 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
                 [d for d in datos if d])
             if tipo:
                 clasificadas[col] = (tipo, cabecera)
-            elif cabecera and es_cabecera_de_importe(cabecera):
+            elif cabecera and es_cabecera_de_importe(cabecera) and _normal(cabecera) not in _TROZOS_DE_CUENTA:
                 llenas = [d for d in datos if d]
                 numericas = [d for d in llenas if _es_importe(d)]
                 formulas = len(celdas) - len(datos)
                 if llenas or formulas:
                     if len(numericas) + formulas >= 0.6 * (len(llenas) + formulas):
                         importes.append((col, cabecera))
+        sin_clasificar = {col: hoja.texto(hoja.celdas[(cab, col)]) or "" for col in cols
+                          if col not in clasificadas and cab and (cab, col) in hoja.celdas}
+        datos_col = {col: [hoja.texto(c) for (f, cc), c in hoja.celdas.items() if cc == col and f > cab]
+                     for col in sin_clasificar}
+        for col in _cuenta_repartida(sin_clasificar, datos_col):
+            clasificadas[col] = ("IBAN_CODE", sin_clasificar[col])
         if importes:
             # Un importe es dato si la hoja es un presupuesto de obra o trata de personas.
             if _es_presupuesto(hoja):
                 clasificadas.update({col: ("BUDGET_AMOUNT", cabecera) for col, cabecera in importes})
-            elif any(t != TEXTO_LIBRE for t, _ in clasificadas.values()):
+            elif any(t not in (TEXTO_LIBRE, "CASE_NUMBER") for t, _ in clasificadas.values()):
                 clasificadas.update({col: ("MONEY", cabecera) for col, cabecera in importes})
         for col, (tipo, cabecera) in sorted(clasificadas.items()):
             if tipo in analyzer.disabled_types:
@@ -638,13 +716,23 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
     valores_quitados: set[str] = set()
     for hoja in hojas:
         for (f, col), c in hoja.celdas.items():
+            if col > 1 and (hoja.nombre, f) in por_filas:
+                tipo = por_filas[(hoja.nombre, f)]
+                if hoja.texto(c) and c.find(s("f")) is None:
+                    if not re.fullmatch(r"\d{1,5}", hoja.texto(c).strip()):
+                        valores_quitados.add(hoja.texto(c))
+                    _poner_texto(c, marcador(tipo))
+                    tipos[tipo] += 1
+                    next(i for i in columnas_info if i["sheet"] == hoja.nombre and i["type"] == tipo)["cells"] += 1
+                continue
             tipo, cab = personales.get((hoja.nombre, col), (None, 0))
             if f <= cab:
                 continue
             texto = hoja.texto(c)
             if tipo and tipo != TEXTO_LIBRE and texto and c.find(s("f")) is None:
-                if tipo not in ("MONEY", "BUDGET_AMOUNT"):
-                    # Un importe ("18.5") puede estar en cualquier parte del XML.
+                if tipo not in ("MONEY", "BUDGET_AMOUNT") and not re.fullmatch(r"\d{1,5}", texto.strip()):
+                    # Un importe ("18.5") o un numero corto (la entidad de una
+                    # cuenta, "2100") puede estar en cualquier parte del XML.
                     valores_quitados.add(texto)
                 _poner_texto(c, marcador(tipo))
                 tipos[tipo] += 1
@@ -675,6 +763,10 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
                     tipo, cab = personales.get((nombre, cc), (None, 0))
                     if tipo and f1 > cab:
                         trae = tipo
+                if c1 > 1:
+                    # Una fila de una ficha en vertical.
+                    for ff in range(f0, min(f1, f0 + 1000) + 1):
+                        trae = por_filas.get((nombre, ff), trae)
             if trae:
                 _poner_texto(c, marcador(trae if trae != TEXTO_LIBRE else "DATO"))
                 tipos[trae] += trae != TEXTO_LIBRE

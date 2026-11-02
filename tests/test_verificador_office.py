@@ -3,8 +3,8 @@
   - Ve lo que el anonimizador no detecto: con el barrido apagado, los nombres
     de una lista desplegable quedan en el fichero y el informe pide revision
     (residual_pii), sin escribir los valores.
-  - Ve los datos de una ficha en vertical (X08), que la clasificacion por
-    columnas no reconoce.
+  - Ve los datos de una ficha en vertical (X08) si la clasificacion por
+    columnas no la reconoce.
   - En un documento bien anonimizado o sin datos, no dice nada: la revision
     manual no puede saltar por ruido.
 """
@@ -51,8 +51,11 @@ def test_ve_lo_que_no_se_detecto(excel, analyzer, monkeypatch):
     assert "Ribes" not in json.dumps(informe.model_dump(mode="json"), ensure_ascii=False), "sin valores"
 
 
-def test_ve_una_ficha_en_vertical(excel, analyzer):
+def test_ve_una_ficha_en_vertical(excel, analyzer, monkeypatch):
+    """Sin reconocer la ficha en vertical (como antes), sus datos se quedan: la
+    segunda opinion los ve."""
     carpeta, casos = excel
+    monkeypatch.setattr(xlsx, "_ficha_vertical", lambda hoja: {})
     salida = carpeta / "x08.xlsx"
     informe = anonimizar_xlsx(carpeta / casos["X08"]["fichero"], salida, analyzer, _sin_imagenes, "t")
     if not informe.manual_review_required:

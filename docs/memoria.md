@@ -174,7 +174,9 @@ revisan también las hojas ocultas, las fórmulas que copian un dato, los coment
 definidos y las tablas dinámicas, que se eliminan porque guardan una copia de los datos. Lo que no
 es una celda ni un párrafo también es contenido del fichero: listas desplegables, reglas de formato,
 filtros, títulos de gráficos, textos dentro de fórmulas, nombres de marcador o de controles de Word.
-Todo ese texto pasa por el mismo analizador. Los
+Todo ese texto pasa por el mismo analizador. Las columnas se reconocen también con abreviaturas
+(«Nº documento», «F. Nac.»), en una ficha en vertical (rótulos en la primera columna) o repartidas
+(una cuenta bancaria en entidad, oficina, DC y cuenta). Los
 importes siguen la regla del PDF: los de una hoja que trata de personas pasan a «[IMPORTE]» (la suma
 y la media se quedan con su valor; el máximo y el mínimo, no, porque señalan a una persona); los de
 un presupuesto de obra, solo con su casilla marcada. Como en el PDF y en el Word, un tipo
