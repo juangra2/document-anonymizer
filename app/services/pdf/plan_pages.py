@@ -20,6 +20,12 @@ from app.services.storage.temp_storage import scratch_dir
 # Longitud mínima de un bloque de texto para considerarlo "párrafo".
 _PARAGRAPH_CHARS = 150
 
+#: Marca (en las palabras clave) del PDF que arma la vía de imágenes con cada
+#: foto suelta.  Su tamaño de página sale de los píxeles, no de un papel: una
+#: foto grande daría "gran formato" y se tomaría por un plano sin cajetín, que
+#: se deja sin tachar.  Una imagen suelta nunca es un plano.
+MARCA_IMAGEN_SUELTA = "document-anonymizer:imagen-suelta"
+
 
 def is_image_dominant_page(page: fitz.Page) -> bool:
     """True para páginas plan/foto: una imagen enorme cubriendo casi todo.
@@ -246,6 +252,8 @@ def is_plan_page(page: fitz.Page) -> bool:
        volumen masivo de paths vectoriales (plano CAD digital).
     """
     if not settings.plan_page_enabled:
+        return False
+    if (page.parent.metadata or {}).get("keywords") == MARCA_IMAGEN_SUELTA:
         return False
 
     w, h = page.rect.width, page.rect.height

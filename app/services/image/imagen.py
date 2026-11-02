@@ -29,6 +29,7 @@ from app.core.config import settings
 from app.core.errors import DocumentTooLargeError, FileValidationError, TooManyPagesError
 from app.schemas.report import CONTENT_NOT_REVIEWED, CodedWarning, ProcessingReport
 from app.services.pdf.limpieza import jpeg_con_metadatos, limpiar_jpeg
+from app.services.pdf.plan_pages import MARCA_IMAGEN_SUELTA
 
 
 _ORIENTACION = 0x0112
@@ -159,6 +160,7 @@ def anonimizar_imagen(
             m.save(buffer, format="PNG")
             page = doc.new_page(width=m.width * 72 / ppp, height=m.height * 72 / ppp)
             page.insert_image(page.rect, stream=buffer.getvalue())
+        doc.set_metadata({"keywords": MARCA_IMAGEN_SUELTA})
         doc.save(pdf_entrada)
         doc.close()
 

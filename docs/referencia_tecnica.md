@@ -264,7 +264,10 @@ marcador del tipo, como en Word; no se borran columnas.
   párrafos y con mucho dibujo, detectadas antes de rasterizar. Se localiza el cajetín y se analiza
   solo ese recorte; el verificador también mira solo el cajetín (en el dibujo, los rótulos parecen
   nombres y las cotas pasaportes), y el informe lo dice. Sin cajetín, la página queda intacta y
-  marcada para revisión. De la salida solo se quita el texto diminuto que no se ve.
+  marcada para revisión. De la salida solo se quita el texto diminuto que no se ve. Una imagen
+  suelta nunca es un plano: el PDF que arma la vía de imágenes lleva la marca
+  `MARCA_IMAGEN_SUELTA`, porque su tamaño de página sale de los píxeles (una foto de 60 MP daba
+  «gran formato» y salía sin tachar).
 - **Códigos QR y de barras** (`vision/code_detector.py`): se localizan y se decodifican con zbar,
   OpenCV y zxing; se tachan según la regla del catálogo. Tope de tamaño: un código que se
   descodifica puede ocupar hasta el 35 % de la página (el QR de un carnet es el 8-15 % de la

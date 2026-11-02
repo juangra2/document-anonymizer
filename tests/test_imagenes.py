@@ -149,6 +149,20 @@ def test_jpeg_sale_jpeg_tapado_y_sin_metadatos(tmp_path, procesar_pdf):
     assert informe.entities_by_type
 
 
+def test_una_foto_grande_no_se_toma_por_un_plano(tmp_path, procesar_pdf):
+    """Una foto de 5000x6000 (30 megapixeles) da una pagina por encima de A2 a
+    200 ppp y con una imagen dominante: el detector de planos de obra la tomaba
+    por un plano sin cajetin y la dejaba sin tachar.  El tamaño de pagina de una
+    imagen suelta es inventado."""
+    entrada = tmp_path / "grande.png"
+    Image.new("RGB", (5000, 6000), "white").save(entrada)
+    salida = tmp_path / "salida.png"
+    informe = anonimizar_imagen(entrada, salida, "png", procesar_pdf)
+    renglon = tuple(int(v * 5000 / 600) for v in RENGLON)
+    assert _oscuridad(Image.open(salida), renglon) > 60, "la foto grande ha salido sin tachar"
+    assert informe.entities_by_type
+
+
 def test_una_foto_girada_por_exif_sale_derecha(tmp_path, procesar_pdf):
     entrada = _jpeg_movil(tmp_path, orientacion=6)          # girada 90 grados
     salida = tmp_path / "salida.jpg"
