@@ -653,6 +653,16 @@ DIRECT_REGEX_PATTERNS: list[tuple[str, str, float]] = [
         0.85,
     ),
     (
+        # Trozo de una cuenta: lo que queda a la vista cuando algo tapa su
+        # principio (una foto con un objeto encima: "18 4502 0005 1332", sin la
+        # etiqueta ni el "ES").  Tres o mas grupos de exactamente cuatro cifras
+        # seguidos, con un grupo corto delante o sin el; un telefono va en grupos
+        # de tres y una tarjeta tiene su propio reconocedor, de mas puntuacion.
+        "IBAN_CODE",
+        r"(?<![\d.,/])\b(?:\d{1,2}[ \-])?\d{4}(?:[ \-]\d{4}){2,}\b(?![.,/]\d)",
+        0.70,
+    ),
+    (
         # REGISTRY_NUMBER — output/input register ("N. Eixida / N. Salida":
         # 00128-2022-093281).  Identifies the specific communication addressed to
         # a citizen, so it is always redacted.  Distinct from CASE_NUMBER (which
@@ -1411,6 +1421,20 @@ _ISSUER_PREFIX_RE = re.compile(
 _NAME_TOKEN_RE = re.compile(r"[A-Za-zÁÉÍÓÚÑÜáéíóúñüÀÈÒÏÇàèòïç]{2,}")
 
 
+# Saludo de carta seguido de un nombre ("Benvolguda Aina,", "Estimada Laura:",
+# "Distinguida Sra. Climent:").  El saludo, en castellano o valenciano y con
+# tratamiento o sin el; despues, hasta cuatro palabras con mayuscula.
+_SALUDO_NOMBRE_RE = re.compile(
+    r"(?<![\wÀ-ÿ])(?i:benvolgud[ae]s?|benvolguts?|estimad[oa]s?|estimats?|querid[oa]s?|"
+    r"distinguid[oa]s?|apreciad[oa]s?|respectad[oa]s?|benvolgut)"
+    r"(?:[^\S\r\n]+(?i:sr|sra|srta|senyor|senyora|señor|señora|don|doña|dª|d)\.?)?"
+    r"[^\S\r\n]+(?P<value>[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’\-]+"
+    r"(?:[^\S\r\n]+(?:(?:de|del|i|y)[^\S\r\n]+)?[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’\-]+){0,3})"
+    r"|(?<![\wÀ-ÿ])(?i:sr|sra|srta)\.[^\S\r\n]+(?P<value2>[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’\-]+"
+    r"(?:[^\S\r\n]+(?:(?:de|del|i|y)[^\S\r\n]+)?[A-ZÁÉÍÓÚÑÜÀÈÒÏÇ][\wÀ-ÿ'’\-]+){0,3})"
+)
+
+
 def _name_tokens(value: str) -> list[str]:
     """Normalised alphabetic tokens of *value* for gazetteer name lookups."""
     return [gazetteer.normalize(m.group()) for m in _NAME_TOKEN_RE.finditer(value)]
@@ -1570,6 +1594,7 @@ class PiiAnalyzer:
         entities.extend(self._detect_address_gazetteer(text))
         entities.extend(self._detect_direccion_en_prosa(text))
         entities.extend(self._detect_signature_block_names(text))
+        entities.extend(self._detect_greeting_names(text))
         entities.extend(self._detect_person_filenames(text))
         if settings.gazetteer_person:
             entities.extend(self._detect_gazetteer_person_names(text))
@@ -3019,6 +3044,32 @@ class PiiAnalyzer:
                             source="deterministic_regex",
                         )
                     )
+        return entities
+
+    @staticmethod
+    def _detect_greeting_names(text: str) -> list[PiiEntity]:
+        """PERSON tras el saludo de una carta ("Benvolguda Aina,"): un nombre de
+        pila suelto no lo reconoce el NER.  Las palabras se recortan por el final
+        mientras no sean nombre o apellido del padron, y un cargo corta el nombre
+        ("Sr. Director", "Estimada Comisión" no son nadie)."""
+        entities: list[PiiEntity] = []
+        for m in _SALUDO_NOMBRE_RE.finditer(text):
+            grupo = "value" if m.group("value") else "value2"
+            palabras = list(_PALABRA_DE_NOMBRE_RE.finditer(text, m.start(grupo), m.end(grupo)))
+
+            def es_nombre(p):
+                n = gazetteer.normalize(p.group())
+                return n not in _CARGOS_DE_FIRMA and gazetteer.is_person_token(n)
+
+            corte = next((k for k, p in enumerate(palabras) if not es_nombre(p)), len(palabras))
+            palabras = palabras[:corte]
+            if not palabras:
+                continue
+            start, end = palabras[0].start(), palabras[-1].end()
+            if _INSTITUTION_NAME_RE.search(text[start:end]):
+                continue
+            entities.append(PiiEntity(entity_type="PERSON", start=start, end=end, score=0.85,
+                                      source="labeled_field"))
         return entities
 
     @staticmethod
