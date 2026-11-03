@@ -1435,6 +1435,28 @@ _SALUDO_NOMBRE_RE = re.compile(
 )
 
 
+_TROZO_DE_CUENTA_RE = re.compile(r"(?:\d{1,2}[ \-])?\d{4}(?:[ \-]\d{4}){2,}")
+
+
+def _sigue_a_otra_cuenta(e: PiiEntity, entities: list[PiiEntity], text: str,
+                        context_text: str | None = None) -> bool:
+    """Un trozo de cuenta (sin "ES") que empieza dentro de otra cuenta detectada
+    o a menos de 60 caracteres despues de su principio.  Tambien en el texto de
+    la pagina (`context_text`): la via digital analiza a veces una linea suelta,
+    y la segunda linea de una cuenta partida no lleva el "ES" de la primera."""
+    trozo = text[e.start:e.end]
+    if e.entity_type != "IBAN_CODE" or not _TROZO_DE_CUENTA_RE.fullmatch(trozo):
+        return False
+    if any(o is not e and o.entity_type == "IBAN_CODE" and o.start < e.start <= o.start + 60
+           and not _TROZO_DE_CUENTA_RE.fullmatch(text[o.start:o.end]) for o in entities):
+        return True
+    if context_text:
+        for m in re.finditer(re.escape(trozo), context_text):
+            if re.search(r"(?i)E[S5][ \t]?\d{2}", context_text[max(0, m.start() - 60):m.start()]):
+                return True
+    return False
+
+
 def _name_tokens(value: str) -> list[str]:
     """Normalised alphabetic tokens of *value* for gazetteer name lookups."""
     return [gazetteer.normalize(m.group()) for m in _NAME_TOKEN_RE.finditer(value)]
@@ -1607,6 +1629,11 @@ class PiiAnalyzer:
         entities.extend(self._detect_money(text, context_text))
         entities.extend(self._detect_private_companies(text))
         entities.extend(self._detect_ner_entities(text, zone_type=zone_type))
+
+        # Un trozo de cuenta que sigue a otra cuenta ya detectada es esa misma
+        # cuenta partida por un salto de linea ("ES09 0049 6738 1151\n6734 9902"):
+        # ya se tapa, y contarlo aparte seria una deteccion de mas.
+        entities = [e for e in entities if not _sigue_a_otra_cuenta(e, entities, text, context_text)]
 
         # Nueve cifras tras "Expediente" o "Registro" son ese numero, no un
         # telefono (banco de pruebas: los dos se tachaban como telefono).  Despues
