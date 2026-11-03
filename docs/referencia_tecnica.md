@@ -43,7 +43,7 @@ agrupación de la interfaz está en `app/web/js/categorias.js`; un tipo sin grup
 | `IBAN_CODE` | Cuentas IBAN, cuentas antiguas de 20 dígitos (CCC) y trozos de cuenta (tres o más grupos de cuatro cifras: lo que queda a la vista si algo tapa el principio) |
 | `CREDIT_CARD` | Tarjeta de crédito o débito |
 | `MONEY` | Importes ligados a una persona o cuenta (nóminas, transferencias, liquidaciones) |
-| `BUDGET_AMOUNT` | Precios, mediciones y totales de un presupuesto de obra. Único tipo que viene desmarcado: sin `enabled_types`, el presupuesto queda a la vista |
+| `BUDGET_AMOUNT` | Precios, mediciones y totales de un presupuesto de obra. Marcado por defecto como los demás: se desmarca (`disabled_types`) cuando el presupuesto debe quedar a la vista |
 | `POLICY_NUMBER` | Número de póliza de seguro |
 | `ADDRESS` | Domicilios: tipo de vía, número, piso y municipio |
 | `POSTAL_CODE` | Código postal |
@@ -648,8 +648,8 @@ inventados (listado de solicitantes, inscritos en valenciano con título y cabec
 columnas «Col1…» que solo delata el contenido, observaciones de texto libre, libro «cargado» con hoja
 oculta, comentario, fórmulas, nombre definido y propiedades, libro con tabla dinámica, ayudas con sus
 totales, estadística por distritos, y un presupuesto de obra dos veces: con las casillas del
-catálogo, que no se toca, y con la de presupuesto marcada). Cada libro se procesa con las casillas
-del catálogo más las que marque su etiqueta. Mide que se abre, que ningún dato queda, que cada columna personal lleva su marcador,
+catálogo, que lo sustituyen, y con la de presupuesto desmarcada, que no se toca). Cada libro se
+procesa con las casillas del catálogo más las que marque o desmarque su etiqueta. Mide que se abre, que ningún dato queda, que cada columna personal lleva su marcador,
 que las demás no cambian, que el texto legítimo se conserva y que los totales llevan el valor
 esperado. Medición del 28-10: 10/10 se abren, 217 datos eliminados sin fugas, 31/31 columnas
 personales y 19/19 no personales bien, 88/88 textos legítimos conservados, 6/6 totales bien.

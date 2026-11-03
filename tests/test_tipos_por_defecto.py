@@ -5,10 +5,11 @@ La API parte del catalogo (`default_enabled`), igual que la pantalla;
 La evaluacion pide todos los tipos de forma explicita.
 
 Decision del ayuntamiento (22-10): el numero de expediente se tacha por defecto,
-en todos sus formatos, tambien el municipal; si se desmarca, no se tacha.  El
-unico tipo apagado del catalogo son los importes de presupuesto de obra: solo se
-tachan si se marca su casilla.  El mecanismo de `enabled_types` con el
-expediente se prueba simulandolo apagado.
+en todos sus formatos, tambien el municipal; si se desmarca, no se tacha.  Los
+importes de presupuesto de obra tambien vienen marcados (decision del 03-11, que
+deshace la del 28-10): se tachan salvo que se desmarque su casilla.  Hoy el
+catalogo no trae ningun tipo apagado: el mecanismo de `enabled_types` se prueba
+simulando el expediente apagado.
 """
 import json
 import zipfile
@@ -59,8 +60,8 @@ def expediente_apagado(monkeypatch):
     monkeypatch.setattr(routes, "default_disabled_ids", lambda: frozenset({"CASE_NUMBER"}))
 
 
-def test_el_catalogo_solo_trae_apagado_el_presupuesto_de_obra():
-    assert APAGADOS_DEL_CATALOGO == ["BUDGET_AMOUNT"]
+def test_el_catalogo_trae_todo_activado():
+    assert APAGADOS_DEL_CATALOGO == []
 
 
 def _presupuesto() -> bytes:
@@ -93,23 +94,23 @@ def _presupuesto_anonimizado(query: str = ""):
     return _desactivados_y_texto(response)
 
 
-def test_sin_tocar_nada_un_presupuesto_queda_a_la_vista():
+def test_sin_tocar_nada_un_presupuesto_se_tacha():
     desactivados, texto = _presupuesto_anonimizado()
-    assert "BUDGET_AMOUNT" in desactivados
-    assert all(precio in texto for precio in PRECIOS)
-
-
-def test_con_la_casilla_marcada_el_presupuesto_se_tacha():
-    desactivados, texto = _presupuesto_anonimizado("&enabled_types=BUDGET_AMOUNT")
     assert "BUDGET_AMOUNT" not in desactivados
     assert not [precio for precio in PRECIOS if precio in texto]
+
+
+def test_con_la_casilla_desmarcada_el_presupuesto_queda_a_la_vista():
+    desactivados, texto = _presupuesto_anonimizado("&disabled_types=BUDGET_AMOUNT")
+    assert "BUDGET_AMOUNT" in desactivados
+    assert all(precio in texto for precio in PRECIOS)
 
 
 def test_sin_listas_el_expediente_se_tacha_tambien_el_municipal():
     response = _anonimizar()
     assert response.status_code == 200
     desactivados, texto = _desactivados_y_texto(response)
-    assert desactivados == ["BUDGET_AMOUNT"]
+    assert desactivados == []
     assert "E-03001-2022-000074-00" not in texto
 
 
@@ -117,7 +118,7 @@ def test_desmarcado_el_expediente_no_se_tacha():
     response = _anonimizar("&disabled_types=CASE_NUMBER")
     assert response.status_code == 200
     desactivados, texto = _desactivados_y_texto(response)
-    assert desactivados == ["BUDGET_AMOUNT", "CASE_NUMBER"]
+    assert desactivados == ["CASE_NUMBER"]
     assert "E-03001-2022-000074-00" in texto
 
 

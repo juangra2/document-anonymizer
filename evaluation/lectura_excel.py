@@ -12,8 +12,8 @@ Para cada libro se pasa el servicio de verdad y se mira el fichero de SALIDA:
   - cada texto legitimo es CONSERVADO si sigue en alguna celda, o de mas si no;
   - en un libro sin datos, ninguna celda cambia;
   - las celdas con valor esperado (totales de importes) lo llevan.
-Cada libro se procesa con las casillas del catalogo, mas las que marque su
-etiqueta (marcados).
+Cada libro se procesa con las casillas del catalogo, mas las que marque o
+desmarque su etiqueta (marcados, desmarcados).
 
 Uso: python -m evaluation.lectura_excel [--solo NOMBRE]
 """
@@ -141,7 +141,8 @@ def main(argv: list[str]) -> int:
     for e in etiquetas:
         entrada, salida = CORPUS / e["documento"], SALIDAS / e["documento"]
         procesar("xlsx", "anonymize", entrada, salida, "x", lambda: pipeline,
-                 settings.default_redaction_mode, default_disabled_ids() - set(e.get("marcados", [])))
+                 settings.default_redaction_mode,
+                 (default_disabled_ids() - set(e.get("marcados", []))) | set(e.get("desmarcados", [])))
         r = medir(e, entrada, salida)
         resultados.append(r)
         fugas = [t for _, t, s in r["datos"] if s == "fuga"]

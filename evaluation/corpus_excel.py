@@ -17,6 +17,7 @@ Etiqueta de cada libro (etiquetas.json):
   legitimos  texto que tiene que seguir tal cual (cabeceras, titulos, conceptos)
   celdas     (opcional) por hoja: celda -> valor esperado en la salida
   marcados   (opcional) tipos que se marcan ademas de los del catalogo
+  desmarcados (opcional) tipos que se desmarcan
 
 Uso: python -m evaluation.corpus_excel [DESTINO]   (por defecto evaluation/excel/corpus)
 """
@@ -335,8 +336,8 @@ def estadistica(destino: Path) -> dict:
 
 
 def presupuesto(destino: Path) -> dict:
-    """Un presupuesto de obra, sin datos personales.  Con las casillas por
-    defecto (la de presupuesto viene desmarcada) no se puede tocar nada."""
+    """Un presupuesto de obra, sin datos personales, con la casilla de presupuesto
+    desmarcada: no se puede tocar nada."""
     wb = Workbook()
     ws = wb.active
     ws.title = "Presupuesto"
@@ -350,15 +351,18 @@ def presupuesto(destino: Path) -> dict:
         ws.append(f)
     wb.save(destino)
     textos = [c for f in filas for c in f if isinstance(c, str) and c and not c.startswith("=")]
-    return {"datos": [], "columnas": {"Presupuesto": {c: None for c in filas[0]}}, "legitimos": textos}
+    return {"datos": [], "columnas": {"Presupuesto": {c: None for c in filas[0]}}, "legitimos": textos,
+            "desmarcados": ["BUDGET_AMOUNT"]}
 
 
 def presupuesto_marcado(destino: Path) -> dict:
-    """El mismo presupuesto, con la casilla de presupuesto marcada: precios,
-    mediciones, importes y el total pasan a ser el marcador."""
+    """El mismo presupuesto, con las casillas por defecto (la de presupuesto
+    viene marcada): precios, mediciones, importes y el total pasan a ser el
+    marcador."""
     e = presupuesto(destino)
+    e.pop("desmarcados")
     importes = {"Unidades", "Precio unitario", "Importe"}
-    return {**e, "marcados": ["BUDGET_AMOUNT"],
+    return {**e,
             "columnas": {"Presupuesto": {c: ("BUDGET_AMOUNT" if c in importes else None)
                                          for c in e["columnas"]["Presupuesto"]}},
             "celdas": {"Presupuesto": {"E6": "[IMPORTE]"}}}

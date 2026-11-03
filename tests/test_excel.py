@@ -141,9 +141,12 @@ def _filas(ruta: Path) -> list:
     return [[c.value for c in f] for f in openpyxl.load_workbook(ruta).active.iter_rows()]
 
 
-@pytest.mark.parametrize("hacer", [ce.presupuesto, ce.estadistica])
-def test_un_libro_sin_datos_no_cambia(tmp_path, por_defecto, hacer):
-    _, entrada, salida, informe = _procesar(tmp_path, hacer, por_defecto)
+@pytest.mark.parametrize("hacer, desmarcados", [(ce.presupuesto, {"BUDGET_AMOUNT"}),
+                                                (ce.estadistica, set())])
+def test_un_libro_sin_datos_no_cambia(tmp_path, por_defecto, hacer, desmarcados):
+    """Un presupuesto con su casilla desmarcada; una estadistica sin personas."""
+    analyzer = por_defecto.with_disabled_types(set(por_defecto.disabled_types) | desmarcados)
+    _, entrada, salida, informe = _procesar(tmp_path, hacer, analyzer)
     assert _filas(entrada) == _filas(salida)
     assert not informe.replaced_columns
 
@@ -153,8 +156,8 @@ def test_una_estadistica_sin_personas_no_cambia_ni_con_todo_marcado(tmp_path, an
     assert _filas(entrada) == _filas(salida)
 
 
-def test_con_la_casilla_marcada_el_presupuesto_se_sustituye(tmp_path, analyzer):
-    _, _, salida, informe = _procesar(tmp_path, ce.presupuesto_marcado, analyzer)
+def test_sin_tocar_nada_el_presupuesto_se_sustituye(tmp_path, por_defecto):
+    _, _, salida, informe = _procesar(tmp_path, ce.presupuesto_marcado, por_defecto)
     ws = openpyxl.load_workbook(salida)["Presupuesto"]
     for cabecera in ("Unidades", "Precio unitario", "Importe"):
         assert set(v for v in _columna(ws, cabecera) if v is not None) == {"[IMPORTE]"}, cabecera
