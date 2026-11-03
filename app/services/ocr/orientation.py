@@ -95,6 +95,11 @@ _PALABRAS_LEGIBLE = 0.6
 _MIN_TOKENS_LEGIBLE = 5
 
 
+#: Confianza media por debajo de la cual una lectura es ruido aunque sus piezas
+#: sean largas.  Una pagina derecha se lee por encima de 0,8.
+_CONFIANZA_RUIDO = 0.35
+
+
 def _es_palabra(texto: str) -> bool:
     return sum(c.isalnum() for c in texto) >= 3
 
@@ -121,12 +126,16 @@ def _leido(ocr_page: OcrPage) -> float:
 
 
 def _looks_like_noise(ocr_page: OcrPage) -> bool:
-    """La página produjo tokens suficientes, pero ilegibles."""
-    token_count = sum(1 for t in ocr_page.tokens if t.text and t.text.strip())
-    if token_count < settings.ocr_rotate_min_tokens:
+    """La página produjo tokens suficientes, pero ilegibles: piezas cortas, o
+    piezas largas leidas con muy poca confianza (del reves, EasyOCR saca lineas
+    enteras de basura: "ZCCI SOOO ZOSt 8/v0" con confianza 0,17)."""
+    tokens = [t for t in ocr_page.tokens if t.text and t.text.strip()]
+    if len(tokens) < settings.ocr_rotate_min_tokens:
         # Página casi vacía: rotarla no aporta y evitamos 3 pases de OCR por
         # cada página en blanco de un expediente largo.
         return False
+    if sum(t.confidence for t in tokens) / len(tokens) < _CONFIANZA_RUIDO:
+        return True
     return text_quality(ocr_page) < settings.ocr_min_chars_per_token
 
 
@@ -179,6 +188,16 @@ def resolve_orientation(image: Image.Image, run_ocr) -> OrientationResult:
             k = (legible(pagina), text_quality(pagina) >= settings.ocr_min_chars_per_token, _leido(pagina))
             if k > clave:
                 elegido, elegida, clave = ajuste, pagina, k
+    if settings.ocr_ajustes_enabled and not clave[0]:
+        # Ni asi: un ajuste puede dejar la hoja de lado o del reves (una foto a
+        # 45 grados se endereza a 0 o a 90).  Se prueba cada ajuste con un giro.
+        for ajuste in aj.candidatos(girada):
+            for grados in (90, 180, 270):
+                otro = aj.con_giro(ajuste, grados, girada.size)
+                pagina = run_ocr(aj.para_leer(aj.aplicar(girada, otro), otro))
+                k = (legible(pagina), text_quality(pagina) >= settings.ocr_min_chars_per_token, _leido(pagina))
+                if k > clave:
+                    elegido, elegida, clave = otro, pagina, k
     if elegido is not None:
         logger.info("Página ilegible tal cual: se lee con el ajuste %s (calidad %.1f -> %.1f).",
                     elegido.tipo, best_quality, text_quality(elegida))

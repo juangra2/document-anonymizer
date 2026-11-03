@@ -26,6 +26,8 @@ from PIL import Image, ImageOps
 # Inclinacion que merece la pena corregir: por debajo el OCR la tolera, por
 # encima de 20 grados ya no es una hoja torcida sino otra cosa.
 _INCLINACION_MIN, _INCLINACION_MAX = 0.7, 20.0
+# Una hoja girada mucho (45 grados): solo se busca si no hay inclinacion pequeña.
+_GIRO_GRANDE_MAX = 45.0
 # La hoja tiene que ocupar una parte razonable de la foto, y no toda.
 _HOJA_MIN, _HOJA_MAX = 0.15, 0.95
 # Mediana de luminosidad por debajo de la cual se prueba invertir.
@@ -98,6 +100,39 @@ def inclinacion(gris: np.ndarray) -> float:
     angulos = [np.degrees(np.arctan2(y2 - y1, x2 - x1)) for x1, y1, x2, y2 in lineas[:, 0]]
     angulos = [a for a in angulos if abs(a) < _INCLINACION_MAX + 5]
     return float(np.median(angulos)) if len(angulos) >= 3 else 0.0
+
+
+def inclinacion_cualquiera(gris: np.ndarray) -> float:
+    """Direccion dominante de las lineas a cualquier angulo, en grados entre -45
+    y 45 (las lineas de texto y los bordes de la hoja, modulo 90): la moda de los
+    angulos, pesados por la longitud de cada linea, para que unas pocas lineas
+    del fondo (un teclado, el borde de la mesa) no arrastren la medida."""
+    bordes = cv2.Canny(gris, 50, 150)
+    lineas = cv2.HoughLinesP(bordes, 1, np.pi / 720, 150,
+                             minLineLength=max(40, gris.shape[1] // 10), maxLineGap=20)
+    if lineas is None or len(lineas) < 3:
+        return 0.0
+    angulos, pesos = [], []
+    for x1, y1, x2, y2 in lineas[:, 0]:
+        a = np.degrees(np.arctan2(y2 - y1, x2 - x1))
+        angulos.append(((a + 45) % 90) - 45)
+        pesos.append(np.hypot(x2 - x1, y2 - y1))
+    angulos, pesos = np.array(angulos), np.array(pesos)
+    histograma, bordes_h = np.histogram(angulos, bins=90, range=(-45, 45), weights=pesos)
+    centro = (bordes_h[np.argmax(histograma)] + bordes_h[np.argmax(histograma) + 1]) / 2
+    cerca = np.abs(((angulos - centro + 45) % 90) - 45) <= 2
+    return float(np.average(angulos[cerca], weights=pesos[cerca])) if cerca.any() else float(centro)
+
+
+def con_giro(ajuste: "Ajuste", grados: int, tamaño: tuple[int, int] | None = None) -> "Ajuste":
+    """El mismo ajuste seguido de un giro de 90, 180 o 270 grados de la imagen
+    de trabajo, compuesto en la matriz: lo tapado vuelve igual a su sitio.
+    *tamaño* es el de la imagen cuando el ajuste no tiene matriz."""
+    m = ajuste.matriz if ajuste.matriz is not None else np.eye(3)
+    ancho, alto = ajuste.tamaño if ajuste.tamaño is not None else tamaño
+    giro, nuevo = _rotacion(ancho, alto, float(grados))
+    return Ajuste(ajuste.tipo, giro @ m, nuevo, invertir=ajuste.invertir,
+                  detalle={**ajuste.detalle, "giro": grados})
 
 
 def _rotacion(ancho: int, alto: int, grados: float) -> tuple[np.ndarray, tuple[int, int]]:
@@ -179,7 +214,12 @@ def candidatos(imagen: Image.Image) -> list[Ajuste]:
         if _queda_derecho(gris, m, tamaño):
             salida.append(Ajuste("perspectiva", m, tamaño, invertir=oscura))
     grados = inclinacion(gris)
-    if _INCLINACION_MIN <= abs(grados) <= _INCLINACION_MAX:
+    if abs(grados) < _INCLINACION_MIN:
+        # Sin inclinacion pequeña: quiza la hoja esta muy girada (45 grados).
+        grande = inclinacion_cualquiera(gris)
+        if _INCLINACION_MAX < abs(grande) <= _GIRO_GRANDE_MAX:
+            grados = grande
+    if _INCLINACION_MIN <= abs(grados) <= _GIRO_GRANDE_MAX:
         m, tamaño = _con_tope(*_rotacion(imagen.width, imagen.height, grados))
         if _queda_derecho(gris, m, tamaño):
             salida.append(Ajuste("inclinacion", m, tamaño, invertir=oscura,
