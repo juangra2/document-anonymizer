@@ -77,7 +77,11 @@ def casos() -> list[dict]:
         datos = [{"text": v["valor"], "type": v["tipo"], "donde": v["ubicacion"]}
                  for v in inventario if v["fichero"] == fichero.name and v["debe_eliminarse"]]
         # Lo legitimo: cada parrafo de la entrada con algo de texto y sin ningun dato.
+        # Tampoco una palabra suelta de un nombre: el nombre de pila tras un saludo
+        # ("Benvolguda Aina,") es un dato aunque el inventario no lo recoja.
         valores = [compacto(d["text"]) for d in datos]
+        valores += [compacto(p) for d in datos if "Nombre" in d["type"]
+                    for p in d["text"].split() if len(p) >= 3 and p[0].isupper()]
         legitimos = [t for t in dict.fromkeys(parrafos_visibles(fichero))
                      if len(t.strip()) >= 12 and not any(v in compacto(t) for v in valores)]
         salida.append({"id": fichero.name[:5], "fichero": fichero.name, "nombre_subida": fichero.name,

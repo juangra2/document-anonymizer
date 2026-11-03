@@ -115,7 +115,10 @@ def medir(caso: dict, r: dict, lector) -> dict:
         tapados = [r_ for r_, e in lectura["rotulos"] if e == DE_MAS]
         tapados += [caso["imagen"]["rotulos"][i] for i, c in enumerate(lectura["cob_rotulos"])
                     if c is not None and c > 0.30 and caso["imagen"]["rotulos"][i] not in tapados]
-        if lectura["entera"] and not lectura["entera_esperada"]:
+        if lectura["entera_esperada"]:
+            if not lectura["entera"]:
+                m["fugas_visibles"]["imagen"] = ["se esperaba tapada entera"]
+        elif lectura["entera"]:
             m["legitimos_perdidos"].append("imagen tapada entera")
         elif tapados:
             m["legitimos_perdidos"] += tapados
