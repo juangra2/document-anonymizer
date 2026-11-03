@@ -33,14 +33,14 @@ agrupación de la interfaz está en `app/web/js/categorias.js`; un tipo sin grup
 
 | Tipo | Qué captura |
 |---|---|
-| `PERSON` | Nombres y apellidos de personas físicas, incluidos los de firma («Fdo.: …») |
+| `PERSON` | Nombres y apellidos de personas físicas, incluidos los de firma («Fdo.: …») y el nombre de pila tras el saludo de una carta («Benvolguda Aina», «Estimada Laura»), si está en el padrón |
 | `ES_DNI` | DNI/NIF, con o sin puntos (12345678A, 47.215.601-M) |
 | `ES_NIE` | NIE de extranjero (X/Y/Z + 7 cifras + letra) |
 | `ES_NSS` | Número de afiliación a la Seguridad Social |
 | `PASSPORT` | Número de pasaporte |
 | `MEDICAL_ID` | Historia clínica o tarjeta sanitaria |
 | `PLACE_OF_BIRTH` | Lugar de nacimiento, solo tras su etiqueta |
-| `IBAN_CODE` | Cuentas IBAN y cuentas antiguas de 20 dígitos (CCC) |
+| `IBAN_CODE` | Cuentas IBAN, cuentas antiguas de 20 dígitos (CCC) y trozos de cuenta (tres o más grupos de cuatro cifras: lo que queda a la vista si algo tapa el principio) |
 | `CREDIT_CARD` | Tarjeta de crédito o débito |
 | `MONEY` | Importes ligados a una persona o cuenta (nóminas, transferencias, liquidaciones) |
 | `BUDGET_AMOUNT` | Precios, mediciones y totales de un presupuesto de obra. Único tipo que viene desmarcado: sin `enabled_types`, el presupuesto queda a la vista |
@@ -248,6 +248,9 @@ marcador del tipo, como en Word; no se borran columnas.
   (`CASE_NUMBER`, que se tacha por defecto). Una **ficha en vertical** (los rótulos en la columna A y
   cada persona en una columna) se sustituye por filas: hacen falta dos rótulos de tipos distintos que
   sean casi toda la columna A, para no confundirla con un listado con un título de grupo encima.
+  **Dos tablas en la misma hoja** (`xlsx._tablas`): una fila de rótulos con al menos dos nombres de
+  columna conocidos y una fila vacía encima (o un título en medio) abre otra tabla, que se clasifica
+  con sus cabeceras; el título que las separa se queda.
 - **Importes** (la regla del PDF): una columna con cabecera de importe (`xlsx.IMPORTES`: importe,
   cuantía, ayuda, subvención, nómina, precio, medición…) y contenido numérico es `MONEY` si la hoja
   tiene alguna columna personal, y `BUDGET_AMOUNT` si la hoja es un presupuesto de obra (las palabras
@@ -314,18 +317,22 @@ marcador del tipo, como en Word; no se borran columnas.
 - **Firmas y sellos por visión**: existen (`DETECT_VISUAL_SIGNATURES`, `DETECT_VISUAL_STAMPS`) pero
   están desactivados: tachaban texto y logotipos legítimos.
 - **Páginas giradas** (`ocr/orientation.py`): si el OCR sale como ruido (pocos caracteres por
-  token), se prueban 90°, 270° y 180° a resolución completa y se elige por longitud de token y
-  confianza. Una página girada lleva unos 21 s más de media.
+  token, o confianza media por debajo de 0,35: del revés, EasyOCR saca líneas largas de basura), se
+  prueban 90°, 270° y 180° a resolución completa y se elige por longitud de token y confianza. Una página girada lleva unos 21 s más de media.
 - **Antes de dar una página por ilegible** (`ocr/ajustes.py`, `OCR_AJUSTES_ENABLED`): si ni girada
   se lee, se prueban tres ajustes y gana la lectura legible que más lee: enderezar una inclinación
   de 0,7° a 20° (ángulo de las líneas por Hough), recortar la hoja del fondo y llevarla a un
   rectángulo (perspectiva), e invertir los colores si la imagen es oscura (texto claro sobre fondo
-  oscuro; la inversión es solo para leer). Un ajuste geométrico solo vale si el texto queda derecho
+  oscuro; la inversión es solo para leer). Si no hay inclinación pequeña, se busca la dirección
+  dominante de las líneas a cualquier ángulo (una foto a 45°); y si con ningún ajuste se lee, se
+  prueba cada uno con un giro de 90°, 180° o 270° compuesto en su matriz. Un ajuste geométrico solo vale si el texto queda derecho
   (menos de 2° de inclinación residual): un recorte de hoja mal detectado deja el texto torcido y las
   barras caerían desplazadas. La imagen ajustada no pasa de `OCR_MAX_MEGAPIXELS`. Se trabaja en el
   espacio ajustado (OCR, zonas, barras, segunda y tercera lectura) y lo tapado vuelve a la imagen
   original con la matriz inversa; con la hoja recortada, lo de fuera se lee aparte y se tapa lo que
-  lleve datos. Una página que hoy se lee bien no pasa por nada de esto.
+  lleve datos. Una página que hoy se lee bien no pasa por nada de esto. Una imagen suelta con
+  contenido (tinta) de la que el OCR no saca casi nada (una foto de 160 píxeles) es ilegible y se
+  tapa entera; en un PDF, una página así sigue siendo una hoja en blanco o un dibujo.
 - **Legible** (`orientation.legible`): muchos caracteres por pieza (`OCR_MIN_CHARS_PER_TOKEN`), o al
   menos 5 piezas leídas con confianza media de 0,70 y al menos un 60 % de palabras (tres letras o
   cifras). Una foto inclinada o un carnet salen palabra a palabra y se leen bien; el ruido de una

@@ -101,7 +101,8 @@ CABECERAS: list[tuple[str, list[str]]] = [
     ("PERSON", ["nombre", "nombres", "apellidos", "apellido", "nom", "cognoms", "cognom", "persona",
                 "interesado", "interesada", "interessat", "solicitante", "sollicitant", "titular",
                 "beneficiario", "beneficiaria", "beneficiari", "responsable", "alumno", "alumna", "alumne",
-                "inscrito", "inscrita", "firmante", "socio", "socia", "soci"]),
+                "inscrito", "inscrita", "firmante", "socio", "socia", "soci", "representante",
+                "representant"]),
 ]
 
 #: Cabeceras de importe.  Solo cuentan en una hoja que trata de personas (MONEY)
@@ -155,6 +156,40 @@ def _cuenta_repartida(cabeceras: dict[int, str], datos: dict[int, list[str]]) ->
         if valores and sum(bool(re.fullmatch(patron, v)) for v in valores) >= 0.6 * len(valores):
             salida.append(col)
     return salida
+
+
+def _tablas(hoja: "Hoja", cab: int) -> list[tuple[int, int]]:
+    """(fila de cabecera, ultima fila) de cada tabla de la hoja, de arriba abajo.
+
+    Una segunda tabla mas abajo ("Representantes", con otras cabeceras) empieza
+    en una fila de rotulos con al menos dos nombres de columna conocidos que
+    tiene una fila vacia justo encima o dos filas mas arriba (con un titulo en
+    medio).  La tabla anterior acaba antes de esa fila vacia; el titulo no es de
+    ninguna y se queda como esta."""
+    if not cab:
+        return [(0, 10 ** 9)]
+    filas: dict[int, list] = {}
+    for (f, _), c in hoja.celdas.items():
+        if hoja.texto(c) or c.find(s("f")) is not None:
+            filas.setdefault(f, []).append(c)
+    ultima = max(filas, default=cab)
+
+    def cabecera_nueva(f: int) -> bool:
+        celdas = filas.get(f, [])
+        return (len(celdas) >= 2 and f < ultima
+                and all(hoja.es_texto(c) and _es_rotulo(hoja.texto(c)) for c in celdas)
+                and sum(1 for c in celdas if tipo_por_cabecera(hoja.texto(c) or "")) >= 2)
+
+    tramos, inicio = [], cab
+    for f in sorted(filas):
+        if f <= inicio + 1 or not cabecera_nueva(f):
+            continue
+        vacias = [x for x in (f - 1, f - 2) if x > inicio and x not in filas]
+        if vacias:
+            tramos.append((inicio, min(vacias) - 1))
+            inicio = f
+    tramos.append((inicio, 10 ** 9))
+    return tramos
 
 
 def _ficha_vertical(hoja: "Hoja") -> dict[int, tuple[str, str]]:
@@ -369,7 +404,7 @@ def _referencias(formula: str, hoja_actual: str) -> list[tuple[str, int, int, in
     return salida
 
 
-def _totales_con_valor(formula: str, hoja_actual: str, personales, valores, con_formula) -> str:
+def _totales_con_valor(formula: str, hoja_actual: str, tipo_en, valores, con_formula) -> str:
     """Cada SUM() o AVERAGE() de dos o mas importes de personas (MONEY) pasa a
     ser su valor, calculado con los de antes de sustituir.  Si alguno sale de
     una formula, se deja: el resto de la formula decide."""
@@ -377,7 +412,7 @@ def _totales_con_valor(formula: str, hoja_actual: str, personales, valores, con_
         celdas = [(nombre, f, c)
                   for nombre, f0, c0, f1, c1 in _referencias(m.group(2), hoja_actual)
                   for f in range(f0, f1 + 1) for c in range(c0, c1 + 1)]
-        if not celdas or any(personales.get((n, c), ("",))[0] != "MONEY" for n, _, c in celdas):
+        if not celdas or any(tipo_en(n, f, c) != "MONEY" for n, f, c in celdas):
             return m.group(0)
         if any(clave in con_formula for clave in celdas):
             return m.group(0)
@@ -631,6 +666,59 @@ def _compartidas_usadas(paq: Paquete, hojas: list[Hoja]) -> None:
     sst.set("uniqueCount", str(len(nuevo_indice)))
 
 
+def _clasificar_tabla(hoja: Hoja, cab: int, fin: int, por_columna, analyzer, personales, info_de,
+                      columnas_info) -> None:
+    """Clasifica las columnas de la tabla de *hoja* con la cabecera en la fila
+    *cab* y la ultima fila en *fin* (ver _tablas)."""
+    clasificadas, importes = {}, []
+    for col in sorted(por_columna):
+        celda_cab = hoja.celdas.get((cab, col)) if cab else None
+        cabecera = hoja.texto(celda_cab) if celda_cab is not None else None
+        celdas = [c for f, c in por_columna[col] if cab < f <= fin]
+        if not celdas:
+            continue
+        datos = [hoja.texto(c) for c in celdas if c.find(s("f")) is None]
+        tipo = (tipo_por_cabecera(cabecera) if cabecera else None) or tipo_por_contenido(
+            [d for d in datos if d])
+        if tipo:
+            clasificadas[col] = (tipo, cabecera)
+        elif cabecera and es_cabecera_de_importe(cabecera) and _normal(cabecera) not in _TROZOS_DE_CUENTA:
+            llenas = [d for d in datos if d]
+            numericas = [d for d in llenas if _es_importe(d)]
+            formulas = len(celdas) - len(datos)
+            if llenas or formulas:
+                if len(numericas) + formulas >= 0.6 * (len(llenas) + formulas):
+                    importes.append((col, cabecera))
+    sin_clasificar = {col: hoja.texto(hoja.celdas[(cab, col)]) or "" for col in sorted(por_columna)
+                      if col not in clasificadas and cab and (cab, col) in hoja.celdas}
+    datos_col = {col: [hoja.texto(c) for f, c in por_columna[col] if cab < f <= fin] for col in sin_clasificar}
+    for col in _cuenta_repartida(sin_clasificar, datos_col):
+        clasificadas[col] = ("IBAN_CODE", sin_clasificar[col])
+    if importes:
+        # Un importe es dato si la hoja es un presupuesto de obra o trata de personas.
+        if _es_presupuesto(hoja):
+            clasificadas.update({col: ("BUDGET_AMOUNT", cabecera) for col, cabecera in importes})
+        elif any(t not in (TEXTO_LIBRE, "CASE_NUMBER") for t, _ in clasificadas.values()):
+            clasificadas.update({col: ("MONEY", cabecera) for col, cabecera in importes})
+    for col, (tipo, cabecera) in sorted(clasificadas.items()):
+        if tipo in analyzer.disabled_types:
+            # Casilla desmarcada: la columna se queda, y sus formulas tambien.
+            continue
+        personales.setdefault((hoja.nombre, col), []).append((tipo, cab, fin))
+        if tipo != TEXTO_LIBRE:
+            info_de[(hoja.nombre, col, cab)] = {"sheet": hoja.nombre, "header": cabecera or "", "type": tipo,
+                                                "cells": 0}
+            columnas_info.append(info_de[(hoja.nombre, col, cab)])
+
+
+def _tipo_en(personales, hoja: str, col: int, f: int) -> tuple[str | None, int]:
+    """(tipo, fila de cabecera) de la celda (f, col) de *hoja*, o (None, 0)."""
+    for tipo, cab, fin in personales.get((hoja, col), ()):
+        if cab < f <= fin:
+            return tipo, cab
+    return None, 0
+
+
 def _es_valor_de_celda(parte: str, e) -> bool:
     """El valor de una celda (no su formula): ya se ha tratado por columnas."""
     return e.tag in (s("v"), s("t")) and any(a.tag == s("c") for a in e.iterancestors())
@@ -664,7 +752,10 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
                     pass
 
     # Clasificar columnas.
-    personales: dict[tuple[str, int], tuple[str, int]] = {}      # (hoja, col) -> (tipo, fila cabecera)
+    # (hoja, col) -> tramos (tipo, fila de cabecera, ultima fila): una columna
+    # puede ser de un tipo en una tabla y de otro en la siguiente (_tablas).
+    personales: dict[tuple[str, int], list[tuple[str, int, int]]] = {}
+    cabeceras: dict[str, set[int]] = {}                            # filas de cabecera de cada hoja
     por_filas: dict[tuple[str, int], str] = {}                     # (hoja, fila) -> tipo (ficha vertical)
     columnas_info = []
     info_de: dict[tuple, dict] = {}            # (hoja, col) o (hoja, tipo de fila) -> su entrada
@@ -680,50 +771,15 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
                                                         "cells": 0}
                         columnas_info.append(info_de[(hoja.nombre, tipo)])
             continue
-        cab = _fila_cabecera(hoja)
         # Las celdas de cada columna, de una vez: recorrerlas todas por cada
         # columna hacia lenta una hoja ancha y larga.
         por_columna: dict[int, list[tuple[int, etree._Element]]] = {}
         for (f, col), c in hoja.celdas.items():
             por_columna.setdefault(col, []).append((f, c))
-        cols = sorted(por_columna)
-        clasificadas, importes = {}, []
-        for col in cols:
-            celda_cab = hoja.celdas.get((cab, col)) if cab else None
-            cabecera = hoja.texto(celda_cab) if celda_cab is not None else None
-            celdas = [c for f, c in por_columna[col] if f > cab]
-            datos = [hoja.texto(c) for c in celdas if c.find(s("f")) is None]
-            tipo = (tipo_por_cabecera(cabecera) if cabecera else None) or tipo_por_contenido(
-                [d for d in datos if d])
-            if tipo:
-                clasificadas[col] = (tipo, cabecera)
-            elif cabecera and es_cabecera_de_importe(cabecera) and _normal(cabecera) not in _TROZOS_DE_CUENTA:
-                llenas = [d for d in datos if d]
-                numericas = [d for d in llenas if _es_importe(d)]
-                formulas = len(celdas) - len(datos)
-                if llenas or formulas:
-                    if len(numericas) + formulas >= 0.6 * (len(llenas) + formulas):
-                        importes.append((col, cabecera))
-        sin_clasificar = {col: hoja.texto(hoja.celdas[(cab, col)]) or "" for col in cols
-                          if col not in clasificadas and cab and (cab, col) in hoja.celdas}
-        datos_col = {col: [hoja.texto(c) for f, c in por_columna[col] if f > cab] for col in sin_clasificar}
-        for col in _cuenta_repartida(sin_clasificar, datos_col):
-            clasificadas[col] = ("IBAN_CODE", sin_clasificar[col])
-        if importes:
-            # Un importe es dato si la hoja es un presupuesto de obra o trata de personas.
-            if _es_presupuesto(hoja):
-                clasificadas.update({col: ("BUDGET_AMOUNT", cabecera) for col, cabecera in importes})
-            elif any(t not in (TEXTO_LIBRE, "CASE_NUMBER") for t, _ in clasificadas.values()):
-                clasificadas.update({col: ("MONEY", cabecera) for col, cabecera in importes})
-        for col, (tipo, cabecera) in sorted(clasificadas.items()):
-            if tipo in analyzer.disabled_types:
-                # Casilla desmarcada: la columna se queda, y sus formulas tambien.
-                continue
-            personales[(hoja.nombre, col)] = (tipo, cab)
-            if tipo != TEXTO_LIBRE:
-                info_de[(hoja.nombre, col)] = {"sheet": hoja.nombre, "header": cabecera or "", "type": tipo,
-                                               "cells": 0}
-                columnas_info.append(info_de[(hoja.nombre, col)])
+        tramos = _tablas(hoja, _fila_cabecera(hoja))
+        cabeceras[hoja.nombre] = {cab for cab, _ in tramos}
+        for cab, fin in tramos:
+            _clasificar_tabla(hoja, cab, fin, por_columna, analyzer, personales, info_de, columnas_info)
 
     # Sustituir.
     valores_quitados: set[str] = set()
@@ -740,9 +796,10 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
                     tipos[tipo] += 1
                     info_de[(hoja.nombre, tipo)]["cells"] += 1
                 continue
-            tipo, cab = personales.get((hoja.nombre, col), (None, 0))
-            if f <= cab:
+            cabs = cabeceras.get(hoja.nombre, {0})
+            if f in cabs or f <= min(cabs):
                 continue
+            tipo, cab = _tipo_en(personales, hoja.nombre, col, f)
             texto = hoja.texto(c)
             if tipo and tipo != TEXTO_LIBRE and texto and c.find(s("f")) is None:
                 if tipo not in ("MONEY", "BUDGET_AMOUNT") and not re.fullmatch(r"\d{1,5}", texto.strip()):
@@ -751,7 +808,7 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
                     valores_quitados.add(texto)
                 _poner_texto(c, marcador(tipo))
                 tipos[tipo] += 1
-                info_de[(hoja.nombre, col)]["cells"] += 1
+                info_de[(hoja.nombre, col, cab)]["cells"] += 1
             elif texto and hoja.es_texto(c) and (tipo == TEXTO_LIBRE or (len(texto) >= 25 and " " in texto)):
                 nuevo = _sustituir_en_texto(texto, analyzer, mode, tipos)
                 if nuevo != texto:
@@ -768,15 +825,17 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
             formula = c.find(s("f"))
             if formula is None:
                 continue
-            formula.text = _totales_con_valor(formula.text or "", hoja.nombre, personales, valores, con_formula)
+            formula.text = _totales_con_valor(formula.text or "", hoja.nombre,
+                                              lambda n, ff, cc: _tipo_en(personales, n, cc, ff)[0],
+                                              valores, con_formula)
             trae = None
             for nombre, f0, c0, f1, c1 in _referencias(formula.text or "", hoja.nombre):
                 if nombre not in nombres_hoja:
                     continue
                 for cc in range(c0, c1 + 1):
-                    tipo, cab = personales.get((nombre, cc), (None, 0))
-                    if tipo and f1 > cab:
-                        trae = tipo
+                    for tipo, cab, fin in personales.get((nombre, cc), ()):
+                        if f1 > cab and f0 <= fin:
+                            trae = tipo
                 if c1 > 1:
                     # Una fila de una ficha en vertical.
                     for ff in range(f0, min(f1, f0 + 1000) + 1):

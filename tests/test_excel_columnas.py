@@ -117,3 +117,15 @@ def test_expedientes_desmarcados_se_quedan(tmp_path, analyzer):
     anonimizar_xlsx(entrada, salida, analyzer.with_disabled_types({"CASE_NUMBER"}), _sin_imagenes, "t")
     assert all(v.startswith("EXP-2026-") for v in _columna(openpyxl.load_workbook(salida)["Expedientes"],
                                                            "Expediente"))
+
+
+def test_dos_tablas_en_la_misma_hoja(excel, analyzer):
+    """La segunda tabla, mas abajo y con otras cabeceras, se clasifica con las
+    suyas: sus rotulos y el titulo que las separa se quedan, y cada dato lleva
+    el marcador de su columna (no el de la columna de la primera tabla)."""
+    caso, ws, salida, _ = _procesar(excel, analyzer, "X07")
+    assert donde_esta(partes_del_zip(salida), caso["datos"]) == {}
+    assert ws["A7"].value == "Representantes"
+    assert [ws.cell(row=8, column=c).value for c in (1, 2, 3)] == ["Representante", "Correo", "Móvil"]
+    assert [ws.cell(row=9, column=c).value for c in (1, 2, 3)] == ["[NOMBRE]", "[CORREO]", "[TELÉFONO]"]
+    assert [ws.cell(row=2, column=c).value for c in (1, 2)] == ["[NOMBRE]", "[DNI]"]
