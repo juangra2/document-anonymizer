@@ -330,8 +330,10 @@ def casos(destino: Path) -> list[dict]:
         else:
             fichero = f"{id_.lower()}_{nombre}.jpg"
             (destino / fichero).write_bytes(_jpeg(foto, progressive=nombre == "jpeg_progresivo"))
-        esperado = ("Termina sin error; lo que no se pueda leer, tapado." if nombre == "diminuta"
-                    else "Los datos tapados; los rotulos a la vista.")
+        esperado = ("Ilegible a ese tamaño: se tapa entera, como un escaneado que no se puede leer."
+                    if nombre == "diminuta" else "Los datos tapados; los rotulos a la vista.")
+        if nombre == "diminuta":
+            etiqueta["entera"] = True
         nuevo(id_, fichero, que, esperado, imagen=etiqueta, paginas=1)
 
     grande = Image.new("RGB", (12000, 9000), (250, 250, 248))

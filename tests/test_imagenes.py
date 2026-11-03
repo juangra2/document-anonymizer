@@ -163,6 +163,47 @@ def test_una_foto_grande_no_se_toma_por_un_plano(tmp_path, procesar_pdf):
     assert informe.entities_by_type
 
 
+class _OcrQueNoLee(_OcrSimulado):
+    """Lo que devuelve el OCR con una foto diminuta: nada."""
+
+    def analyze_image(self, image_path, page_index=0):
+        with Image.open(image_path) as img:
+            return OcrPage(page_index=page_index, width=img.width, height=img.height, tokens=[])
+
+
+@pytest.fixture
+def procesar_sin_lectura(monkeypatch, analyzer):
+    import app.services.pdf.scanned_redactor as sr
+
+    motor = _OcrQueNoLee()
+    monkeypatch.setattr(sr, "get_ocr_engine", lambda: motor)
+    monkeypatch.setattr(sr, "get_word_ocr_engine", lambda *_a, **_k: motor)
+    return lambda entrada, salida: sr.redact_pdf_scanned(entrada, salida, "t", analyzer)
+
+
+def test_una_foto_diminuta_que_no_se_lee_se_tapa_entera(tmp_path, procesar_sin_lectura):
+    """Una foto de 160 pixeles de un formulario: el OCR no lee nada, y una pagina
+    sin texto se daba por hoja en blanco y salia tal cual.  Si tiene contenido
+    (tinta), lo que no se puede leer se tapa, como en los escaneados."""
+    from evaluation.corpus_imagenes import PERSONAS, formulario
+
+    entrada = tmp_path / "diminuta.jpg"
+    Image.fromarray(formulario(PERSONAS[0], 1).paginas[0]).resize((160, 226)).save(entrada, format="JPEG")
+    salida = tmp_path / "salida.jpg"
+    informe = anonimizar_imagen(entrada, salida, "jpeg", procesar_sin_lectura)
+    assert _oscuridad(Image.open(salida), (0, 0, 160, 226)) > 200, "la foto que no se lee no se ha tapado"
+    assert [p.reason for p in informe.pages_redacted_in_full] == ["ocr_unreadable"]
+
+
+def test_una_imagen_lisa_sin_texto_no_se_tapa(tmp_path, procesar_sin_lectura):
+    entrada = tmp_path / "lisa.png"
+    Image.new("RGB", (160, 213), (250, 250, 248)).save(entrada)
+    salida = tmp_path / "salida.png"
+    informe = anonimizar_imagen(entrada, salida, "png", procesar_sin_lectura)
+    assert _oscuridad(Image.open(salida), (0, 0, 160, 213)) < 10
+    assert not informe.pages_redacted_in_full
+
+
 def test_una_foto_girada_por_exif_sale_derecha(tmp_path, procesar_pdf):
     entrada = _jpeg_movil(tmp_path, orientacion=6)          # girada 90 grados
     salida = tmp_path / "salida.jpg"

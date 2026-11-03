@@ -15,8 +15,9 @@ Flow per page
 """
 from __future__ import annotations
 
-import logging
 import contextvars
+import dataclasses
+import logging
 import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
@@ -24,6 +25,7 @@ from io import BytesIO
 from pathlib import Path
 
 import fitz
+import numpy as np
 from PIL import Image, ImageDraw
 
 from app.core.config import settings
@@ -48,12 +50,13 @@ from app.services.ocr.base import OcrEngine
 from app.services.ocr import ajustes
 from app.services.ocr.factory import get_ocr_engine, get_word_ocr_engine
 from app.services.ocr.models import OcrPage, OcrToken
-from app.services.ocr.orientation import resolve_orientation
+from app.services.ocr.orientation import legible, resolve_orientation
 from app.services.pdf.inspector import inspect_pdf_for_phase1
 from app.services.pdf.limpieza import integrar_anotaciones, limpiar_para_entregar
 from app.services.pdf.partial import append_partial_notice
 from app.services.pdf.full_redaction import DNI_SCAN, classify_page, classify_pages
-from app.services.pdf.plan_pages import is_image_dominant_page, is_plan_page, redact_plan_page
+from app.services.pdf.plan_pages import (MARCA_IMAGEN_SUELTA, is_image_dominant_page, is_plan_page,
+                                         redact_plan_page)
 from app.services.pii.analyzer import PiiAnalyzer
 from app.services import cancellation, notices, progress
 from app.services.storage.temp_storage import scratch_dir
@@ -115,6 +118,23 @@ def _blacked_out(image: Image.Image) -> Image.Image:
 _is_image_dominant_page = is_image_dominant_page
 
 
+def _sin_texto_con_contenido(ocr_page: OcrPage, image: Image.Image) -> bool:
+    """Una foto suelta con contenido de la que el OCR no saca nada legible.
+
+    Una pagina casi sin texto se da por hoja en blanco y sale tal cual: es lo
+    correcto en un expediente escaneado.  Una foto suelta de 160 pixeles de un
+    formulario tambien sale sin texto, porque a ese tamaño el OCR no lee nada,
+    pero no esta en blanco: tiene tinta.  Lo que no se puede leer se tapa.  Un
+    carnet con cinco piezas bien leidas si se lee (orientation.legible).  Solo
+    para imagenes sueltas: en un PDF, una pagina con un dibujo y sin texto sigue
+    siendo lo que era."""
+    if legible(ocr_page):
+        return False
+    gris = np.asarray(image.convert("L"), dtype=np.int16)
+    tinta = (gris < np.median(gris) - 60).mean()
+    return bool(tinta >= 0.005)
+
+
 def redact_pdf_scanned(
     input_path: Path,
     output_path: Path,
@@ -160,6 +180,9 @@ def redact_pdf_scanned(
     segmenter = OcrPageSegmenter()
 
     source_doc = fitz.open(input_path)
+    # Una imagen suelta (la via de imagenes marca el PDF que arma): ver
+    # _sin_texto_con_contenido.
+    imagen_suelta = (source_doc.metadata or {}).get("keywords") == MARCA_IMAGEN_SUELTA
     # Las anotaciones visibles se pintan en la pagina, como en el camino digital:
     # asi entran en lo que se rasteriza y en las paginas que se copian (planos).
     integrar_anotaciones(source_doc)
@@ -244,6 +267,9 @@ def redact_pdf_scanned(
                     )
 
                 orientation = resolve_orientation(image, _ocr_word)
+                if (imagen_suelta and not orientation.poor_quality
+                        and _sin_texto_con_contenido(orientation.ocr_page, image)):
+                    orientation = dataclasses.replace(orientation, poor_quality=True)
                 stop.check()
                 if orientation.angle:
                     image = image.rotate(orientation.angle, expand=True)
