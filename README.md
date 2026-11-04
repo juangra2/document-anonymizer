@@ -5,8 +5,8 @@ documentos de Word (.docx) y hojas de Excel (.xlsx) de la administración públi
 València), en castellano y valenciano. Detecta los datos personales —nombres, DNI y NIE,
 direcciones, teléfonos, cuentas bancarias, fechas de nacimiento y una treintena de tipos más—,
 los **borra del documento** (el texto tachado desaparece del PDF, no queda debajo de un recuadro) y
-entrega un PDF sin metadatos ni contenido oculto, junto con un informe de lo que se ha hecho y de
-lo que conviene revisar a mano. Lo ha desarrollado la Universitat de València (IDAL) para el
+devuelve cada documento en su mismo formato, sin metadatos ni contenido oculto, junto con un
+informe de lo que se ha hecho y de lo que conviene revisar a mano. Lo ha desarrollado la Universitat de València (IDAL) para el
 Ajuntament de València.
 
 Admite documentos digitales, escaneados o mezclados, desde una página hasta expedientes de
@@ -25,6 +25,7 @@ también dentro de la imagen, en `/app`.
 ## Índice
 
 1. [Despliegue con Docker](#despliegue-con-docker) — paso a paso, para el servidor
+   - [Desde el repositorio: clonar y construir](#desde-el-repositorio-clonar-y-construir)
 2. [Configuración](#configuración) — las variables que se pueden cambiar
 3. [Comprobar que funciona y ver el registro](#comprobar-que-funciona-y-ver-el-registro)
 4. [Instalación en local, sin Docker](#instalación-en-local-sin-docker) — para desarrollo
@@ -34,8 +35,10 @@ también dentro de la imagen, en `/app`.
 
 ## Despliegue con Docker
 
-Esta sección se entiende sola: es lo que necesita quien recibe la imagen como fichero, sin el
-repositorio.
+Hay dos caminos: clonar este repositorio y construir la imagen en el servidor ([más
+abajo](#desde-el-repositorio-clonar-y-construir)), o recibir la imagen ya construida como fichero.
+Lo que sigue hasta «Desde el repositorio» es el segundo camino y se entiende solo, sin el
+repositorio; los requisitos del servidor valen para los dos.
 
 ### Qué es Docker, en dos frases
 
@@ -219,6 +222,47 @@ cuartos de hora por página.
 Se carga la imagen nueva (pasos 1 y 2), se cambia `image:` en `docker-compose.yml` y
 `docker compose up -d`. Los trabajos en curso se pierden al reiniciar: mejor hacerlo sin documentos
 en proceso.
+
+### Desde el repositorio: clonar y construir
+
+Los pesos de los modelos no están en el repositorio (ocupan unos 2,4 GB): llegan aparte, en
+`modelos-anonimizador.tar` con su huella `modelos-anonimizador.tar.sha256`, y dentro llevan
+`data/model/MANIFIESTO.sha256` con la de cada fichero. Construir la imagen necesita salida a
+internet (la imagen base de Python y los paquetes de pip). En el servidor:
+
+```bash
+# 1. Código
+git clone https://github.com/juangra2/document-anonymizer.git
+cd document-anonymizer
+
+# 2. Modelos (copiados a esta carpeta, por ejemplo con scp)
+sha256sum -c modelos-anonimizador.tar.sha256       # tiene que decir OK
+tar -xf modelos-anonimizador.tar                   # crea data/model/...
+sha256sum -c data/model/MANIFIESTO.sha256          # cada fichero, OK
+rm modelos-anonimizador.tar
+
+# 3. Construir la imagen
+docker build -f docker/Dockerfile -t anonimizador:1.0 .
+
+# 4. Elegir la GPU (la que esté libre según nvidia-smi) y comprobar que Docker la ve
+nvidia-smi
+docker run --rm --gpus device=0 --entrypoint nvidia-smi anonimizador:1.0   # una sola tarjeta
+
+# 5. Arrancar con esa GPU (GPU_DEVICE = su número)
+GPU_DEVICE=0 docker compose -f docker/docker-compose.yml up -d
+curl http://localhost:8000/health
+docker compose -f docker/docker-compose.yml logs -f
+```
+
+Para actualizar a una versión nueva del código:
+
+```bash
+git pull
+docker build -f docker/Dockerfile -t anonimizador:1.0 .
+GPU_DEVICE=0 docker compose -f docker/docker-compose.yml up -d
+```
+
+La carpeta de trabajos, el disco cifrado y el resto de lo que se cuenta arriba valen igual.
 
 ---
 

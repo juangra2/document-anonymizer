@@ -23,6 +23,10 @@ dependencies = [
     # Decodifica QR escaneados que zbar y OpenCV no leen (4 -> 11 de 16 en el
     # corpus escaneado).
     "zxing-cpp",
+    # Word y Excel: el XML de cada parte, y abrir la salida para comprobarla.
+    "lxml",
+    "python-docx",
+    "openpyxl",
 ]
 
 [project.optional-dependencies]

@@ -723,7 +723,7 @@ Pasos en el [README](../README.md#despliegue-con-docker). Decisiones:
 - **Ficheros**: todo en `docker/` (`Dockerfile`, su lista de permitidos, `docker-compose.yml`,
   `requirements.txt`). Se construye desde la raíz: `docker build -f docker/Dockerfile .`
 
-Pruebas del contenedor (RTX 4060 de 8 GB, driver 572.61):
+Pruebas del contenedor (RTX 4060 de 8 GB, driver 570 o posterior):
 
 | Prueba | Resultado |
 |---|---|

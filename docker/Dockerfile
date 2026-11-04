@@ -6,9 +6,8 @@
 #
 # CUDA y torch.  torch 2.11.0 para CUDA 12.8, la combinacion con la que se ha
 # medido la calidad (c4).  CUDA 12.8 necesita un driver de NVIDIA 570 o
-# posterior en el servidor: lo cumplen el equipo de desarrollo (572.61) y el
-# servidor de la empresa (580.173).  Un driver nuevo ejecuta CUDA mas antiguas,
-# no al reves: con CUDA 13 la imagen no arrancaria en drivers de la serie 570.
+# posterior en el servidor.  Un driver nuevo ejecuta CUDA mas antiguas, no al
+# reves: con CUDA 13 la imagen no arrancaria en drivers de la serie 570.
 #
 # Base python:3.12-slim y no nvidia/cuda: el paquete de torch para cu128 ya trae
 # las librerias de CUDA y cuDNN, y el driver lo pone el servidor a traves de
