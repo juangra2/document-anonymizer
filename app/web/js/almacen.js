@@ -1,11 +1,11 @@
 /**
- * Lo que el navegador recuerda entre visitas.
+ * Lo que el navegador recuerda entre visitas: identificador, hora, páginas y el
+ * nombre del fichero, para que al volver la lista diga qué documento es.
  *
- * Solo identificadores, hora y páginas. **Nunca el nombre del fichero**: en el
- * ayuntamiento los nombres de expediente suelen llevar el del interesado y
- * estos equipos pueden ser compartidos. Mientras la pestaña sigue abierta el
- * nombre se ve, porque está en memoria; al volver después de cerrarla, la
- * lista enseña la hora y el número de páginas.
+ * El nombre puede llevar el del interesado, así que solo se guarda mientras el
+ * documento sigue en el servidor: se borra cuando caduca (a las seis horas,
+ * como el resultado), al pulsar Eliminar o Quitar, y cuando el servidor dice
+ * que el trabajo ya no existe.  Nunca llega al servidor.
  *
  * Si el navegador no deja guardar nada (modo privado, políticas del equipo),
  * la página funciona igual: solo se pierde la recuperación al volver.
@@ -13,7 +13,8 @@
 
 const CLAVE = "anonimizador.trabajos";
 const MAXIMO = 10;
-const CADUCA_MS = 24 * 60 * 60 * 1000;
+// Lo que el servidor conserva el resultado (RESULT_TTL_MINUTES, seis horas).
+const CADUCA_MS = 6 * 60 * 60 * 1000;
 
 function leerCrudo() {
   try {
@@ -31,9 +32,9 @@ function escribir(lista) {
   }
 }
 
-export function recordar(id, { paginas = 0 } = {}) {
+export function recordar(id, { paginas = 0, nombre = null } = {}) {
   const lista = leerCrudo().filter((t) => t.id !== id);
-  lista.unshift({ id, subido: Date.now(), paginas });
+  lista.unshift({ id, subido: Date.now(), paginas, nombre });
   escribir(lista);
 }
 

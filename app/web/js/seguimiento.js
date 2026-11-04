@@ -71,8 +71,8 @@ export class Seguimiento {
       documento.subido = Date.now();
       documento.estado = trabajo.status;
       // Se recuerda YA: si cierran la pestaña ahora mismo, al volver el
-      // documento sigue ahí.  Solo el identificador, nunca el nombre.
-      almacen.recordar(trabajo.job_id);
+      // documento sigue ahí, con su nombre (solo en este navegador).
+      almacen.recordar(trabajo.job_id, { nombre: documento.nombre });
       documento.trabajo = trabajo;
       documento.fichero = null; // ya está en el servidor; no lo retenemos
       this.alCambiar(documento);
@@ -105,6 +105,8 @@ export class Seguimiento {
       this._aplicar(documento, estado);
     } catch (error) {
       if (error.codigo === "ya_no_existe") {
+        // Ya no está en el servidor: el navegador lo olvida, nombre incluido.
+        almacen.olvidar(documento.id);
         documento.estado = "error";
         documento.error = { codigo: faltaEnElServidor(documento.estado), datos: {} };
         this.alCambiar(documento);
@@ -121,6 +123,8 @@ export class Seguimiento {
     const anterior = documento.trabajo || {};
     documento.trabajo = estado;
     documento.estado = estado.status;
+    // Caducado en el servidor: el navegador lo olvida, nombre incluido.
+    if (estado.status === "expired") almacen.olvidar(documento.id);
 
     // Avisos nuevos desde la última consulta: se enseñan una sola vez.
     const vistos = this.avisosVistos.get(documento.id) || 0;

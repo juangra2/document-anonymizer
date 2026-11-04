@@ -463,11 +463,15 @@ def flujo_recuperar(p, pagina, tmp: Path) -> None:
     pagina.wait_for_selector(".doc", timeout=20000)
     p.comprobar(pagina.locator(".doc").count() >= 1, "el documento reaparece al volver")
     nombre = pagina.locator(".doc .name").first.inner_text()
-    p.comprobar(
-        "recuperar.pdf" not in nombre and "Documento de las" in nombre,
-        "y sin el nombre del fichero, que puede llevar el del interesado",
-    )
+    p.comprobar("recuperar.pdf" in nombre,
+                "con el nombre del fichero, que el navegador guarda mientras el documento sigue en el servidor")
     p.captura(pagina, "10-recuperado")
+    # Al eliminarlo, el navegador lo olvida, nombre incluido.
+    pagina.click(".doc .acts button:has-text('Eliminar')")
+    pagina.click("#confSi")
+    time.sleep(2)
+    guardado = pagina.evaluate("localStorage.getItem('anonimizador.trabajos') || ''")
+    p.comprobar("recuperar.pdf" not in guardado, "al eliminarlo, el nombre se borra del navegador")
 
 
 def flujo_errores(p, pagina, tmp: Path) -> None:

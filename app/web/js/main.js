@@ -373,7 +373,7 @@ async function recuperarRecordados() {
   for (const recordado of almacen.recordados()) {
     const documento = {
       id: recordado.id,
-      nombre: null, // el nombre no se guarda: puede llevar el del interesado
+      nombre: recordado.nombre || null, // solo en este navegador (almacen.js)
       subido: recordado.subido,
       paginas: recordado.paginas,
       estado: "queued",
@@ -895,11 +895,9 @@ function confirmarEliminar(documento) {
     $("confirmacion").classList.add("hidden");
     const objetivo = pendienteDeEliminar;
     if (!objetivo) return;
+    if (objetivo.id) almacen.olvidar(objetivo.id);
     try {
-      if (objetivo.id) {
-        await api.eliminarTrabajo(objetivo.id);
-        almacen.olvidar(objetivo.id);
-      }
+      if (objetivo.id) await api.eliminarTrabajo(objetivo.id);
     } catch {
       /* si ya no está en el servidor, quitarlo de la lista es lo correcto */
     }
