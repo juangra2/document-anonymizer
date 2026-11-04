@@ -213,8 +213,10 @@ Por eso el anonimizador **elimina** el dato:
 
 ### Tratamientos especiales
 
-- **Copias de DNI**: se tapan enteras. En una copia escaneada se intenta tapar solo la tarjeta, si
-  el resto de la página se puede conservar.
+- **Copias de DNI**: se tapan enteras, las dos caras. El reverso se reconoce por su zona de lectura
+  mecánica (las líneas con «IDESP» y rellenos «<», que llevan el número y el nombre), aunque esté
+  girado. En una copia escaneada se intenta tapar solo la tarjeta, si el resto de la página se puede
+  conservar; una foto o una imagen suelta de la tarjeta se tapa entera.
 - **Autoliquidaciones** (impresos de tasas e impuestos): se tapan enteras; llevan datos personales
   y fiscales por toda la página.
 - **Planos de obra**: solo se analiza el cajetín (el recuadro con el promotor, el arquitecto y la
@@ -310,7 +312,10 @@ por qué, y los metadatos eliminados. **No lleva ningún valor** de los datos oc
 del fichero: solo la fecha, el número de páginas y el identificador del trabajo, porque se
 descarga y puede acabar en cualquier sitio.
 
-La página no necesita internet y no guarda nada del documento en el navegador.
+La página no necesita internet. Del documento, el navegador solo recuerda el nombre del fichero,
+para que al volver a la página la lista diga cuál es, y solo mientras el documento sigue en el
+servidor: lo borra cuando caduca a las seis horas, al pulsar Eliminar o cuando el servidor dice que
+ya no existe. El nombre nunca llega al servidor.
 
 **La API** (interfaz para otros programas) ofrece lo mismo: subir un documento a una cola
 (`POST /jobs`, con `?treatment=metadata_only` para solo quitar metadatos), consultar su estado

@@ -292,7 +292,11 @@ marcador del tipo, como en Word; no se borran columnas.
 
 - **Página completa** (`pdf/full_redaction.py`): la copia de un DNI y el impreso de autoliquidación
   tributaria (modelos 046, 600, 620…) se tachan enteros. Se decide por señales textuales distintas
-  con un mínimo configurable, página a página. En una copia de DNI escaneada se intenta tachar solo
+  con un mínimo configurable, página a página. Una zona de lectura mecánica completa (dos o más
+  líneas largas de mayúsculas, cifras y «<», con diez rellenos «<» como poco) basta sola: es el
+  reverso, que no lleva rótulo, y en una foto girada el OCR lee los rellenos aunque no el «IDESP».
+  En una imagen suelta (también la incrustada en un Word o un Excel) la copia se tacha entera. En
+  una copia de DNI escaneada en un PDF se intenta tachar solo
   la tarjeta: se pinta la región, se vuelve a pasar OCR y, si queda texto legible fuera, se tacha la
   página entera. Si el documento entero se clasifica como copia o autoliquidación, la decisión se
   propaga a sus páginas.
@@ -507,7 +511,7 @@ con `Cache-Control: no-cache` para que una actualización no mezcle HTML nuevo c
 | `js/errores.js` | De código estable de la API a frase que dice qué ha pasado y qué hacer |
 | `js/categorias.js` | Agrupación de los tipos |
 | `js/seguimiento.js` | Subida en fila, consultas periódicas con reintentos, avisos de página |
-| `js/almacen.js` | Lo que recuerda el navegador: identificadores, nunca el nombre del fichero |
+| `js/almacen.js` | Lo que recuerda el navegador: identificador, hora, páginas y nombre del fichero, solo mientras el trabajo existe (seis horas, Eliminar, o el servidor dice que ya no está); el nombre nunca llega al servidor |
 
 La pantalla envía solo lo que difiere del catálogo (`disabled_types` para los desmarcados que vienen
 activos, `enabled_types` para los marcados que vienen apagados). **Para añadir el valenciano**:

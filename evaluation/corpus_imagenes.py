@@ -210,6 +210,23 @@ def dni_ejemplo() -> Documento:
     return Documento("dni_ejemplo", "dni", [_render(page)], entera=True)
 
 
+def dni_reverso() -> Documento:
+    """Reverso de un DNI inventado: domicilio y la zona de lectura mecanica
+    (MRZ) de tres lineas, sin rotulo ni otra señal de documento de identidad."""
+    doc = fitz.open()
+    page = doc.new_page(width=340, height=215)
+    page.draw_rect(page.rect, color=(0.5, 0.5, 0.5), fill=(0.88, 0.91, 0.93), radius=0.05)
+    page.insert_text((14, 24), "DOMICILIO", fontsize=6.5, fontname="helv", color=(0.3, 0.3, 0.3))
+    page.insert_text((14, 36), "C. DE LA PRUEBA 12 PISO 3", fontsize=9, fontname="hebo")
+    page.insert_text((14, 48), "VALENCIA", fontsize=9, fontname="hebo")
+    page.insert_text((14, 72), "EQUIPO", fontsize=6.5, fontname="helv", color=(0.3, 0.3, 0.3))
+    page.insert_text((14, 84), "46001A1D1", fontsize=9, fontname="hebo")
+    for i, linea in enumerate(["IDESPBAA000123412345678Z<<<<<<", "9001014F3001014ESP<<<<<<<<<<<4",
+                               "PRUEBA<INVENTADA<<ANA<<<<<<<<<"]):
+        page.insert_text((14, 160 + i * 16), linea, fontsize=12, fontname="cour")
+    return Documento("dni_reverso", "dni", [_render(page)], entera=True)
+
+
 def captura() -> Documento:
     doc = fitz.open()
     page = doc.new_page(width=800, height=500)

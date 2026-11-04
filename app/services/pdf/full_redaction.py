@@ -67,6 +67,22 @@ _DNI_WEAK_SIGNALS: tuple[tuple[str, re.Pattern[str]], ...] = (
 
 _DNI_SIGNALS = _DNI_STRONG_SIGNALS + _DNI_WEAK_SIGNALS
 
+# Zona de lectura mecanica completa: varias lineas largas de solo mayusculas,
+# cifras y rellenos "<".  Lleva el numero, el nombre y los apellidos, y basta
+# sola: el reverso no tiene rotulo, y en una foto girada el OCR lee bien los
+# rellenos pero no siempre el "IDESP".  Una linea de "<" suelta (una firma, un
+# separador) no es una MRZ, ni un codigo largo sin rellenos.
+_MRZ_LINEA = re.compile(r"[A-Z0-9<]{25,}")
+_MRZ_LINEAS_MIN = 2
+_MRZ_RELLENOS_MIN = 10
+
+
+def _zona_mrz(norm_text: str) -> bool:
+    lineas = []
+    for linea in norm_text.splitlines():
+        lineas += [t for t in _MRZ_LINEA.findall(linea.replace(" ", "")) if "<" in t]
+    return len(lineas) >= _MRZ_LINEAS_MIN and sum(t.count("<") for t in lineas) >= _MRZ_RELLENOS_MIN
+
 # --- B2: autoliquidación tributaria ----------------------------------------
 # Se exigen DOS FAMILIAS distintas: una resolución o notificación normal puede
 # CITAR una tasa o un impuesto ("liquidación del IBI por importe de …"), y esa
@@ -116,7 +132,10 @@ def classify_page(text: str) -> str | None:
 
     norm = _norm(text)
 
-    # DNI: al menos una señal fuerte (ancla) y el total exigido por config.
+    # DNI: una zona de lectura mecanica completa basta sola (el reverso).  Si
+    # no, al menos una señal fuerte (ancla) y el total exigido por config.
+    if _zona_mrz(norm):
+        return DNI_SCAN
     strong, weak = _dni_signals(norm)
     if strong and len(strong) + len(weak) >= settings.dni_scan_min_signals:
         return DNI_SCAN

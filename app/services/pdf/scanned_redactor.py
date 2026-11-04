@@ -358,9 +358,12 @@ def redact_pdf_scanned(
                     # recorte NO se aplica por confianza en el detector: se
                     # pinta, se vuelve a leer con OCR y se exige que no quede
                     # texto legible fuera.  Si queda algo, pagina entera.
+                    # En una imagen suelta (una foto de la tarjeta, sin hoja
+                    # alrededor) la imagen es la copia: se tapa entera.  El
+                    # recorte solo taparia los bloques de texto.
                     crop_rects: list[fitz.Rect] = []
                     crop_reason: str | None = None
-                    if full_reason == DNI_SCAN and settings.dni_crop_enabled:
+                    if full_reason == DNI_SCAN and settings.dni_crop_enabled and not imagen_suelta:
                         crop_rects, crop_reason = card_regions(
                             work_image,
                             [t.rect for t in ocr_page.tokens if t.text.strip()],
