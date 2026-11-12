@@ -9,6 +9,7 @@ import * as api from "./api.js";
 import * as almacen from "./almacen.js";
 import { agrupar, TIPO_CODIGOS } from "./categorias.js";
 import { frase, referenciaDeSoporte } from "./errores.js";
+import * as recuperar from "./recuperar.js";
 import { Seguimiento } from "./seguimiento.js";
 import { TEXTOS as T } from "./texts/index.js";
 
@@ -23,6 +24,8 @@ const estado = {
   limites: { max_upload_mb: 200, max_pdf_pages: 300 },
   servicio: "desconocido",
   cola: 0,
+  // Lo dice /health: desactivada, la tercera opción y la pestaña no existen.
+  seudonimizacion: { enabled: false, min_password_length: 12, formats: [] },
 };
 
 const $ = (id) => document.getElementById(id);
@@ -39,6 +42,16 @@ async function arrancar() {
   $("tratAnonimizarTexto").textContent = T.paso2.tratAnonimizar;
   $("tratMetadatosTexto").textContent = T.paso2.tratMetadatos;
   $("avisoMetadatosTexto").textContent = T.paso2.avisoMetadatos;
+  $("tratSeudonimizarTexto").textContent = T.paso2.tratSeudonimizar;
+  $("ayudaSeudonimizar").textContent = T.paso2.ayudaSeudonimizar;
+  $("avisoSeudonimizarTexto").textContent = T.paso2.avisoSeudonimizar;
+  $("avisoSinHttpsTexto").textContent = T.paso2.avisoSinHttps;
+  $("claveEtiqueta").textContent = T.paso2.clave;
+  $("clave2Etiqueta").textContent = T.paso2.clave2;
+  $("claveNota").textContent = T.paso2.claveNota;
+  $("tabAnonimizar").textContent = T.pestanas.anonimizar;
+  $("tabRecuperar").textContent = T.pestanas.recuperar;
+  recuperar.iniciar();
   pintarTratamiento();
   $("elegir").textContent = T.paso1.elegir;
   $("zonaTitulo").textContent = T.paso1.soltar;
@@ -68,6 +81,11 @@ function conectarEventos() {
   $("anonimizar").onclick = lanzarTanda;
   $("tratAnonimizar").onchange = pintarTratamiento;
   $("tratMetadatos").onchange = pintarTratamiento;
+  $("tratSeudonimizar").onchange = pintarTratamiento;
+  $("clave").oninput = () => $("claveError").classList.add("hidden");
+  $("clave2").oninput = () => $("claveError").classList.add("hidden");
+  $("tabAnonimizar").onclick = () => verPestana("anonimizar");
+  $("tabRecuperar").onclick = () => verPestana("recuperar");
   $("avisoCerrar").onclick = () => $("aviso").classList.add("hidden");
 
   const zona = $("zona");
@@ -101,6 +119,8 @@ async function comprobarServicio() {
     estado.limites = salud.limits || estado.limites;
     pintarRetencion(salud.limits);
     estado.cola = salud.queue?.queued ?? 0;
+    estado.seudonimizacion = salud.pseudonymization || estado.seudonimizacion;
+    pintarSeudonimizacion();
     estado.servicio = salud.ready ? (salud.status === "ok" ? "ok" : "lento") : "caido";
   } catch {
     estado.servicio = "sinConexion";
@@ -341,6 +361,41 @@ function soloMetadatos() {
   return $("tratMetadatos").checked;
 }
 
+function seudonimizar() {
+  return $("tratSeudonimizar").checked && estado.seudonimizacion.enabled;
+}
+
+/** La tercera opción y la pestaña solo existen si el servicio la tiene activada. */
+function pintarSeudonimizacion() {
+  const activa = Boolean(estado.seudonimizacion.enabled);
+  $("tratSeudonimizarFila").classList.toggle("hidden", !activa);
+  $("pestanas").classList.toggle("hidden", !activa);
+  if (!activa) {
+    if ($("tratSeudonimizar").checked) $("tratAnonimizar").checked = true;
+    verPestana("anonimizar");
+  }
+  // La contraseña viaja en la petición: sin HTTPS (y no siendo este mismo
+  // equipo) cualquiera en la red puede leerla.
+  const local = ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
+  $("avisoSinHttps").classList.toggle("hidden", window.location.protocol === "https:" || local);
+  pintarTratamiento();
+}
+
+function verPestana(cual) {
+  const recupera = cual === "recuperar";
+  $("vistaAnonimizar").classList.toggle("hidden", recupera);
+  $("vistaRecuperar").classList.toggle("hidden", !recupera);
+  $("tabAnonimizar").classList.toggle("on", !recupera);
+  $("tabRecuperar").classList.toggle("on", recupera);
+  $("tabAnonimizar").setAttribute("aria-selected", String(!recupera));
+  $("tabRecuperar").setAttribute("aria-selected", String(recupera));
+}
+
+/** Un documento elegido que no se puede seudonimizar (por su extensión). */
+function noSeudonimizable(documento) {
+  return seudonimizar() && !/\.(docx|txt|md|markdown)$/i.test(documento.nombre || "");
+}
+
 // Con «solo quitar metadatos» no se elige qué ocultar: no se oculta nada, y el
 // aviso de que el contenido no se revisa ocupa su sitio.
 function pintarTratamiento() {
@@ -348,7 +403,25 @@ function pintarTratamiento() {
   $("paraAnonimizar").classList.toggle("hidden", solo);
   $("avisoMetadatos").classList.toggle("hidden", !solo);
   $("activos").classList.toggle("hidden", solo);
-  $("anonimizar").textContent = solo ? T.paso3.quitarMetadatos : T.paso3.anonimizar;
+  $("paraSeudonimizar").classList.toggle("hidden", !seudonimizar());
+  $("anonimizar").textContent = solo
+    ? T.paso3.quitarMetadatos
+    : seudonimizar() ? T.paso3.seudonimizar : T.paso3.anonimizar;
+  // Las fichas dicen ya cuáles no se pueden seudonimizar.
+  if (seguimiento.documentos.length) pintarFichas();
+}
+
+/** La contraseña de la tabla, o null (y el motivo en pantalla) si no vale. */
+function contrasenaValida() {
+  const clave = $("clave").value;
+  const error = $("claveError");
+  const minimo = estado.seudonimizacion.min_password_length || 12;
+  const motivo =
+    clave.length < minimo ? T.paso2.claveCorta : clave !== $("clave2").value ? T.paso2.claveDistinta : null;
+  error.textContent = motivo || "";
+  error.classList.toggle("hidden", !motivo);
+  if (motivo) $("clave").focus();
+  return motivo ? null : clave;
 }
 
 async function lanzarTanda() {
@@ -359,9 +432,28 @@ async function lanzarTanda() {
     pintarTodo();
     return;
   }
+  const extra = {};
+  if (seudonimizar()) {
+    const contrasena = contrasenaValida();
+    if (contrasena === null) {
+      $("anonimizar").disabled = false;
+      return;
+    }
+    // Los que no se pueden seudonimizar se quedan en su ficha con el motivo;
+    // el resto de la tanda sigue.
+    seguimiento.documentos
+      .filter((d) => !d.id && d.estado === "pendiente" && noSeudonimizable(d))
+      .forEach((d) => {
+        d.estado = "error";
+        d.error = { codigo: "pseudonymize_unsupported", datos: {} };
+      });
+    extra.tratamiento = "pseudonymize";
+    extra.contrasena = contrasena;
+  }
   // Se envia lo que difiere del catalogo: los desmarcados que vienen activos y
   // los marcados que vienen apagados (el servicio parte del mismo catalogo).
   await seguimiento.subirPendientes({
+    ...extra,
     desactivar: estado.catalogo
       .filter((t) => t.default_enabled && estado.desmarcados.has(t.id))
       .map((t) => t.id),
@@ -369,6 +461,11 @@ async function lanzarTanda() {
       .filter((t) => !t.default_enabled && !estado.desmarcados.has(t.id))
       .map((t) => t.id),
   });
+  if (extra.contrasena) {
+    // Ya está en el servidor como clave: la página no la retiene.
+    $("clave").value = "";
+    $("clave2").value = "";
+  }
   $("anonimizar").disabled = false;
   pintarTodo();
 }
@@ -457,6 +554,12 @@ function pintarFichas() {
       const motivo = document.createElement("span");
       motivo.className = "motivo";
       motivo.textContent = frase(documento.error?.codigo, documento.error?.datos).titulo;
+      ficha.appendChild(motivo);
+    } else if (documento.estado === "pendiente" && noSeudonimizable(documento)) {
+      ficha.classList.add("err");
+      const motivo = document.createElement("span");
+      motivo.className = "motivo";
+      motivo.textContent = T.paso2.noSeudonimizable;
       ficha.appendChild(motivo);
     } else if (documento.estado === "subiendo") {
       const barra = document.createElement("span");
@@ -619,9 +722,10 @@ function pintarEnCurso(documentos) {
 
 function filaDocumento(documento) {
   const fila = document.createElement("div");
-  fila.className = "doc";
-
   const resultado = documento.trabajo?.result;
+  // Un seudonimizado lleva más botones: van en su propia línea, bajo el texto.
+  fila.className = resultado?.treatment === "pseudonymize" ? "doc wide" : "doc";
+
   const parcial = !!resultado?.partial;
   const icono = document.createElement("span");
   const clases = {
@@ -680,6 +784,11 @@ function filaDocumento(documento) {
       linea.textContent = T.documento.parcial(
         resultado.pages,
         resultado.pages_total_original,
+      );
+    } else if (resultado?.treatment === "pseudonymize") {
+      linea.textContent = T.documento.seudonimizado(
+        resultado.pseudonym_labels ?? 0,
+        resultado.entities_redacted ?? 0,
       );
     } else if (resultado?.treatment === "metadata_only" &&
                ["txt", "md"].includes(resultado?.document_type)) {
@@ -791,7 +900,10 @@ function acciones(documento, parcial) {
   if (documento.estado === "completed") {
     const descarga = document.createElement("a");
     descarga.className = "btn primary";
-    descarga.textContent = parcial ? T.acciones.descargarParcial : T.acciones.descargar;
+    const seudonimizado = documento.trabajo?.result?.treatment === "pseudonymize";
+    descarga.textContent = seudonimizado
+      ? T.acciones.documentoConEtiquetas
+      : parcial ? T.acciones.descargarParcial : T.acciones.descargar;
     descarga.href = api.direccionDeDescarga(documento.id);
     descarga.onclick = (evento) => {
       // El nombre lo pone la página con lo que tiene en memoria: el servidor no
@@ -802,6 +914,34 @@ function acciones(documento, parcial) {
       api.descargarConNombre(documento.id, nombreDescarga(documento, parcial));
     };
     caja.appendChild(descarga);
+    if (seudonimizado) {
+      const base = documento.nombre ? documento.nombre.replace(EXTENSIONES, "") : "documento";
+      boton(T.acciones.tabla, "primary", async () => {
+        try {
+          api.guardar(await api.tablaDelTrabajo(documento.id), `${base}.tabla`);
+        } catch (error) {
+          mostrarAviso(frase(error.codigo, { idTrabajo: documento.id }));
+        }
+      });
+      const copiar = boton(T.acciones.copiarInstrucciones, "", async () => {
+        try {
+          await navigator.clipboard.writeText(T.instruccionesModelo);
+          copiar.textContent = T.acciones.instruccionesCopiadas;
+          setTimeout(() => (copiar.textContent = T.acciones.copiarInstrucciones), 2000);
+        } catch {
+          mostrarAviso({ titulo: T.acciones.copiarInstrucciones, texto: T.instruccionesModelo });
+        }
+      });
+      boton(T.acciones.recuperarDeUnTexto, "", async () => {
+        try {
+          // La tabla pasa a la otra pestaña en memoria: no se guarda en ningún sitio.
+          recuperar.ponerTabla(await api.tablaDelTrabajo(documento.id), `${base}.tabla`);
+          verPestana("recuperar");
+        } catch (error) {
+          mostrarAviso(frase(error.codigo, { idTrabajo: documento.id }));
+        }
+      });
+    }
     boton(T.acciones.informePdf, "", async () => {
       try {
         await api.descargarInformePdf(documento.id, nombreInformePdf(documento));
@@ -882,6 +1022,9 @@ function nombreDescarga(documento, parcial) {
   const ext = extensionDe(documento);
   if (documento.trabajo?.result?.treatment === "metadata_only") {
     return `${base}_sin_metadatos.${ext}`;
+  }
+  if (documento.trabajo?.result?.treatment === "pseudonymize") {
+    return `${base}_seudonimizado.${ext}`;
   }
   if (!parcial) return `${base}_anonimizado.${ext}`;
   const r = documento.trabajo.result;

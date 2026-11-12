@@ -78,6 +78,27 @@ export const TEXTOS = {
     tratamiento: "Qué hacer con los documentos",
     tratAnonimizar: "Anonimizar: ocultar los datos personales",
     tratMetadatos: "Solo quitar metadatos",
+    tratSeudonimizar: "Seudonimizar: cambiar los datos por etiquetas que se pueden deshacer",
+    ayudaSeudonimizar:
+      "Solo Word, Markdown y texto. Sirve para pasar un documento por un modelo de lenguaje sin " +
+      "que vea los datos personales: cada dato pasa a una etiqueta como [PERSONA_1], y aparte " +
+      "recibes una tabla cifrada para devolver los datos a su sitio en «Recuperar datos».",
+    avisoSeudonimizar:
+      "Seudonimizar NO es anonimizar. Con la tabla se recuperan los datos, así que el documento " +
+      "con etiquetas sigue conteniendo datos personales: no lo publiques, y trata la tabla y su " +
+      "contraseña como los propios datos. Lo que no se detecte seguirá a la vista: revisa el " +
+      "documento antes de enviarlo a ningún sitio.",
+    avisoSinHttps:
+      "Esta página no usa HTTPS: la contraseña viajará sin cifrar por la red. Avisa a quien " +
+      "administra el servicio antes de seudonimizar documentos reales.",
+    clave: "Contraseña para la tabla (12 caracteres o más)",
+    clave2: "Repite la contraseña",
+    claveNota:
+      "No se guarda en ningún sitio: si la pierdes, no podrás recuperar los datos.",
+    claveCorta: "La contraseña tiene que tener 12 caracteres o más.",
+    claveDistinta: "Las dos contraseñas no coinciden.",
+    noSeudonimizable:
+      "No se puede seudonimizar (solo Word, Markdown y texto). Anonimízalo o quita solo sus metadatos.",
     avisoMetadatos:
       "El contenido del documento NO se revisa ni se anonimiza: los datos " +
       "personales que se vean en él siguen ahí. Solo se quitan los metadatos, " +
@@ -97,6 +118,7 @@ export const TEXTOS = {
     sinEmpezar: "Pulsa «Anonimizar» y aquí verás el avance de cada documento.",
     anonimizar: "Anonimizar",
     quitarMetadatos: "Quitar metadatos",
+    seudonimizar: "Seudonimizar",
     resumen: (partes) => partes.join(" · "),
     resumenTerminados: (n) => `${n} ${n === 1 ? "terminado" : "terminados"}`,
     resumenParciales: (n) => `${n} ${n === 1 ? "parcial" : "parciales"}`,
@@ -138,6 +160,9 @@ export const TEXTOS = {
     terminado: (datos, paginas) =>
       `Terminado · ${datos} ${datos === 1 ? "dato ocultado" : "datos ocultados"} ` +
       `en ${paginas} ${paginas === 1 ? "página" : "páginas"}`,
+    seudonimizado: (etiquetas, datos) =>
+      `Terminado · ${datos} ${datos === 1 ? "dato cambiado" : "datos cambiados"} por ` +
+      `${etiquetas} ${etiquetas === 1 ? "etiqueta" : "etiquetas"} · descarga el documento y la tabla`,
     sinMetadatos:
       "Terminado · sale igual: este formato no tiene metadatos · el contenido NO se ha " +
       "revisado ni anonimizado",
@@ -166,6 +191,11 @@ export const TEXTOS = {
   acciones: {
     descargar: "Descargar",
     descargarParcial: "Descargar parcial",
+    documentoConEtiquetas: "Documento con etiquetas",
+    tabla: "Tabla para recuperar los datos (cifrada)",
+    copiarInstrucciones: "Copiar instrucciones para el modelo",
+    instruccionesCopiadas: "Copiadas",
+    recuperarDeUnTexto: "Recuperar datos de un texto…",
     informePdf: "Informe en PDF",
     informe: "Informe técnico (JSON)",
     parar: "Parar",
@@ -176,6 +206,49 @@ export const TEXTOS = {
     subirDeNuevo: "Subir de nuevo",
     recargar: "Recargar la página",
     cancelar: "Cancelar",
+  },
+
+  pestanas: {
+    anonimizar: "Anonimizar documentos",
+    recuperar: "Recuperar datos",
+  },
+
+  // Lo que se copia para pegarlo en la petición al modelo de lenguaje.
+  instruccionesModelo:
+    "El texto lleva etiquetas entre corchetes, como [PERSONA_1] o [DNI_2], en lugar de los " +
+    "datos personales. Mantén cada etiqueta exactamente como está: no las traduzcas, no las " +
+    "cambies, no les quites los corchetes y no inventes etiquetas nuevas.",
+
+  recuperar: {
+    paso1: "Texto con etiquetas",
+    ayuda1:
+      "Pega el texto que lleva las etiquetas (por ejemplo, el resumen que ha hecho el modelo " +
+      "de lenguaje) o elige un archivo de texto, Markdown o Word.",
+    pegar: "Pega aquí el texto con etiquetas como [PERSONA_1]…",
+    elegirFichero: "O elegir un archivo (.txt, .md, .docx)",
+    ficheroElegido: (nombre) => `Archivo: ${nombre}`,
+    paso2: "Tabla",
+    ayuda2: "El archivo .tabla que descargaste al seudonimizar el documento.",
+    elegirTabla: "Elegir la tabla (.tabla)",
+    tablaElegida: (nombre) => `Tabla: ${nombre}`,
+    sinTabla: "Ninguna tabla elegida",
+    paso3: "Contraseña",
+    contrasena: "La contraseña que pusiste al seudonimizar",
+    lanzar: "Recuperar los datos",
+    resultado: "Resultado",
+    exacta: (n) =>
+      `Documento recuperado tal como era: ${n} ${n === 1 ? "dato devuelto" : "datos devueltos"} a su sitio.`,
+    tolerante: (n) =>
+      `${n} ${n === 1 ? "etiqueta cambiada" : "etiquetas cambiadas"} por su dato.`,
+    noResueltas:
+      "Etiquetas que no están en la tabla: se han dejado como estaban. Resuélvelas a mano.",
+    alteradas: "Etiquetas que venían escritas de otra forma: comprueba que el dato es el que toca.",
+    alterada: (forma, etiqueta) => `${forma} → ${etiqueta}`,
+    noUsadas: "Datos de la tabla que no aparecen en el texto (solo para que lo sepas):",
+    sinVista: "Es un documento de Word: descárgalo para verlo.",
+    copiar: "Copiar el texto",
+    copiado: "Copiado",
+    descargar: "Descargar",
   },
 
   confirmar: {
@@ -203,6 +276,11 @@ export const TEXTOS = {
     content_not_reviewed: () =>
       "Solo se han quitado los metadatos: los datos personales que se ven en el " +
       "documento siguen ahí.",
+    pseudonymized_not_anonymous: () =>
+      "Seudonimizado, no anonimizado: con la tabla se recuperan los datos, así que siguen " +
+      "siendo datos personales. No lo publiques como anonimizado.",
+    password_without_https: () =>
+      "La contraseña ha viajado sin cifrar (el servicio no usa HTTPS). Avisa a quien lo administra.",
     format_without_metadata: () =>
       "Los archivos de texto y Markdown no tienen metadatos: el archivo sale igual que entró.",
     text_encoding_uncertain: () =>
@@ -339,6 +417,30 @@ export const TEXTOS = {
     already_finished: {
       titulo: "El documento ya había terminado",
       texto: "Puedes descargarlo tal cual.",
+    },
+    pseudonymize_unsupported: {
+      titulo: "Este formato no se puede seudonimizar",
+      texto:
+        "Solo se seudonimizan documentos de Word (.docx), Markdown (.md) y texto (.txt). " +
+        "Anonimízalo o quita solo sus metadatos.",
+    },
+    password_too_short: {
+      titulo: "La contraseña es demasiado corta",
+      texto: "Tiene que tener 12 caracteres o más.",
+    },
+    table_unreadable: {
+      titulo: "La tabla no se puede abrir",
+      texto:
+        "La contraseña no es la de esta tabla, o el archivo está dañado. Comprueba la " +
+        "contraseña y que el archivo es el .tabla que descargaste.",
+    },
+    pseudonymization_disabled: {
+      titulo: "La seudonimización está desactivada en este servicio",
+      texto: "Pide a quien lo administra que la active.",
+    },
+    nothing_to_reconstruct: {
+      titulo: "Falta el texto",
+      texto: "Pega el texto con etiquetas o elige un archivo.",
     },
     pagina_antigua: {
       titulo: "La página se ha actualizado",

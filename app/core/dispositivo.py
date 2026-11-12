@@ -39,6 +39,12 @@ def usar_gpu(pedida: bool) -> bool:
 
 def avisar_al_arrancar() -> None:
     """Deja escrito en el log, al arrancar, en que se va a procesar."""
+    if settings.pseudonymization_enabled:
+        logger.warning(
+            "*** SEUDONIMIZACION ACTIVADA *** (PSEUDONYMIZATION_ENABLED).  La contrasena de la "
+            "tabla viaja en la peticion: el servicio TIENE que estar detras de HTTPS.  Sin HTTPS "
+            "viaja sin cifrar por la red; cada documento seudonimizado asi lo avisa en su informe "
+            "(password_without_https).")
     pedida = settings.ocr_use_gpu or settings.ner_use_gpu
     if not pedida:
         logger.info("GPU desactivada por configuracion (OCR_USE_GPU/NER_USE_GPU): se procesa en CPU.")

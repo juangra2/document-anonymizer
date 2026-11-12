@@ -24,6 +24,12 @@
     <span class="mark">!</span><span id="avisoServicioTexto"></span>
   </div>
 
+  <nav class="tabs hidden" id="pestanas" role="tablist">
+    <button class="tab on" id="tabAnonimizar" type="button" role="tab" aria-selected="true"></button>
+    <button class="tab" id="tabRecuperar" type="button" role="tab" aria-selected="false"></button>
+  </nav>
+
+  <div id="vistaAnonimizar">
   <!-- 1 · Documentos -->
   <section class="card">
     <div class="card-head">
@@ -55,6 +61,21 @@
         <span id="tratAnonimizarTexto"></span></label>
       <label><input type="radio" name="tratamiento" id="tratMetadatos" value="metadata_only">
         <span id="tratMetadatosTexto"></span></label>
+      <label class="hidden" id="tratSeudonimizarFila"><input type="radio" name="tratamiento" id="tratSeudonimizar" value="pseudonymize">
+        <span id="tratSeudonimizarTexto"></span></label>
+    </div>
+    <div class="hidden" id="paraSeudonimizar">
+      <p class="hint" id="ayudaSeudonimizar"></p>
+      <div class="banner warn"><span class="mark">!</span><span id="avisoSeudonimizarTexto"></span></div>
+      <div class="banner down hidden" id="avisoSinHttps"><span class="mark">!</span><span id="avisoSinHttpsTexto"></span></div>
+      <div class="claves">
+        <label for="clave" id="claveEtiqueta"></label>
+        <input type="password" id="clave" autocomplete="new-password" minlength="12">
+        <label for="clave2" id="clave2Etiqueta"></label>
+        <input type="password" id="clave2" autocomplete="new-password" minlength="12">
+        <p class="clave-nota" id="claveNota"></p>
+        <p class="clave-error hidden" id="claveError" role="alert"></p>
+      </div>
     </div>
     <div class="banner warn hidden" id="avisoMetadatos">
       <span class="mark">!</span><span id="avisoMetadatosTexto"></span>
@@ -94,6 +115,57 @@
       <button class="btn primary hidden" id="anonimizar" type="button">Anonimizar</button>
     </div>
   </section>
+  </div>
+
+  <!-- Recuperar datos: texto con etiquetas + tabla + contraseña -->
+  <div id="vistaRecuperar" class="hidden">
+    <section class="card">
+      <div class="card-head"><h2><span class="step">1</span><span id="recTitulo1"></span></h2></div>
+      <p class="hint" id="recAyuda1"></p>
+      <textarea id="recTexto" rows="8"></textarea>
+      <div class="rec-fila hidden" id="recFicheroElegido">
+        <span id="recFicheroNombre"></span>
+        <button class="btn" id="recQuitarFichero" type="button">&times;</button>
+      </div>
+      <div class="rec-fila">
+        <button class="btn" id="recElegirFichero" type="button"></button>
+        <input type="file" id="recFichero" accept=".txt,.md,.markdown,.docx,text/plain,text/markdown" hidden>
+      </div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2><span class="step">2</span><span id="recTitulo2"></span></h2></div>
+      <p class="hint" id="recAyuda2"></p>
+      <div class="rec-fila">
+        <button class="btn" id="recElegirTabla" type="button"></button>
+        <span id="recTablaNombre"></span>
+        <input type="file" id="recTabla" accept=".tabla" hidden>
+      </div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2><span class="step">3</span><span id="recTitulo3"></span></h2></div>
+      <div class="claves">
+        <label for="recClave" id="recClaveEtiqueta"></label>
+        <input type="password" id="recClave" autocomplete="off">
+      </div>
+      <div class="banner down hidden" id="recError"><span class="mark">!</span><span id="recErrorTexto"></span></div>
+      <div class="acciones-pie">
+        <button class="btn primary" id="recLanzar" type="button" disabled></button>
+      </div>
+    </section>
+    <section class="card hidden" id="recResultado">
+      <div class="card-head"><h2 id="recTituloResultado"></h2></div>
+      <p class="rec-resumen" id="recResumen"></p>
+      <div class="rec-lista warn hidden" id="recNoResueltas"></div>
+      <div class="rec-lista hidden" id="recAlteradas"></div>
+      <div class="rec-lista quiet hidden" id="recNoUsadas"></div>
+      <pre class="rec-vista hidden" id="recVista"></pre>
+      <p class="hint hidden" id="recSinVista"></p>
+      <div class="acciones-pie">
+        <button class="btn" id="recCopiar" type="button"></button>
+        <button class="btn primary" id="recDescargar" type="button"></button>
+      </div>
+    </section>
+  </div>
 
 </div>
 

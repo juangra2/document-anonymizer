@@ -404,6 +404,108 @@ def flujo_texto(p, pagina, tmp: Path) -> None:
     pagina.check("#tratAnonimizar")
 
 
+def flujo_seudonimizar(p, pagina, tmp: Path) -> None:
+    print("\n1h) Seudonimizar: etiquetas, tabla cifrada y recuperar los datos")
+    from evaluation.corpus_word import PERSONAS
+
+    persona = PERSONAS[0]
+    abrir(pagina)
+    activada = httpx.get(f"{BASE}/health", timeout=10).json().get("pseudonymization", {}).get("enabled")
+    if not activada:
+        p.comprobar(pagina.locator("#tratSeudonimizarFila").is_hidden() and pagina.locator("#pestanas").is_hidden(),
+                    "desactivada (por defecto): ni la tercera opcion ni la pestana existen")
+        print("   (el resto se omite: arranque el servicio con PSEUDONYMIZATION_ENABLED=true)")
+        return
+    original = (f"Ajuntament de València\r\nSolicitante: {persona['nombre']}\r\n"
+                f"Se notifica a {persona['nombre']}, con DNI {persona['dni']}.\r\n").encode("cp1252")
+    (tmp / "nota_s.txt").write_bytes(original)
+    pagina.check("#tratSeudonimizar")
+    p.comprobar("NO es anonimizar" in pagina.locator("#paraSeudonimizar").inner_text(),
+                "al elegirla se lee que seudonimizar NO es anonimizar")
+    p.comprobar(pagina.locator("#clave").is_visible() and pagina.locator("#clave2").is_visible()
+                and "si la pierdes" in pagina.locator("#claveNota").inner_text(),
+                "pide la contrasena dos veces y avisa de que no se guarda")
+    p.comprobar(pagina.locator("#avisoSinHttps").is_hidden(),
+                "en este mismo equipo no avisa de HTTPS (la contrasena no sale a la red)")
+    p.comprobar(pagina.locator("#grupos").is_visible(), "las casillas de tipos siguen valiendo")
+    pagina.set_input_files("#ficheros", [str(tmp / "nota_s.txt"), str(pdf_simple(tmp / "no_seudo.pdf"))])
+    p.comprobar("No se puede seudonimizar" in pagina.locator(".ficha:has-text('no_seudo.pdf') .motivo").inner_text(),
+                "el PDF se marca antes de subir: no se puede seudonimizar")
+    pagina.fill("#clave", "corta")
+    pagina.fill("#clave2", "corta")
+    pagina.click("#anonimizar")
+    p.comprobar("12 caracteres" in pagina.locator("#claveError").inner_text(), "una contrasena corta no pasa")
+    pagina.fill("#clave", "clave-larga-de-prueba")
+    pagina.fill("#clave2", "clave-larga-de-otra")
+    pagina.click("#anonimizar")
+    p.comprobar("no coinciden" in pagina.locator("#claveError").inner_text(), "dos contrasenas distintas no pasan")
+    pagina.fill("#clave2", "clave-larga-de-prueba")
+    with pagina.expect_request("**/jobs*") as peticion:
+        pagina.click("#anonimizar")
+    p.comprobar("treatment=pseudonymize" in peticion.value.url and "clave-larga" not in peticion.value.url,
+                "la contrasena no va en la direccion")
+    ok = esperar_texto(pagina, ".doc:has-text('nota_s.txt') .st", "Terminado", ms=120000)
+    p.comprobar(ok and "etiqueta" in pagina.locator(".doc:has-text('nota_s.txt') .st").inner_text(),
+                "el texto termina diciendo cuantas etiquetas lleva")
+    p.comprobar(pagina.locator(".doc").count() == 1
+                and pagina.locator(".ficha.err:has-text('no_seudo.pdf')").count() == 1,
+                "el PDF se queda rechazado en su ficha y el resto de la tanda sigue")
+    p.comprobar(pagina.locator("#clave").input_value() == "", "la pagina suelta la contrasena al subir")
+    p.comprobar("no anonimizado" in pagina.locator(".doc .note[data-codigo='pseudonymized_not_anonymous']").inner_text(),
+                "el resultado repite que no esta anonimizado")
+    p.captura(pagina, "17-seudonimizado")
+    fila = pagina.locator(".doc:has-text('nota_s.txt')")
+    with pagina.expect_download(timeout=30000) as descarga:
+        fila.locator("a.btn.primary").click()
+    p.comprobar(descarga.value.suggested_filename == "nota_s_seudonimizado.txt", "el documento se llama _seudonimizado")
+    seudo = tmp / "nota_s_seudonimizado.txt"
+    descarga.value.save_as(seudo)
+    leido = seudo.read_bytes().decode("cp1252")
+    p.comprobar(persona["nombre"] not in leido and leido.count("[PERSONA_1]") == 2 and "[DNI_1]" in leido,
+                "lleva [PERSONA_1] las dos veces y [DNI_1], sin los datos")
+    with pagina.expect_download(timeout=30000) as descarga:
+        fila.locator("button:has-text('Tabla')").click()
+    tabla = tmp / "nota_s.tabla"
+    descarga.value.save_as(tabla)
+    p.comprobar(descarga.value.suggested_filename == "nota_s.tabla"
+                and persona["nombre"].split()[0].encode() not in tabla.read_bytes(),
+                "la tabla se descarga aparte y no lleva ningun dato en claro")
+
+    fila.locator("button:has-text('Recuperar datos de un texto')").click()
+    pagina.wait_for_selector("#vistaRecuperar:not(.hidden)", timeout=30000)
+    p.comprobar(pagina.locator("#vistaRecuperar").is_visible() and pagina.locator("#vistaAnonimizar").is_hidden()
+                and "nota_s.tabla" in pagina.locator("#recTablaNombre").inner_text(),
+                "el atajo abre «Recuperar datos» con la tabla ya puesta")
+    pagina.fill("#recTexto", "Resumen: [Persona 1] (DNI_1) pide la licencia. Consta también [PERSONA_9].")
+    pagina.fill("#recClave", "otra-clave-bien-larga")
+    pagina.click("#recLanzar")
+    pagina.wait_for_selector("#recError:not(.hidden)", timeout=30000)
+    p.comprobar("no se puede abrir" in pagina.locator("#recError").inner_text(),
+                "con otra contrasena dice que la tabla no se puede abrir")
+    pagina.fill("#recClave", "clave-larga-de-prueba")
+    pagina.click("#recLanzar")
+    pagina.wait_for_selector("#recResultado:not(.hidden)", timeout=30000)
+    vista = pagina.locator("#recVista").inner_text()
+    p.comprobar(persona["nombre"] in vista and persona["dni"] in vista and "[PERSONA_9]" in vista,
+                "el resumen recupera el nombre y el DNI aunque las etiquetas vinieran alteradas")
+    p.comprobar("[PERSONA_9]" in pagina.locator("#recNoResueltas").inner_text()
+                and "[Persona 1]" in pagina.locator("#recAlteradas").inner_text(),
+                "avisa de la etiqueta que no esta en la tabla y lista las alteradas")
+    p.captura(pagina, "18-recuperar")
+    pagina.set_input_files("#recFichero", str(seudo))
+    pagina.click("#recLanzar")
+    esperar_texto(pagina, "#recResumen", "tal como era", ms=30000)
+    with pagina.expect_download(timeout=30000) as descarga:
+        pagina.click("#recDescargar")
+    vuelta = tmp / "nota_s_recuperado.txt"
+    descarga.value.save_as(vuelta)
+    p.comprobar(descarga.value.suggested_filename == "nota_s_recuperado.txt" and vuelta.read_bytes() == original,
+                "con el documento tal cual salio, la vuelta es identica al original, byte a byte")
+    pagina.click("#tabAnonimizar")
+    p.comprobar(pagina.locator("#vistaAnonimizar").is_visible(), "la otra pestana vuelve a anonimizar")
+    pagina.check("#tratAnonimizar")
+
+
 def flujo_expediente(p, pagina, tmp: Path) -> None:
     print("\n1b) El numero de expediente empieza marcado y la casilla manda")
     abrir(pagina)
@@ -616,6 +718,7 @@ def main() -> int:
         "word": flujo_word,
         "excel": flujo_excel,
         "texto": flujo_texto,
+        "seudonimizar": flujo_seudonimizar,
         "expediente": flujo_expediente,
         "tanda": flujo_tanda,
         "parar": flujo_parar,

@@ -18,6 +18,9 @@ services:
       - "${HOST_PORT:-8000}:8000"
     environment:
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-200}
+      # Seudonimizacion reversible: solo con el servicio detras de HTTPS (la
+      # contrasena de la tabla viaja en la peticion).
+      PSEUDONYMIZATION_ENABLED: ${PSEUDONYMIZATION_ENABLED:-false}
       MAX_PDF_PAGES: ${MAX_PDF_PAGES:-300}
       RESULT_TTL_MINUTES: ${RESULT_TTL_MINUTES:-360}
       JOB_QUEUE_MAX: ${JOB_QUEUE_MAX:-20}

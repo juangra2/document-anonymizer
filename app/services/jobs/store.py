@@ -88,6 +88,11 @@ class Job:
     treatment: str = "anonymize"
     # "pdf", "jpeg", "png" o "tiff": una imagen sale en su mismo formato.
     formato: str = "pdf"
+    # Seudonimizar: la clave derivada de la contrasena (nunca la contrasena),
+    # solo en memoria y solo hasta que el trabajo termina; y si la contrasena
+    # llego sin HTTPS desde otro equipo.
+    cifrador: object | None = field(default=None, repr=False)
+    sin_https: bool = False
 
     status: JobStatus = "queued"
     # Cómo se pidió parar este documento: "delete" (eliminar sin entregar nada)
@@ -117,6 +122,11 @@ class Job:
     @property
     def output_path(self) -> Path:
         return self.directory / f"output_redacted.{FORMATOS[self.formato][0]}"
+
+    @property
+    def table_path(self) -> Path:
+        """La tabla de seudonimos, cifrada: se borra con la carpeta del trabajo."""
+        return self.directory / "tabla.tabla"
 
     @property
     def is_terminal(self) -> bool:
@@ -299,11 +309,15 @@ class JobStore:
         size_bytes: int,
         disabled_types: frozenset[str],
         treatment: str = "anonymize",
+        cifrador: object | None = None,
+        sin_https: bool = False,
     ) -> None:
         with self._lock:
             job.size_bytes = size_bytes
             job.disabled_types = disabled_types
             job.treatment = treatment
+            job.cifrador = cifrador
+            job.sin_https = sin_https
         self._queue.put(job.id)
 
     def discard(self, job: Job) -> None:
@@ -469,6 +483,7 @@ class JobStore:
                 report = formatos.procesar(
                     job.formato, job.treatment, job.input_path, job.output_path, job.id,
                     self._pipeline, settings.default_redaction_mode, job.disabled_types, False,
+                    cifrador=job.cifrador, tabla=job.table_path, sin_https=job.sin_https,
                 )
         except cancellation.JobCancelled:
             cancelled = True
@@ -514,6 +529,7 @@ class JobStore:
             # dos: se borra en cuanto termina el proceso, salga bien o mal.
             if not settings.store_original:
                 job.input_path.unlink(missing_ok=True)
+            job.cifrador = None      # la clave no hace falta mas
 
         if cancelled:
             # Lo borra quien lo estaba procesando, no quien pidió la parada: a

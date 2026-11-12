@@ -58,8 +58,11 @@ DOWNLOAD_STEM = "documento_anonimizado"
 METADATA_ONLY_STEM = "documento_sin_metadatos"
 
 
+PSEUDONYMIZED_STEM = "documento_seudonimizado"
+
+
 def download_filename(extension: str, *, partial_pages: tuple[int, int] | None = None,
-                      metadata_only: bool = False) -> str:
+                      metadata_only: bool = False, pseudonymized: bool = False) -> str:
     """Nombre GENÉRICO con el que se sirve la descarga.
 
     El servidor no conoce el nombre del fichero que subió el usuario y no debe
@@ -68,6 +71,8 @@ def download_filename(extension: str, *, partial_pages: tuple[int, int] | None =
     horas.  Quien descarga desde la interfaz le pone el nombre que tiene en
     memoria; quien llama a la API directamente recibe este.
     """
+    if pseudonymized:
+        return f"{PSEUDONYMIZED_STEM}.{extension}"
     if metadata_only:
         return f"{METADATA_ONLY_STEM}.{extension}"
     if partial_pages:

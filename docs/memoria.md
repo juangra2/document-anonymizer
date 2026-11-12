@@ -273,6 +273,25 @@ se quita. La pantalla y el informe dicen que el contenido NO se ha revisado, y l
 llama `…_sin_metadatos.pdf`. En los dos modos, si el documento llevaba firma digital, se avisa de que deja de ser
 válida.
 
+**Seudonimizar** es un tercer modo, distinto de los otros dos y **desactivado por defecto**. Sirve
+para pasar un documento de Word, Markdown o texto por un modelo de lenguaje (un resumen, una
+traducción) sin que el modelo vea los datos personales. Cada dato pasa a una etiqueta numerada y
+consistente —`[PERSONA_1]`, `[DNI_1]`: el mismo dato lleva siempre la misma etiqueta aunque cambie
+de mayúsculas, tildes o puntuación— y, aparte, se entrega una **tabla** con el valor de cada
+etiqueta, cifrada con una contraseña que pone el usuario (AES-256). En la pestaña «Recuperar
+datos», el texto que devuelva el modelo, la tabla y la contraseña dan de vuelta el texto con los
+datos reales; se reconocen las etiquetas aunque el modelo las haya cambiado de mayúsculas, les haya
+quitado los corchetes o las haya traducido, y se avisa de las que no se pueden resolver, sin
+adivinar. El servidor no guarda ni la tabla en claro ni la contraseña.
+
+Seudonimizar **no es anonimizar**: quien tiene la tabla vuelve atrás, así que para el RGPD (artículo
+4.5) el documento con etiquetas sigue conteniendo datos personales. Enviarlo a un modelo de
+lenguaje externo necesita la misma base legal y el mismo contrato con el proveedor que enviar el
+original; lo que el proceso no detecte llega al modelo; y el contexto («el concejal de Urbanismo»)
+puede identificar a alguien sin ningún dato etiquetado. La pantalla lo dice al elegir el modo y en
+cada resultado, y el informe lo lleva en su primera caja. Como la contraseña viaja en la petición,
+el modo solo debe activarse con el servicio detrás de HTTPS.
+
 Se comprueba con dos herramientas independientes del anonimizador, **ExifTool** y **qpdf**, que
 examinan el fichero entregado y dicen qué queda. Sobre documentos preparados a propósito con toda
 esa carga, en los tres tipos de documento, no queda nada.
@@ -293,6 +312,9 @@ suyos:
   un trabajo no incluye los datos encontrados, solo cuántos y de qué tipo.
 - **Los registros no guardan datos personales**: no se escribe texto de los documentos, y un filtro
   tapa por si acaso cualquier DNI, teléfono, correo o cuenta.
+- **La tabla de seudónimos no se guarda en claro**: se cifra con la contraseña del usuario en
+  cuanto se genera y se borra con el documento. La contraseña no se guarda ni se registra; solo la
+  clave derivada vive en memoria mientras el documento espera su turno.
 - **No hay usuarios ni contraseñas**, por decisión del proyecto: el servicio está pensado para una
   red interna a la que solo llega quien debe usarlo, o para ponerle la autenticación delante en el
   servidor web del ayuntamiento. Por la misma razón no existe un listado de documentos: para

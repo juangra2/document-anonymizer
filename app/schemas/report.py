@@ -23,6 +23,11 @@ DIGITAL_SIGNATURE_INVALIDATED = "digital_signature_invalidated"
 FORMAT_WITHOUT_METADATA = "format_without_metadata"
 # Texto: la codificacion no estaba clara; hay que mirar las tildes.
 TEXT_ENCODING_UNCERTAIN = "text_encoding_uncertain"
+# Seudonimizar no es anonimizar: con la tabla se vuelve atras, y los datos
+# siguen siendo personales (RGPD, art. 4.5).
+PSEUDONYMIZED_NOT_ANONYMOUS = "pseudonymized_not_anonymous"
+# La contrasena de la tabla llego sin HTTPS desde otro equipo.
+PASSWORD_WITHOUT_HTTPS = "password_without_https"
 # Motivos de revision manual (`ProcessingReport.manual_review_reasons`).  Los
 # que coinciden con un codigo de aviso (pages_not_verified,
 # safety_net_still_readable) los explica ese aviso; el resto, la nota generica.
@@ -38,7 +43,8 @@ REVIEW_NO_TEXT_DETECTED = "no_text_detected"
 CODED_WARNING_CODES = (PLAN_TITLEBLOCK_ONLY_VERIFIED, PAGES_NOT_VERIFIED,
                        SAFETY_NET_ACTED, SAFETY_NET_STILL_READABLE,
                        CONTENT_NOT_REVIEWED, DIGITAL_SIGNATURE_INVALIDATED,
-                       FORMAT_WITHOUT_METADATA, TEXT_ENCODING_UNCERTAIN)
+                       FORMAT_WITHOUT_METADATA, TEXT_ENCODING_UNCERTAIN,
+                       PSEUDONYMIZED_NOT_ANONYMOUS, PASSWORD_WITHOUT_HTTPS)
 
 
 class CodedWarning(BaseModel):
@@ -230,9 +236,11 @@ class ProcessingReport(BaseModel):
                     "con el motivo de cada una.",
     )
 
-    treatment: Literal["anonymize", "metadata_only"] = Field(
+    treatment: Literal["anonymize", "metadata_only", "pseudonymize"] = Field(
         default="anonymize",
-        description="anonymize: se buscan y se borran los datos personales. "
+        description="pseudonymize: los datos se cambian por etiquetas numeradas que se pueden "
+                    "deshacer con la tabla; los datos siguen siendo personales. "
+                    "anonymize: se buscan y se borran los datos personales. "
                     "metadata_only: solo se quitan metadatos y contenido oculto; "
                     "lo que se ve en la pagina NO se revisa.",
     )
@@ -257,6 +265,10 @@ class ProcessingReport(BaseModel):
                     "tipo, con la hoja, la cabecera, el tipo y cuantas celdas.",
     )
 
+    pseudonym_labels: int = Field(
+        default=0,
+        description="Seudonimizar: cuantas etiquetas distintas lleva el documento (y la tabla).",
+    )
     text_encoding: str | None = Field(
         default=None,
         description="Texto y Markdown: codificacion en que se leyo el fichero y en la que "

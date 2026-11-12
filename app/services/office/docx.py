@@ -439,8 +439,13 @@ def _barrido(bloque: Bloque, valores: dict[str, str], spans: list[tuple[int, int
 # --- entrada ---------------------------------------------------------------------
 
 def anonimizar_docx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_id: str,
-                    mode: str = "strict") -> ProcessingReport:
-    """`procesar_imagen(entrada, salida, formato)` tacha una imagen (camino de imagenes)."""
+                    mode: str = "strict", asignador=None) -> ProcessingReport:
+    """`procesar_imagen(entrada, salida, formato)` tacha una imagen (camino de imagenes).
+
+    Con un `asignador` (seudonimizar), cada dato de los parrafos y las tablas
+    pasa a su etiqueta numerada ("[PERSONA_1]") en vez de al marcador de su
+    tipo.  Lo demas no cambia: la limpieza es la misma, las imagenes se tapan
+    y el texto de fuera de los parrafos lleva el marcador de su tipo."""
     empezado = perf_counter()
     plazo = Plazo()
     paq = _abrir(Path(entrada))
@@ -456,15 +461,23 @@ def anonimizar_docx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
             if n % 200 == 0:
                 plazo.comprobar()
             spans = _spans(bloque, analyzer, mode)
-            por_bloque.append((bloque, spans))
+            por_bloque.append((bloque, spans, nombre))
             for a, b, tipo in spans:
                 valor = bloque.texto[a:b].strip()
                 if len(valor) >= 4:
                     valores.setdefault(valor, tipo)
     tipos: Counter = Counter()
-    for bloque, spans in por_bloque:
-        for a, b, tipo in sorted(_barrido(bloque, valores, spans), reverse=True):
-            _sustituir(bloque, a, b, marcador(tipo))
+    por_bloque = [(bloque, _barrido(bloque, valores, spans), nombre) for bloque, spans, nombre in por_bloque]
+    marcas = {}
+    if asignador is not None:
+        # Las etiquetas se reparten y se anotan en el orden en que se leera el
+        # documento al reconstruir: las partes por nombre, y cada una de arriba abajo.
+        for n, (bloque, spans, _) in sorted(enumerate(por_bloque), key=lambda x: (x[1][2], x[0])):
+            for a, b, tipo in sorted(spans):
+                marcas[(n, a, b)] = asignador.anotar(tipo, bloque.texto[a:b])
+    for n, (bloque, spans, _) in enumerate(por_bloque):
+        for a, b, tipo in sorted(spans, reverse=True):
+            _sustituir(bloque, a, b, marcas.get((n, a, b)) or marcador(tipo))
             tipos[tipo] += 1
     # Lo que no es un parrafo: nombre y etiqueta de los controles de contenido,
     # texto de formas y de marcas de agua...
@@ -496,6 +509,7 @@ def anonimizar_docx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
         manual_review_reasons=motivos,
         warnings=avisos,
         metadata_removed=quitado,
+        treatment="pseudonymize" if asignador is not None else "anonymize",
         redaction_strategy="docx_text_replacement",
         processing_ms=int((perf_counter() - empezado) * 1000),
         ocr={"enabled": bool(informes_imagen), "images_processed": len(informes_imagen)},

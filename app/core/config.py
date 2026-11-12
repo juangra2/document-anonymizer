@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     # (ocr_page_timeout_s) y la cola evitan que un documento asi bloquee el
     # servicio para siempre.
     max_upload_mb: int = 200
+    # Seudonimizacion reversible (etiquetas + tabla cifrada con contrasena).
+    # DESACTIVADA por defecto: la contrasena viaja en la peticion, asi que el
+    # servicio tiene que estar detras de HTTPS antes de activarla.
+    pseudonymization_enabled: bool = False
     max_pdf_pages: int = 300
     # Imagen suelta (JPEG, PNG, TIFF): tope de megapixeles por pagina.  Una foto de
     # movil ronda 12-50; por encima suele ser una imagen hecha para agotar memoria.

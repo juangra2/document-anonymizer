@@ -22,7 +22,8 @@ from app.services.office.barrido import literales_de, textos_libres
 from app.services.office.paquete import Paquete
 
 _S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
-_MARCADOR = re.compile(r"\[[A-ZÁÉÍÓÚÑ ]+\]")
+#: "[NOMBRE]", o la etiqueta de un seudonimizado: "[PERSONA_1]" (tambien codificada en un destino).
+_MARCADOR = re.compile(r"\[[A-ZÁÉÍÓÚÑ ]+(?:_\d+)?\]|%5B[A-Z]+_\d+%5D")
 
 
 def _parece_nombre(texto: str) -> bool:

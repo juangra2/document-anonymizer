@@ -87,11 +87,13 @@ class JobResultSummary(BaseModel):
     pages_redacted_by_content: list[PageRedactedByContent] = Field(
         default_factory=list, description="Paginas tapadas enteras por su contenido (copia de "
                                           "DNI, autoliquidacion).")
-    treatment: Literal["anonymize", "metadata_only"] = Field(
+    treatment: Literal["anonymize", "metadata_only", "pseudonymize"] = Field(
         default="anonymize",
         description="metadata_only: solo se quitaron metadatos; el contenido no "
-                    "se reviso ni se anonimizo.",
+                    "se reviso ni se anonimizo.  pseudonymize: los datos se cambiaron "
+                    "por etiquetas; la tabla se descarga en /jobs/{id}/table.",
     )
+    pseudonym_labels: int = 0
 
 
 class JobResponse(BaseModel):

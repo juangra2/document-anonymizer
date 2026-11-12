@@ -124,6 +124,9 @@ def _avisos(r: ProcessingReport, etiquetas: dict[str, str]) -> list[str]:
                           "conviene echarles un vistazo.")
         elif a.code == "plan_titleblock_only_verified":
             lineas.append(f"En {donde}, que son planos, solo se ha comprobado el cajetín.")
+        elif a.code == "password_without_https":
+            lineas.append("La contraseña de la tabla llegó al servicio sin HTTPS: pudo leerse en la "
+                          "red. Avise a quien administra el servicio.")
         elif a.code == "format_without_metadata":
             lineas.append("Este formato no tiene metadatos: el fichero sale igual que entró.")
         elif a.code == "text_encoding_uncertain":
@@ -185,15 +188,28 @@ def _unidad(r: ProcessingReport) -> str:
 def _html(r: ProcessingReport, fecha: datetime) -> str:
     etiquetas = {t.id: t.label for t in entity_catalog()}
     solo_metadatos = r.treatment == "metadata_only"
+    seudonimizado = r.treatment == "pseudonymize"
     local = fecha.astimezone(ZONA) if fecha.tzinfo else fecha
     partes = [
         "<p class='org'>Universitat de València</p>",
-        "<h1>Informe de anonimización</h1>" if not solo_metadatos
+        "<h1>Informe de seudonimización</h1>" if seudonimizado
+        else "<h1>Informe de anonimización</h1>" if not solo_metadatos
         else "<h1>Informe de limpieza de metadatos</h1>",
         f"<p class='meta'>{local:%d/%m/%Y %H:%M} &#183; "
         f"{'' if r.document_type in _SIN_PAGINAS else f'{r.pages} '}{_unidad(r)} "
         f"&#183; identificador {_e(r.job_id)}</p>",
     ]
+
+    # 0. Seudonimizar no es anonimizar: lo primero que se lee.
+    if seudonimizado:
+        partes.append(
+            "<div class='caja revisar'><p class='titulo'>Seudonimizado, NO anonimizado</p>"
+            "<p>Los datos personales se han cambiado por etiquetas, pero con la tabla se pueden "
+            "recuperar: para la ley (RGPD, artículo 4.5) siguen siendo datos personales. No "
+            "publique este documento como anonimizado, y trate la tabla y su contraseña como "
+            "los propios datos. Lo que el proceso no haya detectado sigue a la vista.</p>"
+            f"<p>Etiquetas distintas en el documento: {r.pseudonym_labels}. La tabla va cifrada "
+            "con la contraseña que se indicó; el servicio no la conserva.</p></div>")
 
     # 1. Antes que nada: hay que revisar o no.
     avisos = _avisos(r, etiquetas)
@@ -219,7 +235,8 @@ def _html(r: ProcessingReport, fecha: datetime) -> str:
     # 2. Que se ha ocultado.
     if not solo_metadatos:
         total = sum(r.entities_by_type.values())
-        partes.append("<h2>Qué se ha ocultado</h2>")
+        partes.append("<h2>Qué se ha cambiado por etiquetas</h2>" if seudonimizado
+                      else "<h2>Qué se ha ocultado</h2>")
         partes.append(f"<p><span class='grande'>{total}</span> "
                       f"{'dato personal' if total == 1 else 'datos personales'}</p>")
         if r.entities_by_type:

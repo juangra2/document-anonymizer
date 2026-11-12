@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.health import router as health_router
 from app.api.query_normalization import DisabledTypesQueryMiddleware
 from app.api.jobs import router as jobs_router
+from app.api.reconstruct import router as reconstruct_router
 from app.api.routes import router as anonymize_router
 from app.core.config import settings
 from app.core.dispositivo import avisar_al_arrancar
@@ -49,6 +50,7 @@ app = FastAPI(title=settings.app_name, root_path=settings.root_path, lifespan=li
 
 app.include_router(health_router)
 app.include_router(jobs_router)
+app.include_router(reconstruct_router)
 app.include_router(anonymize_router)
 
 # La interfaz va DESPUÉS de las rutas de la API: Starlette prueba las rutas en

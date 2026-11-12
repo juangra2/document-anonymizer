@@ -101,3 +101,6 @@ evaluation/texto/
 
 # Capturas y documentos de scripts/probar_interfaz.py
 capturas/
+
+# Salidas de la medicion de seudonimizacion (evaluation/lectura_seudonimo.py)
+evaluation/seudonimo/

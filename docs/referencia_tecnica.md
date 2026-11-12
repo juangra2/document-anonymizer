@@ -13,6 +13,7 @@ El detalle para quien mantenga el código. La idea de cada parte —qué hace y 
 3. [Recorrido de un documento](#recorrido-de-un-documento)
 4. [Documentos de Word y Excel](#documentos-de-word-y-excel)
    - [Texto y Markdown](#texto-y-markdown)
+   - [Seudonimización reversible](#seudonimización-reversible)
 5. [Tratamientos especiales](#tratamientos-especiales)
 6. [OCR](#ocr)
 7. [Red de seguridad y verificación](#red-de-seguridad-y-verificación)
@@ -323,6 +324,57 @@ marcador del tipo, como en Word; no se borran columnas.
 - **Solo quitar metadatos**: el fichero sale igual, con los avisos `content_not_reviewed` y
   `format_without_metadata`.
 
+### Seudonimización reversible
+
+`app/services/seudonimo/` (`etiquetas.py`, `tabla.py`, `reconstruir.py`), `app/api/reconstruct.py`.
+Tercer tratamiento (`pseudonymize`), solo para Word, Markdown y texto
+(`formatos.SEUDONIMIZABLES`) y solo con `PSEUDONYMIZATION_ENABLED=true` (por defecto, `false`: las
+rutas responden 403 `pseudonymization_disabled`, y la página no enseña ni la opción ni la pestaña;
+`/health` lo dice en `pseudonymization`).
+
+- **Qué hace**: el mismo recorrido que anonimizar (misma detección, mismas casillas, misma limpieza
+  de Word, misma segunda opinión), pero cada dato de párrafos y tablas pasa a su etiqueta numerada
+  en vez de al marcador de su tipo: `anonimizar_docx` y `anonimizar_texto` reciben un `Asignador`.
+  Las imágenes de un Word se tapan igual y el texto de fuera de los párrafos (controles, formas)
+  lleva el marcador de tipo, sin etiqueta: eso no se recupera.
+- **Etiquetas** (`etiquetas.py`): `[PERSONA_1]`, `[DNI_1]`, `[TELEFONO_2]`… entre corchetes, en
+  mayúsculas, sin tildes y numeradas por tipo en el orden del documento. Dos apariciones comparten
+  etiqueta solo si coincide su forma normalizada: identificadores sin puntuación y en mayúsculas,
+  teléfono solo con cifras y sin el 34, correo en minúsculas, y el resto sin distinguir mayúsculas
+  ni tildes y con los espacios juntados (a un nombre se le quita el tratamiento: «Doña»). Es el
+  nivel seguro: «Sra. López» y «María López Pérez» no se unen, porque unir mal cambiaría los
+  nombres de dos personas al reconstruir. La tabla guarda de cada etiqueta el tipo, la forma
+  principal (la más larga) y sus variantes; y en `orden`, qué variante era cada aparición, y cómo
+  iba repartida si cruzaba sintaxis de Markdown.
+- **En Markdown**: en un destino la etiqueta va codificada (`mailto:%5BCORREO_1%5D`); un enlace
+  automático conserva sus `< >`; el escape ante «(», «[» o «:» es el mismo que al anonimizar.
+- **Tabla cifrada** (`tabla.py`): fichero `.tabla`, un JSON con versión, los parámetros de scrypt
+  (n = 2^15, r = 8, p = 1), la sal, el nonce y los datos cifrados con AES-256-GCM. La contraseña (12
+  caracteres como mínimo; 422 `password_too_short`) llega como campo `password` del formulario,
+  nunca en la URL; al subir se deriva la clave y la contraseña se suelta: en el trabajo solo queda
+  la clave, en memoria, hasta que termina. La tabla se cifra en cuanto se genera, se guarda cifrada
+  junto al resultado y se borra con él. Contraseña equivocada y fichero dañado dan el mismo error
+  (`table_unreadable`). Lleva la huella (SHA-256) del documento con etiquetas.
+- **Entrega**: `GET /jobs/{id}/result` da el documento con etiquetas
+  (`documento_seudonimizado.ext`), `GET /jobs/{id}/table` la tabla cifrada, y el zip, los dos con el
+  informe. El informe lleva `treatment: pseudonymize`, `pseudonym_labels` y el aviso
+  `pseudonymized_not_anonymous`; y `password_without_https` si la petición llegó sin HTTPS desde
+  otro equipo (se mira `X-Forwarded-Proto`, que pone el proxy). Un formato que no se puede
+  seudonimizar se rechaza al subir con 415 `pseudonymize_unsupported`.
+- **Reconstruir** (`POST /reconstruct`, síncrono, no guarda nada): `table`, `password` y `text`
+  (pegado) o `file` (txt, md o docx). Si el fichero es el documento con etiquetas tal cual salió (su
+  huella es la de la tabla), la vuelta es **exacta**: cada etiqueta vuelve a ser la variante que
+  había en su sitio; en texto y Markdown se recupera el original byte a byte. Con cualquier otro
+  texto es **tolerante** y pone la forma principal: reconoce la etiqueta entre corchetes, llaves,
+  `< >`, corchetes escapados o codificados, sin distinguir mayúsculas, con espacio, guion o sin
+  separador, y con el tipo en castellano, valenciano o inglés (`SINONIMOS`); sin corchetes, solo en
+  mayúsculas y sin espacio, para no tocar «la persona 1 de la lista». La respuesta lleva `exact`,
+  `resolved`, `altered` (formas alteradas que se han resuelto, para revisar), `unresolved`
+  (etiquetas que no están en la tabla: se dejan como están) y `unused`; nunca valores fuera del
+  texto reconstruido.
+- **Pendiente** (decidido el 12-11): unir «Sra. López» con «María López Pérez» cuando no haya
+  duda, seudonimizar Excel y CSV, y «PDF a texto seudonimizado».
+
 ---
 
 ## Tratamientos especiales
@@ -617,8 +669,9 @@ curl -o anonimizado.pdf "http://localhost:8000/jobs/3f2a…/result?output=pdf"
 - **`entities_by_page`**: datos por página (desde 1) y tipo; suma lo mismo que `entities_by_type`
   en los tres caminos (`tests/test_recuento_por_pagina.py`). **`pages_redacted_by_content`**:
   páginas tachadas enteras por ser copia de DNI (`dni_scan`) o autoliquidación (`tax_form`).
-- **`treatment`**: `anonymize` (por defecto) o `metadata_only` (ver
-  [Metadatos](#metadatos-y-contenido-oculto)); otro valor, 422. Va también en el informe y en el
+- **`treatment`**: `anonymize` (por defecto), `metadata_only` (ver
+  [Metadatos](#metadatos-y-contenido-oculto)) o `pseudonymize` (ver
+  [Seudonimización reversible](#seudonimización-reversible), con el campo `password`); otro valor, 422. Va también en el informe y en el
   resumen del trabajo.
 - **`disabled_types` y `enabled_types`**: un valor por parámetro (`?disabled_types=DATE_TIME&
   disabled_types=URL`). Se quitan espacios, se pasa a mayúsculas y se ignoran los vacíos; una lista
@@ -699,6 +752,20 @@ fugas, 11/11 en su codificación y con sus saltos, 4/4 Markdown con la misma est
 idénticos; 29/31 textos legítimos conservados: los dos que no son títulos en mayúsculas que el
 analizador ya toma por nombres («SOLICITUD DE AYUDA AL ALQUILER», «…PROGRAMA DE RESPIRO
 FAMILIAR»), lo mismo que haría en un Word.
+
+**Medición de la seudonimización** (`evaluation/lectura_seudonimo.py`): los 11 documentos del corpus
+de textos y los 12 del corpus de Word, por `formatos.procesar` con `pseudonymize`. Mide que ningún
+dato queda en el documento con etiquetas, que la tabla cifrada no lleva ningún dato en claro, que
+reconstruir el documento tal cual devuelve el original (byte a byte en texto y Markdown; en Word, el
+texto visible que deja la limpieza sin sustituir nada), cuántos datos quedan repartidos en más de
+una etiqueta y, con cada etiqueta de cada tabla metida en una frase, que se resuelve escrita de doce
+formas (minúsculas, inicial mayúscula, sin corchetes, llaves, escapada, con espacio, con guion, sin
+separador, en inglés, en valenciano, con sufijo, en negrita) y que dos formas inventadas (un número
+que no existe, tipos mezclados) se dejan y se avisan. Medición del 12-11: 23/23 documentos, 102
+datos sin fugas, 0 datos en claro en las tablas, 23/23 vueltas exactas, 105 etiquetas; las doce
+alteraciones, 105/105 cada una; las dos inventadas, 105/105 avisadas. Un nombre aparece además
+dentro de una dirección web, que lleva su propia etiqueta (`[WEB_1]`). Límite conocido: una
+etiqueta sin corchetes pegada a otra palabra («BENEFICIARIOPERSONA_1») no se reconoce.
 
 **Corpus de Excel** (`evaluation/corpus_excel.py` y `evaluation/lectura_excel.py`): 10 libros
 inventados (listado de solicitantes, inscritos en valenciano con título y cabecera en la fila 3,

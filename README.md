@@ -13,6 +13,12 @@ Ajuntament de València.
 Admite documentos digitales, escaneados o mezclados, desde una página hasta expedientes de
 cientos. Se usa desde una **página web** propia o desde su **API**.
 
+Aparte, y **desactivada por defecto**, tiene una **seudonimización reversible** para Word, Markdown
+y texto: los datos pasan a etiquetas numeradas (`[PERSONA_1]`) y una tabla cifrada con contraseña
+permite devolverlos a su sitio; sirve para pasar un documento por un modelo de lenguaje sin que vea
+los datos. Seudonimizar no es anonimizar: el documento con etiquetas sigue conteniendo datos
+personales. Se activa con `PSEUDONYMIZATION_ENABLED` (ver [Configuración](#configuración)).
+
 Qué hace, cómo lo hace y cómo sabemos que funciona: [memoria](docs/memoria.md). El detalle para
 mantener el código: [referencia técnica](docs/referencia_tecnica.md). Las cifras de calidad, para
 quien no ha seguido el trabajo: [`evaluation/informe_final.html`](evaluation/informe_final.html).
@@ -284,6 +290,7 @@ o en `.env` en la raíz del proyecto si se ejecuta sin Docker (plantilla en `.en
 | Variable | Por defecto | Para qué |
 |---|---|---|
 | `MAX_UPLOAD_MB` | `200` | Tamaño máximo de un documento |
+| `PSEUDONYMIZATION_ENABLED` | `false` | Activa la seudonimización reversible (etiquetas y tabla cifrada con contraseña) y la pestaña «Recuperar datos». **Solo detrás de HTTPS**: la contraseña viaja en la petición. Activada sin HTTPS, el arranque lo avisa en el registro, la página lo avisa al elegirla y el informe de cada documento lleva `password_without_https` |
 | `MAX_PDF_PAGES` | `300` | Páginas máximas por documento |
 | `MAX_CONCURRENT_DOCUMENTS` | `1` | Documentos procesados a la vez. Es el límite de la memoria de la GPU: no subirlo con una tarjeta de 8 GB |
 | `JOB_QUEUE_MAX` | `20` | Documentos en cola antes de responder «servicio ocupado» |

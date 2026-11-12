@@ -53,6 +53,18 @@ class LegacyOfficeError(UnsupportedDocumentError):
 class OfficeMacrosError(UnsupportedDocumentError):
     """Word o Excel con macros (.docm, .xlsm): no se procesa codigo."""
 
+class PseudonymizeUnsupportedError(UnsupportedDocumentError):
+    """Solo se seudonimizan Word, Markdown y texto."""
+
+
+class ContrasenaCortaError(AnonymizerError):
+    """La contrasena de la tabla tiene menos caracteres de los que se piden."""
+
+
+class TablaIlegibleError(AnonymizerError):
+    """La tabla no se puede abrir: contrasena equivocada o fichero danado."""
+
+
 # Código estable por tipo de error, para que el cliente pueda reaccionar sin
 # leer el mensaje.  Los mensajes de la API son técnicos y en inglés; la frase
 # que ve el usuario la elige el frontend a partir de este código, que es lo que
@@ -65,6 +77,9 @@ _ERROR_CODES: list[tuple[type, str]] = [
     (EncryptedPdfError, "encrypted_pdf"),
     (ScannedPdfNotSupportedError, "scanned_not_supported"),
     (LegacyOfficeError, "legacy_office"),
+    (PseudonymizeUnsupportedError, "pseudonymize_unsupported"),
+    (ContrasenaCortaError, "password_too_short"),
+    (TablaIlegibleError, "table_unreadable"),
     (OfficeMacrosError, "office_macros"),
     (FileValidationError, "invalid_file"),
     (UnsupportedDocumentError, "unsupported_document"),

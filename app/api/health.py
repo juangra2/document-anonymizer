@@ -25,6 +25,8 @@ from typing import Any
 from fastapi import APIRouter, Response
 
 from app.core.config import settings
+from app.services.formatos import SEUDONIMIZABLES
+from app.services.seudonimo.tabla import MINIMO
 from app.services.jobs import job_store
 
 router = APIRouter()
@@ -159,6 +161,11 @@ def _snapshot() -> dict[str, Any]:
             "max_pdf_pages": settings.max_pdf_pages,
             "result_ttl_minutes": settings.result_ttl_minutes,
             "store_original": settings.store_original,
+        },
+        "pseudonymization": {
+            "enabled": settings.pseudonymization_enabled,
+            "min_password_length": MINIMO,
+            "formats": list(SEUDONIMIZABLES),
         },
         "issues": issues,
     }

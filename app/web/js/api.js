@@ -84,7 +84,9 @@ export async function tiposDeDato() {
 export function subirDocumento(fichero, tipos, alProgresar) {
   return new Promise((resolver, rechazar) => {
     const parametros = [
-      ...(tipos.tratamiento === "metadata_only" ? ["treatment=metadata_only"] : []),
+      ...(["metadata_only", "pseudonymize"].includes(tipos.tratamiento)
+        ? [`treatment=${tipos.tratamiento}`]
+        : []),
       ...tipos.desactivar.map((t) => `disabled_types=${encodeURIComponent(t)}`),
       ...tipos.activar.map((t) => `enabled_types=${encodeURIComponent(t)}`),
     ].join("&");
@@ -127,6 +129,8 @@ export function subirDocumento(fichero, tipos, alProgresar) {
 
     const cuerpo = new FormData();
     cuerpo.append("file", fichero);
+    // La contraseña de la tabla va en el cuerpo, nunca en la dirección.
+    if (tipos.tratamiento === "pseudonymize") cuerpo.append("password", tipos.contrasena || "");
     peticion.send(cuerpo);
   });
 }
@@ -167,6 +171,29 @@ export async function descargarInforme(id, nombre) {
 export async function descargarInformePdf(id, nombre) {
   const respuesta = await pedir(`jobs/${encodeURIComponent(id)}/report.pdf`, { espera: 60000 });
   const contenido = await respuesta.blob();
+  const enlace = document.createElement("a");
+  enlace.href = URL.createObjectURL(contenido);
+  enlace.download = nombre;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  setTimeout(() => URL.revokeObjectURL(enlace.href), 30000);
+}
+
+/** La tabla cifrada de un documento seudonimizado, como Blob. */
+export async function tablaDelTrabajo(id) {
+  const respuesta = await pedir(`jobs/${encodeURIComponent(id)}/table`, { espera: 60000 });
+  return respuesta.blob();
+}
+
+/** Recuperar los datos: texto o fichero con etiquetas, tabla y contraseña. */
+export async function reconstruir(cuerpo) {
+  const respuesta = await pedir("reconstruct", { method: "POST", body: cuerpo, espera: 180000 });
+  return respuesta.json();
+}
+
+/** Guarda un Blob con el nombre dado. */
+export function guardar(contenido, nombre) {
   const enlace = document.createElement("a");
   enlace.href = URL.createObjectURL(contenido);
   enlace.download = nombre;

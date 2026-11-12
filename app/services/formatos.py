@@ -14,7 +14,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.core.errors import FileValidationError, LegacyOfficeError, OfficeMacrosError
+from app.core.errors import (
+    FileValidationError,
+    LegacyOfficeError,
+    OfficeMacrosError,
+    PseudonymizeUnsupportedError,
+)
 
 # formato -> (extension, tipo MIME)
 FORMATOS = {
@@ -28,6 +33,14 @@ FORMATOS = {
     "md": ("md", "text/markdown"),
 }
 _TEXTO = {".txt": "txt", ".md": "md", ".markdown": "md"}
+#: Lo que se puede seudonimizar: donde el dato se sustituye por texto.
+SEUDONIMIZABLES = ("docx", "md", "txt")
+
+
+def comprobar_seudonimizable(formato: str) -> None:
+    if formato not in SEUDONIMIZABLES:
+        raise PseudonymizeUnsupportedError(
+            "Only Word (.docx), Markdown (.md) and text (.txt) documents can be pseudonymized.")
 
 _OLE = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 
@@ -80,8 +93,21 @@ def comprobar(ruta: Path, formato: str) -> None:
 
 
 def procesar(formato: str, tratamiento: str, entrada: Path, salida: Path, job_id: str, pipeline,
-             mode: str, disabled: frozenset[str], include_entities: bool = False):
-    """El informe del documento procesado por su camino."""
+             mode: str, disabled: frozenset[str], include_entities: bool = False, *,
+             cifrador=None, tabla: Path | None = None, sin_https: bool = False):
+    """El informe del documento procesado por su camino.
+
+    Seudonimizar (`pseudonymize`): como anonimizar un Word o un texto, pero con
+    etiquetas numeradas; la tabla sale cifrada con *cifrador* en *tabla*, y en
+    claro no se escribe en ningun sitio."""
+    asignador = None
+    if tratamiento == "pseudonymize":
+        from app.services.seudonimo.etiquetas import Asignador
+
+        comprobar_seudonimizable(formato)
+        if cifrador is None or tabla is None:
+            raise ValueError("pseudonymize needs the key and the table path")
+        asignador = Asignador()
     if tratamiento == "metadata_only":
         if formato == "pdf":
             from app.services.pdf.solo_metadatos import quitar_metadatos
@@ -116,11 +142,31 @@ def procesar(formato: str, tratamiento: str, entrada: Path, salida: Path, job_id
         if formato in ("txt", "md"):
             from app.services.texto.texto import anonimizar_texto
 
-            informe = anonimizar_texto(entrada, salida, analyzer, job_id, mode, formato)
+            informe = anonimizar_texto(entrada, salida, analyzer, job_id, mode, formato, asignador)
+        elif formato == "docx":
+            informe = anonimizar_docx(entrada, salida, analyzer,
+                                      lambda e, s, f: anonimizar_imagen(e, s, f, _pdf), job_id, mode,
+                                      asignador)
         else:
-            anonimizar = anonimizar_docx if formato == "docx" else anonimizar_xlsx
-            informe = anonimizar(entrada, salida, analyzer,
-                                 lambda e, s, f: anonimizar_imagen(e, s, f, _pdf), job_id, mode)
+            informe = anonimizar_xlsx(entrada, salida, analyzer,
+                                      lambda e, s, f: anonimizar_imagen(e, s, f, _pdf), job_id, mode)
+        if asignador is not None:
+            from app.schemas.report import (
+                PASSWORD_WITHOUT_HTTPS,
+                PSEUDONYMIZED_NOT_ANONYMOUS,
+                CodedWarning,
+            )
+
+            tabla.write_bytes(cifrador.cifrar(asignador.tabla(formato, salida.read_bytes())))
+            informe.pseudonym_labels = len(asignador.etiquetas)
+            informe.warnings.append("Pseudonymized, NOT anonymized: with the table the data can be "
+                                    "restored, so the document still contains personal data.")
+            informe.coded_warnings.append(CodedWarning(code=PSEUDONYMIZED_NOT_ANONYMOUS))
+            if sin_https:
+                informe.warnings.append("The table password was sent without HTTPS.")
+                informe.coded_warnings.append(CodedWarning(code=PASSWORD_WITHOUT_HTTPS))
+            if informe.status == "completed":
+                informe.status = "completed_with_warnings"
         informe.entity_types_applied = sorted(t for t in ALL_PII_TYPES if t not in disabled)
         informe.entity_types_disabled = sorted(disabled)
         return informe

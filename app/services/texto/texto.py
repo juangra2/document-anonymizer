@@ -15,6 +15,11 @@ enlace o una definicion de enlace y desapareceria al verlo.
 
 Un texto no tiene metadatos: "solo quitar metadatos" lo devuelve tal cual y lo
 dice.
+
+Seudonimizar (con un `asignador` de etiquetas): lo mismo, pero cada dato pasa
+a su etiqueta numerada ("[PERSONA_1]") en vez de al marcador de su tipo, y el
+asignador anota las apariciones en el orden del documento, para poder
+devolver cada valor a su sitio.  Un enlace automatico conserva sus < >.
 """
 from __future__ import annotations
 
@@ -68,7 +73,8 @@ def _cabe(marca: str, lectura: Lectura) -> str:
     return sin if lectura.cabe(sin) else sin.encode("ascii", "replace").decode("ascii")
 
 
-def _sustituir(texto: str, zona: str, a: int, b: int, marca: str, formato: str) -> str:
+def _sustituir(texto: str, zona: str, a: int, b: int, marca: str, formato: str,
+               reversible: bool = False) -> str:
     """texto[a:b] por *marca*, sin borrar la sintaxis que haya dentro."""
     piezas, puesta, donde = [], False, "t"
     for k in range(a, b):
@@ -81,12 +87,29 @@ def _sustituir(texto: str, zona: str, a: int, b: int, marca: str, formato: str) 
         return texto
     if formato == "md":
         if donde == "a":
+            if reversible:      # se queda entre < >, para volver a ser el enlace
+                return texto[:a] + "".join(piezas).replace("\0", marca) + texto[b:]
             return _en_autoenlace(texto, zona, a, b, "".join(piezas), marca)
         if donde == "d":
             marca = _en_url(marca)
         elif donde == "t" and texto[b:b + 1] in ("(", "[", ":"):
             marca = "\\[" + marca[1:-1] + "\\]"
     return texto[:a] + "".join(piezas).replace("\0", marca) + texto[b:]
+
+
+def _trozos_de(texto: str, zona: str, a: int, b: int) -> list[tuple[int, str]]:
+    """texto[a:b] repartido: (caracteres de sintaxis que lleva delante, trozo de texto)."""
+    salida: list[list] = []
+    sintaxis, anterior = 0, True
+    for k in range(a, b):
+        if zona[k] in "sp":
+            sintaxis, anterior = sintaxis + 1, True
+        elif anterior:
+            salida.append([sintaxis, texto[k]])
+            sintaxis, anterior = 0, False
+        else:
+            salida[-1][1] += texto[k]
+    return [(n, t) for n, t in salida]
 
 
 def _en_url(marca: str) -> str:
@@ -148,7 +171,7 @@ def _revisar(texto: str, formato: str, analyzer, mode: str, valores: list[str]):
 
 
 def anonimizar_texto(entrada: Path, salida: Path, analyzer, job_id: str, mode: str = "strict",
-                     formato: str = "txt") -> ProcessingReport:
+                     formato: str = "txt", asignador=None) -> ProcessingReport:
     empezado = perf_counter()
     plazo = Plazo()
     lectura = leer(Path(entrada).read_bytes())
@@ -176,11 +199,19 @@ def anonimizar_texto(entrada: Path, salida: Path, analyzer, job_id: str, mode: s
         todos += [(origen[a + i], origen[a + j - 1] + 1, tipo)
                   for i, j, tipo in _barrido(bloque, valores, spans) if j > i]
     tipos: Counter = Counter()
-    for i, j, tipo in sorted(todos, reverse=True):
-        nuevo = _sustituir(texto, zona, i, j, _cabe(marcador(tipo), lectura), formato)
-        if nuevo != texto:
-            texto = nuevo
-            tipos[tipo] += 1
+    todos = [(i, j, tipo) for i, j, tipo in sorted(todos) if any(zona[k] not in "sp" for k in range(i, j))]
+    marcas = {}
+    if asignador is not None:
+        # Las etiquetas se reparten y se anotan en el orden del documento; el
+        # valor es el texto sin la sintaxis que tenga dentro.
+        for i, j, tipo in todos:
+            trozos = _trozos_de(texto, zona, i, j)
+            marcas[(i, j)] = asignador.anotar(tipo, "".join(t for _, t in trozos),
+                                              [[n, t] for n, t in trozos[1:]])
+    for i, j, tipo in reversed(todos):
+        marca = marcas.get((i, j)) or _cabe(marcador(tipo), lectura)
+        texto = _sustituir(texto, zona, i, j, marca, formato, reversible=asignador is not None)
+        tipos[tipo] += 1
 
     Path(salida).write_bytes(lectura.escribir(texto))
     residuales, avisos, motivos = _revisar(texto, formato, analyzer, mode,
@@ -204,6 +235,7 @@ def anonimizar_texto(entrada: Path, salida: Path, analyzer, job_id: str, mode: s
         warnings=avisos,
         coded_warnings=codificados,
         text_encoding=lectura.codificacion,
+        treatment="pseudonymize" if asignador is not None else "anonymize",
         redaction_strategy="text_replacement",
         processing_ms=int((perf_counter() - empezado) * 1000),
     )

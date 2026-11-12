@@ -14,8 +14,9 @@ import zipfile
 from io import BytesIO
 from typing import Literal
 
-from fastapi import APIRouter, File, HTTPException, Query, Request, Response, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import FileResponse
+from starlette.concurrency import run_in_threadpool
 
 from app.core.config import settings
 from app.core.errors import (
@@ -25,6 +26,7 @@ from app.core.errors import (
     FileValidationError,
     LegacyOfficeError,
     OfficeMacrosError,
+    PseudonymizeUnsupportedError,
     TooManyPagesError,
     error_code_for,
 )
@@ -37,7 +39,7 @@ from app.schemas.jobs import (
     JobResultSummary,
 )
 from app.schemas.report import InputFileInfo, ProcessingReport
-from app.services.formatos import FORMATOS, comprobar, reconocer
+from app.services.formatos import FORMATOS, comprobar, comprobar_seudonimizable, reconocer
 from app.services.informe_pdf import generar_informe_pdf
 from app.services.jobs import Job, QueueFullError, job_store
 from app.utils.files import (
@@ -58,6 +60,26 @@ _CONTENT_TYPES = {"application/pdf", "application/octet-stream",
                   # Texto y Markdown: los navegadores declaran cualquiera de estos,
                   # o nada, para un .md.
                   "text/plain", "text/markdown", "text/x-markdown", "", None}
+
+
+# Desde el propio equipo la contrasena no sale a la red ("testclient" es el
+# cliente de los tests).
+_EQUIPO_LOCAL = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
+
+
+def sin_https(request: Request) -> bool:
+    """La peticion llego sin cifrar desde otro equipo (detras de un proxy con
+    HTTPS, este lo dice en X-Forwarded-Proto)."""
+    protocolo = request.headers.get("x-forwarded-proto", request.url.scheme).split(",")[0].strip()
+    cliente = request.client.host if request.client else ""
+    return protocolo != "https" and cliente not in _EQUIPO_LOCAL
+
+
+def exigir_seudonimizacion() -> None:
+    if not settings.pseudonymization_enabled:
+        raise HTTPException(status_code=403, detail={
+            "code": "pseudonymization_disabled",
+            "message": "Pseudonymization is disabled in this service (PSEUDONYMIZATION_ENABLED)."})
 
 
 def _percent(done: int, total: int) -> int:
@@ -83,6 +105,7 @@ def _to_response(job: Job) -> JobResponse:
             entity_types_disabled=job.report.entity_types_disabled,
             processing_ms=job.report.processing_ms,
             treatment=job.report.treatment,
+            pseudonym_labels=job.report.pseudonym_labels,
             document_type=job.report.document_type,
             pages_redacted_in_full=job.report.pages_redacted_in_full,
             pages_redacted_by_content=job.report.pages_redacted_by_content,
@@ -169,13 +192,22 @@ async def create_job(
             "normaliza como disabled_types; un tipo en las dos listas da 422."
         ),
     ),
-    treatment: Literal["anonymize", "metadata_only"] = Query(
+    treatment: Literal["anonymize", "metadata_only", "pseudonymize"] = Query(
         default="anonymize",
         description=(
             "anonymize: se buscan y se borran los datos personales. metadata_only: "
             "solo se quitan metadatos, comentarios y texto oculto, y los campos de "
-            "formulario pasan a la pagina; lo que se ve NO se revisa ni se anonimiza."
+            "formulario pasan a la pagina; lo que se ve NO se revisa ni se anonimiza. "
+            "pseudonymize (solo Word, Markdown y texto, y solo si el servicio lo tiene "
+            "activado): los datos se cambian por etiquetas numeradas y la tabla para "
+            "deshacerlo se descarga cifrada en /jobs/{id}/table; pide `password`."
         ),
+    ),
+    password: str | None = Form(
+        default=None,
+        description="Solo con treatment=pseudonymize: la contrasena con la que se cifra la "
+                    "tabla (12 caracteres como minimo). Va en el cuerpo, nunca en la URL. No "
+                    "se guarda ni se registra: si se pierde, la tabla no se puede abrir.",
     ),
 ) -> JobResponse:
     """Encola un PDF para anonimizar y devuelve el trabajo con su identificador.
@@ -195,6 +227,20 @@ async def create_job(
 
     disabled = _parse_disabled_types(disabled_types, enabled_types)
 
+    cifrador = None
+    if treatment == "pseudonymize":
+        from app.core.errors import ContrasenaCortaError
+        from app.services.seudonimo.tabla import MINIMO, Cifrador
+
+        exigir_seudonimizacion()
+        try:
+            # Aqui se deriva la clave y la contrasena se suelta: en el trabajo
+            # solo queda la clave, en memoria.
+            cifrador = await run_in_threadpool(Cifrador, password or "")
+        except ContrasenaCortaError as exc:
+            raise HTTPException(status_code=422, detail={
+                "code": error_code_for(exc), "message": str(exc), "min_length": MINIMO}) from exc
+
     try:
         # El nombre del fichero NO se guarda: suele llevar el del interesado.
         job = job_store.create(content_type=file.content_type)
@@ -209,6 +255,8 @@ async def create_job(
         subida = job.directory / "subida"
         size_bytes = await save_upload_to_path(file, subida)
         job.formato = reconocer(subida, file.filename)
+        if treatment == "pseudonymize":
+            comprobar_seudonimizable(job.formato)
         subida.rename(job.input_path)
         # Se comprueba AQUÍ, no al procesarlo: abrir el documento cuesta
         # milisegundos y así uno de 400 páginas se rechaza ahora, no cuando le
@@ -234,7 +282,7 @@ async def create_job(
                 "limit_pages": settings.max_pdf_pages,
             },
         ) from exc
-    except (LegacyOfficeError, OfficeMacrosError) as exc:
+    except (LegacyOfficeError, OfficeMacrosError, PseudonymizeUnsupportedError) as exc:
         job_store.discard(job)
         raise HTTPException(
             status_code=415,
@@ -261,6 +309,8 @@ async def create_job(
         size_bytes=size_bytes,
         disabled_types=disabled,
         treatment=treatment,
+        cifrador=cifrador,
+        sin_https=cifrador is not None and sin_https(request),
     )
 
     # Ruta relativa al prefijo servido: tras un proxy inverso, una URL absoluta
@@ -296,8 +346,10 @@ async def get_job_result(
         else None
     )
     solo_metadatos = report.treatment == "metadata_only"
+    seudonimizado = report.treatment == "pseudonymize"
     extension, tipo = FORMATOS[job.formato]
-    pdf_filename = download_filename(extension, partial_pages=parcial, metadata_only=solo_metadatos)
+    pdf_filename = download_filename(extension, partial_pages=parcial, metadata_only=solo_metadatos,
+                                     pseudonymized=seudonimizado)
     headers = {
         "X-Job-Id": job.id,
         "X-Anonymization-Status": report.status,
@@ -308,10 +360,12 @@ async def get_job_result(
         buffer = BytesIO()
         with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
             zf.write(job.output_path, arcname=pdf_filename)
+            if seudonimizado:
+                zf.write(job.table_path, arcname=download_filename("tabla", pseudonymized=True))
             zf.writestr("report.json", report.model_dump_json(indent=2) + "\n")
             zf.writestr("informe.pdf", generar_informe_pdf(report, job.finished_at or job.created_at))
         zip_filename = download_filename("zip", partial_pages=parcial,
-                                         metadata_only=solo_metadatos)
+                                         metadata_only=solo_metadatos, pseudonymized=seudonimizado)
         return Response(
             content=buffer.getvalue(),
             media_type="application/zip",
@@ -330,6 +384,18 @@ async def get_job_result(
         filename=pdf_filename,
         headers=headers,
     )
+
+
+@router.get("/{job_id}/table")
+async def get_job_table(job_id: str) -> Response:
+    """La tabla de un documento seudonimizado, cifrada con la contrasena que se
+    dio al subirlo.  Caduca y se borra con el documento."""
+    job = _require_job(job_id)
+    report = _require_finished_report(job)
+    if report.treatment != "pseudonymize" or not job.table_path.exists():
+        raise HTTPException(status_code=404, detail="Este trabajo no tiene tabla: no es de seudonimizar.")
+    return FileResponse(path=job.table_path, media_type="application/octet-stream",
+                        filename=download_filename("tabla", pseudonymized=True))
 
 
 @router.get("/{job_id}/report.pdf")
