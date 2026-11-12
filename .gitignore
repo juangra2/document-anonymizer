@@ -95,3 +95,9 @@ evaluation/excel/
 evaluation/excel_dificil/
 evaluation/word_dificil/
 evaluation/imagenes_dificil/
+
+# Corpus de textos y sus salidas: se generan con evaluation/corpus_texto.py
+evaluation/texto/
+
+# Capturas y documentos de scripts/probar_interfaz.py
+capturas/

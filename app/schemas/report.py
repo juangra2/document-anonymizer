@@ -19,6 +19,10 @@ SAFETY_NET_STILL_READABLE = "safety_net_still_readable"
 CONTENT_NOT_REVIEWED = "content_not_reviewed"
 # El documento llevaba una firma digital: la limpieza la invalida.
 DIGITAL_SIGNATURE_INVALIDATED = "digital_signature_invalidated"
+# Solo quitar metadatos en un formato que no tiene (texto, Markdown): sale igual.
+FORMAT_WITHOUT_METADATA = "format_without_metadata"
+# Texto: la codificacion no estaba clara; hay que mirar las tildes.
+TEXT_ENCODING_UNCERTAIN = "text_encoding_uncertain"
 # Motivos de revision manual (`ProcessingReport.manual_review_reasons`).  Los
 # que coinciden con un codigo de aviso (pages_not_verified,
 # safety_net_still_readable) los explica ese aviso; el resto, la nota generica.
@@ -33,7 +37,8 @@ REVIEW_NO_TEXT_DETECTED = "no_text_detected"
 #: Todos: cada uno necesita su frase en la pantalla (lo comprueba test_web.py).
 CODED_WARNING_CODES = (PLAN_TITLEBLOCK_ONLY_VERIFIED, PAGES_NOT_VERIFIED,
                        SAFETY_NET_ACTED, SAFETY_NET_STILL_READABLE,
-                       CONTENT_NOT_REVIEWED, DIGITAL_SIGNATURE_INVALIDATED)
+                       CONTENT_NOT_REVIEWED, DIGITAL_SIGNATURE_INVALIDATED,
+                       FORMAT_WITHOUT_METADATA, TEXT_ENCODING_UNCERTAIN)
 
 
 class CodedWarning(BaseModel):
@@ -169,6 +174,8 @@ class ProcessingReport(BaseModel):
         "image",
         "docx",
         "xlsx",
+        "txt",
+        "md",
         "pdf_empty",
         "unsupported",
     ] = "pdf_digital"
@@ -250,6 +257,11 @@ class ProcessingReport(BaseModel):
                     "tipo, con la hoja, la cabecera, el tipo y cuantas celdas.",
     )
 
+    text_encoding: str | None = Field(
+        default=None,
+        description="Texto y Markdown: codificacion en que se leyo el fichero y en la que "
+                    "se escribe la salida (utf-8, utf-16-le, cp1252, cp850...).",
+    )
     redaction_strategy: str = "physical_pdf_redaction"
     redaction_mode: Literal["strict"] = "strict"
 

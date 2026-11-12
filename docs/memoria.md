@@ -167,6 +167,14 @@ control de cambios y se quitan comentarios, propiedades, texto oculto y objetos 
 fotos que lleve dentro pasan por el mismo tratamiento que las imágenes. Los .doc antiguos se
 rechazan con un mensaje que explica cómo guardarlos en el formato nuevo.
 
+Los **textos** (.txt) y los **Markdown** (.md) salen en su mismo formato y en la misma codificación
+en que llegaron, también las antiguas de Windows o de MS-DOS, que son las de muchos textos de la
+administración: leerlas mal rompería las tildes y, con ellas, los nombres. Cada dato se sustituye
+por su tipo, como en Word. En un Markdown la sintaxis no se toca (encabezados, listas, tablas,
+enlaces, imágenes, código) y se revisa también dentro de los enlaces: un «mailto:» o una dirección
+con un nombre o un DNI. Un texto no tiene metadatos: «solo quitar metadatos» lo devuelve igual y lo
+dice.
+
 Las **hojas de Excel** (.xlsx) se tratan por columnas: la columna con datos personales (por el nombre
 de su cabecera o, si no dice nada, por lo que contiene) conserva su cabecera y cada celda pasa a
 llevar el tipo de dato entre corchetes; las columnas de texto libre se analizan celda a celda. Se

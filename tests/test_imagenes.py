@@ -335,8 +335,8 @@ def test_por_la_cola_un_jpeg_vuelve_jpeg(tmp_path, tratamiento):
 def test_una_imagen_rota_se_rechaza_y_un_tipo_desconocido_tambien():
     assert client.post("/jobs", files={"file": ("x.png", BytesIO(b"\x89PNG\r\n\x1a\nroto"),
                                                 "image/png")}).status_code == 400
-    assert client.post("/jobs", files={"file": ("x.txt", BytesIO(b"hola"),
-                                                "text/plain")}).status_code == 415
+    assert client.post("/jobs", files={"file": ("x.gif", BytesIO(b"GIF89a"),
+                                                "image/gif")}).status_code == 415
 
 
 def test_la_ruta_sincrona_devuelve_el_mismo_formato(tmp_path):

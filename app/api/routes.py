@@ -202,6 +202,11 @@ async def anonymize(
         "application/msword",
         "application/vnd.ms-excel",
         "application/zip",
+        "text/plain",
+        "text/markdown",
+        "text/x-markdown",
+        "",
+        None,
     }
 
     if file.content_type not in supported_content_types:
@@ -218,7 +223,7 @@ async def anonymize(
             # el tipo que declara el navegador.
             subida = Path(temp_job.path) / "subida"
             size_bytes = await save_upload_to_path(file, subida)
-            formato = reconocer(subida)
+            formato = reconocer(subida, file.filename)
             extension = FORMATOS[formato][0]
             input_path = subida.rename(Path(temp_job.path) / f"input.{extension}")
             output_path = Path(temp_job.path) / f"output_redacted.{extension}"

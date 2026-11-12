@@ -11,7 +11,8 @@ Uso:
     python scripts/probar_interfaz.py --capturas-en carpeta
     python scripts/probar_interfaz.py --ver           # con navegador visible
 
-Necesita el servicio levantado en http://127.0.0.1:8000 y `playwright`
+Necesita el servicio levantado en http://127.0.0.1:8000 (u otra direccion en
+la variable PROBAR_BASE) y `playwright`
 instalado (`pip install playwright && python -m playwright install chromium`).
 Los estados que dependen de la configuración del servidor (cola llena, límites
 diminutos, servicio no listo) se prueban arrancando el servicio con esas
@@ -20,6 +21,7 @@ variables; este guion los detecta y los recorre si están puestas.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -31,7 +33,8 @@ from playwright.sync_api import expect, sync_playwright
 # Para los documentos de prueba del corpus (evaluation/corpus_word.py).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-BASE = "http://127.0.0.1:8000"
+# Otra direccion con la variable PROBAR_BASE (si el 8000 esta ocupado).
+BASE = os.environ.get("PROBAR_BASE", "http://127.0.0.1:8000")
 NOMBRE = "Marcos Villalba Tena"
 
 
@@ -79,7 +82,7 @@ def pdf_plano(destino: Path) -> Path:
 
 
 def no_es_pdf(destino: Path) -> Path:
-    destino.write_text("Esto es un documento de Word, no un PDF.", encoding="utf-8")
+    destino.write_bytes(b"GIF89a")      # un tipo que no se admite (el .txt si)
     return destino
 
 
@@ -347,6 +350,60 @@ def flujo_excel(p, pagina, tmp: Path) -> None:
                 "el Excel se abre, la cabecera se queda y la celda lleva [DNI]")
 
 
+def flujo_texto(p, pagina, tmp: Path) -> None:
+    print("\n1g) Un texto sale texto, en su codificacion; un Markdown, Markdown")
+    from evaluation.corpus_word import PERSONAS
+
+    persona = PERSONAS[0]
+    abrir(pagina)
+    texto = (f"Ajuntament de València\r\nSolicitante: {persona['nombre']}, con DNI {persona['dni']}.\r\n"
+             "Peñíscola, a 3 de març.\r\n")
+    (tmp / "nota.txt").write_bytes(texto.encode("cp1252"))
+    (tmp / "acta.md").write_text(f"# Acta\n\n| Nombre | DNI |\n|---|---|\n| {persona['nombre']} | "
+                                 f"{persona['dni']} |\n", encoding="utf-8")
+    pagina.set_input_files("#ficheros", [str(tmp / "nota.txt"), str(tmp / "acta.md")])
+    icono = pagina.locator(".ficha:has-text('nota.txt') svg")
+    p.comprobar("TXT" in (icono.text_content() or "") and "#6A4C93" in icono.inner_html(),
+                "el icono del texto dice TXT")
+    pagina.click("#anonimizar")
+    ok = all(esperar_texto(pagina, f".doc:has-text('{n}') .st", "Terminado", ms=180000)
+             for n in ("nota.txt", "acta.md"))
+    p.comprobar(ok, "el texto y el Markdown terminan")
+    with pagina.expect_download(timeout=30000) as descarga:
+        pagina.click(".doc:has-text('nota.txt') a.btn.primary")
+    p.comprobar(descarga.value.suggested_filename == "nota_anonimizado.txt",
+                "el texto se descarga como .txt con su nombre")
+    salida = tmp / "nota_salida.txt"
+    descarga.value.save_as(salida)
+    leido = salida.read_bytes().decode("cp1252")
+    p.comprobar(persona["nombre"] not in leido and "[NOMBRE]" in leido and "Peñíscola" in leido
+                and leido.count("\r\n") == 3,
+                "sale en Windows-1252 con sus tildes y sus saltos de linea, y [NOMBRE] en lugar del nombre")
+    with pagina.expect_download(timeout=30000) as descarga:
+        pagina.click(".doc:has-text('acta.md') a.btn.primary")
+    p.comprobar(descarga.value.suggested_filename == "acta_anonimizado.md",
+                "el Markdown se descarga como .md")
+    salida = tmp / "acta_salida.md"
+    descarga.value.save_as(salida)
+    leido = salida.read_text(encoding="utf-8")
+    p.comprobar("| [NOMBRE] | [DNI] |" in leido, "la tabla del Markdown sigue siendo una tabla")
+
+    abrir(pagina)
+    pagina.check("#tratMetadatos")
+    p.comprobar("no tienen metadatos" in pagina.locator("#avisoMetadatos").inner_text(),
+                "el aviso de solo metadatos dice que los textos salen igual")
+    pagina.set_input_files("#ficheros", str(tmp / "nota.txt"))
+    pagina.click("#anonimizar")
+    ok = esperar_texto(pagina, ".doc .st", "sale igual")
+    p.comprobar(ok, "un texto con solo metadatos termina diciendo que sale igual")
+    with pagina.expect_download(timeout=30000) as descarga:
+        pagina.click(".doc a.btn.primary")
+    salida = tmp / "nota_sin.txt"
+    descarga.value.save_as(salida)
+    p.comprobar(salida.read_bytes() == (tmp / "nota.txt").read_bytes(), "y sale identico")
+    pagina.check("#tratAnonimizar")
+
+
 def flujo_expediente(p, pagina, tmp: Path) -> None:
     print("\n1b) El numero de expediente empieza marcado y la casilla manda")
     abrir(pagina)
@@ -377,7 +434,7 @@ def flujo_tanda(p, pagina, tmp: Path) -> None:
         "#ficheros",
         [
             str(pdf_simple(tmp / "uno.pdf")),
-            str(no_es_pdf(tmp / "notas.txt")),
+            str(no_es_pdf(tmp / "animacion.gif")),
             str(pdf_simple(tmp / "dos.pdf")),
         ],
     )
@@ -558,6 +615,7 @@ def main() -> int:
         "imagen": flujo_imagen,
         "word": flujo_word,
         "excel": flujo_excel,
+        "texto": flujo_texto,
         "expediente": flujo_expediente,
         "tanda": flujo_tanda,
         "parar": flujo_parar,

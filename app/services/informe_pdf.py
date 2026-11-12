@@ -124,6 +124,11 @@ def _avisos(r: ProcessingReport, etiquetas: dict[str, str]) -> list[str]:
                           "conviene echarles un vistazo.")
         elif a.code == "plan_titleblock_only_verified":
             lineas.append(f"En {donde}, que son planos, solo se ha comprobado el cajetín.")
+        elif a.code == "format_without_metadata":
+            lineas.append("Este formato no tiene metadatos: el fichero sale igual que entró.")
+        elif a.code == "text_encoding_uncertain":
+            lineas.append("La codificación del texto no estaba clara: compruebe que las tildes y "
+                          "las eñes se leen bien.")
         elif a.code == "digital_signature_invalidated":
             lineas.append("El documento llevaba firma digital: al modificarlo deja de ser válida. "
                           "Si necesita la firma, use el original.")
@@ -158,11 +163,20 @@ def _mapa(r: ProcessingReport, revisar: set[int], enteras: set[int]) -> str:
     return f"<table>{''.join(filas)}</table><table class='leyenda'><tr>{leyenda}</tr></table>"
 
 
+#: Formatos sin paginas: no se cuentan ni llevan mapa.
+_SIN_PAGINAS = ("docx", "xlsx", "txt", "md")
+
+
 def _unidad(r: ProcessingReport) -> str:
     if r.document_type == "docx":
         return "documento de Word"
     if r.document_type == "xlsx":
         return "libro de Excel"
+    if r.document_type in ("txt", "md"):
+        from app.services.texto.codificacion import NOMBRES
+
+        unidad = "documento de texto" if r.document_type == "txt" else "documento Markdown"
+        return unidad + (f" ({NOMBRES.get(r.text_encoding, r.text_encoding)})" if r.text_encoding else "")
     if r.document_type == "image":
         return "imagen" if r.pages == 1 else "imágenes"
     return "página" if r.pages == 1 else "páginas"
@@ -177,7 +191,7 @@ def _html(r: ProcessingReport, fecha: datetime) -> str:
         "<h1>Informe de anonimización</h1>" if not solo_metadatos
         else "<h1>Informe de limpieza de metadatos</h1>",
         f"<p class='meta'>{local:%d/%m/%Y %H:%M} &#183; "
-        f"{'' if r.document_type in ('docx', 'xlsx') else f'{r.pages} '}{_unidad(r)} "
+        f"{'' if r.document_type in _SIN_PAGINAS else f'{r.pages} '}{_unidad(r)} "
         f"&#183; identificador {_e(r.job_id)}</p>",
     ]
 
@@ -233,7 +247,7 @@ def _html(r: ProcessingReport, fecha: datetime) -> str:
         partes.append("<p>La cabecera se conserva; cada celda lleva el tipo de dato entre corchetes.</p>"
                       f"<table><tr><th>Hoja</th><th>Columna</th><th>Tipo de dato</th><th>Celdas</th></tr>"
                       f"{filas}</table>")
-    if r.pages and not solo_metadatos and r.document_type not in ("docx", "xlsx"):
+    if r.pages and not solo_metadatos and r.document_type not in _SIN_PAGINAS:
         partes.append("<h2>En qué páginas</h2>")
         partes.append(_mapa(r, revisar, set(enteras)))
         if r.entities_by_page:

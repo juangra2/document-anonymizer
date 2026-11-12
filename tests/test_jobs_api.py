@@ -316,7 +316,7 @@ def test_an_expired_job_is_swept_even_if_nobody_asks_for_it():
 
 def test_an_unsupported_type_is_rejected_before_creating_a_job():
     response = client.post(
-        "/jobs", files={"file": ("notas.txt", BytesIO(b"hola"), "text/plain")},
+        "/jobs", files={"file": ("animacion.gif", BytesIO(b"GIF89a"), "image/gif")},
     )
     assert response.status_code == 415
 

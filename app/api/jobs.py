@@ -54,7 +54,10 @@ _CONTENT_TYPES = {"application/pdf", "application/octet-stream",
                   "image/jpeg", "image/png", "image/tiff",
                   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                  "application/msword", "application/vnd.ms-excel", "application/zip", "application/x-zip-compressed"}
+                  "application/msword", "application/vnd.ms-excel", "application/zip", "application/x-zip-compressed",
+                  # Texto y Markdown: los navegadores declaran cualquiera de estos,
+                  # o nada, para un .md.
+                  "text/plain", "text/markdown", "text/x-markdown", "", None}
 
 
 def _percent(done: int, total: int) -> int:
@@ -187,7 +190,8 @@ async def create_job(
 
     if file.content_type not in _CONTENT_TYPES:
         raise HTTPException(status_code=415,
-                            detail="Solo se admiten ficheros PDF, JPEG, PNG, TIFF, Word (.docx) o Excel (.xlsx).")
+                            detail="Solo se admiten ficheros PDF, JPEG, PNG, TIFF, Word (.docx), Excel (.xlsx), "
+                                   "texto (.txt) o Markdown (.md).")
 
     disabled = _parse_disabled_types(disabled_types, enabled_types)
 
@@ -204,7 +208,7 @@ async def create_job(
     try:
         subida = job.directory / "subida"
         size_bytes = await save_upload_to_path(file, subida)
-        job.formato = reconocer(subida)
+        job.formato = reconocer(subida, file.filename)
         subida.rename(job.input_path)
         # Se comprueba AQUÍ, no al procesarlo: abrir el documento cuesta
         # milisegundos y así uno de 400 páginas se rechaza ahora, no cuando le

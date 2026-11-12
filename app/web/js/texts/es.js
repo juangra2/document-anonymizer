@@ -47,7 +47,9 @@ export const TEXTOS = {
 
   paso1: {
     titulo: "Documentos",
-    soltar: "Arrastra uno o varios PDF, imágenes (JPEG, PNG, TIFF), Word (.docx) o Excel (.xlsx) aquí, o selecciónalos",
+    soltar:
+      "Arrastra uno o varios PDF, imágenes (JPEG, PNG, TIFF), Word (.docx), Excel (.xlsx) " +
+      "o textos (.txt, .md) aquí, o selecciónalos",
     limites: (docs, paginas, mb) =>
       `Hasta ${docs} documentos por tanda · máximo ${paginas} páginas y ${mb} MB cada uno`,
     elegir: "Seleccionar archivos",
@@ -80,7 +82,7 @@ export const TEXTOS = {
       "El contenido del documento NO se revisa ni se anonimiza: los datos " +
       "personales que se vean en él siguen ahí. Solo se quitan los metadatos, " +
       "los comentarios y el texto oculto, y los campos de formulario dejan de " +
-      "ser rellenables.",
+      "ser rellenables. Los textos (.txt, .md) no tienen metadatos: salen igual.",
     nuncaSeOculta: "¿Qué no se oculta nunca?",
     nuncaSeOcultaDetalle: [
       "Nombres, teléfonos y direcciones de organismos públicos.",
@@ -136,6 +138,9 @@ export const TEXTOS = {
     terminado: (datos, paginas) =>
       `Terminado · ${datos} ${datos === 1 ? "dato ocultado" : "datos ocultados"} ` +
       `en ${paginas} ${paginas === 1 ? "página" : "páginas"}`,
+    sinMetadatos:
+      "Terminado · sale igual: este formato no tiene metadatos · el contenido NO se ha " +
+      "revisado ni anonimizado",
     soloMetadatos: (paginas) =>
       `Terminado · metadatos quitados en ${paginas} ${paginas === 1 ? "página" : "páginas"} · ` +
       `el contenido NO se ha revisado ni anonimizado`,
@@ -198,6 +203,11 @@ export const TEXTOS = {
     content_not_reviewed: () =>
       "Solo se han quitado los metadatos: los datos personales que se ven en el " +
       "documento siguen ahí.",
+    format_without_metadata: () =>
+      "Los archivos de texto y Markdown no tienen metadatos: el archivo sale igual que entró.",
+    text_encoding_uncertain: () =>
+      "No estaba claro cómo estaba guardado el texto (su codificación). Comprueba que " +
+      "las tildes y las eñes se leen bien.",
     digital_signature_invalidated: () =>
       "El documento llevaba firma digital y, al modificarlo, la firma deja de ser " +
       "válida. Si necesitas la firma, usa el original.",
@@ -226,7 +236,7 @@ export const TEXTOS = {
       titulo: "Este archivo no se puede anonimizar",
       texto:
         "Se pueden anonimizar documentos PDF, imágenes JPEG, PNG o TIFF, " +
-        "documentos de Word (.docx) y hojas de Excel (.xlsx).",
+        "documentos de Word (.docx), hojas de Excel (.xlsx) y textos (.txt, .md).",
     },
     legacy_office: {
       titulo: "Este documento es del formato antiguo de Office",
@@ -255,7 +265,7 @@ export const TEXTOS = {
     invalid_file: {
       titulo: "Este archivo está dañado o no es lo que parece",
       texto:
-        "Por dentro no es un PDF ni una imagen válidos, o está dañado. Ábrelo en " +
+        "Por dentro no es un documento válido de los que se admiten, o está dañado. Ábrelo en " +
         "tu ordenador: si se ve bien, guarda una copia nueva (o imprímela como " +
         "PDF) y sube esa copia.",
     },

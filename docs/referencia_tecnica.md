@@ -12,6 +12,7 @@ El detalle para quien mantenga el código. La idea de cada parte —qué hace y 
 2. [Detección](#detección)
 3. [Recorrido de un documento](#recorrido-de-un-documento)
 4. [Documentos de Word y Excel](#documentos-de-word-y-excel)
+   - [Texto y Markdown](#texto-y-markdown)
 5. [Tratamientos especiales](#tratamientos-especiales)
 6. [OCR](#ocr)
 7. [Red de seguridad y verificación](#red-de-seguridad-y-verificación)
@@ -286,6 +287,42 @@ marcador del tipo, como en Word; no se borran columnas.
   entero. El informe lleva `replaced_columns` (hoja,
   cabecera, tipo, celdas) y el informe en PDF las lista.
 
+### Texto y Markdown
+
+`app/services/texto/` (`codificacion.py`, `markdown.py`, `texto.py`).
+
+- **Reconocimiento**: un texto no lleva marca, así que es la excepción a «el formato se decide por el
+  contenido»: un fichero que no es ninguno de los demás formatos y se llama `.txt`, `.md` o
+  `.markdown` es texto o Markdown si se lee como texto; si no (bytes nulos, caracteres de control),
+  `invalid_file`. Del nombre solo se mira la extensión y no se guarda. Un PDF llamado `.txt` sigue
+  siendo un PDF.
+- **Codificación**: con BOM, la del BOM (UTF-8, UTF-16, UTF-32); si es UTF-8 válido, UTF-8; si no,
+  `charset-normalizer` elige entre cp1252, cp850 (MS-DOS) y mac_roman; entre las que lo leen igual
+  de bien gana la que da más letras del castellano y el valenciano, y a igualdad cp1252. Si aun así
+  quedan lecturas distintas empatadas, la lectura es dudosa: aviso `text_encoding_uncertain`. La
+  salida se escribe en la misma codificación y con el mismo BOM; los saltos de línea no se tocan.
+  El informe lleva `text_encoding`. Un marcador con tilde que no quepa en la codificación va sin
+  tilde.
+- **Detección**: como en Word. El texto se analiza en trozos de líneas de hasta unos 4000
+  caracteres (`docx._spans`), cada valor detectado se busca después en todo el documento
+  (`docx._barrido`), también como va escrito en una URL (`%20`, `+`, codificado), y la salida se
+  relee entera con la segunda opinión de Office (`verificador._tipos_en`).
+- **Markdown** (`markdown.zonas`): se sustituye sobre el texto original y cada carácter lleva una
+  zona: texto, código, destino de enlace o imagen, enlace automático, HTML, o sintaxis. Los bloques
+  (código, HTML, tablas, líneas, subrayado de títulos) salen de `markdown-it-py`; lo de dentro de una
+  línea, de expresiones regulares. El analizador lee el texto sin la sintaxis, como en un Word
+  («**Teresa Navarro Gil**, con DNI» sin asteriscos), con un tabulador entre celdas y entre el texto
+  de un enlace y su destino, y un mapa de posiciones devuelve cada dato a su sitio en el original.
+  La sintaxis no se borra nunca: un dato que la cruza deja sus marcas. En un destino el marcador va
+  codificado como URL (`mailto:%5BCORREO%5D`), para que el enlace siga siendo un enlace; un enlace
+  automático cuyo correo entero era el dato se queda sin dirección y pasa a texto (`[CORREO]`). En
+  el texto, un marcador seguido de «(», «[» o «:» se escapa (`\[NOMBRE\]`), porque si no sería un
+  enlace o una definición de enlace y desaparecería al verlo. Se analizan también el código y el
+  HTML. Lo que no se reconoce como sintaxis se trata como texto: nunca se deja un dato por no saber
+  si era sintaxis.
+- **Solo quitar metadatos**: el fichero sale igual, con los avisos `content_not_reviewed` y
+  `format_without_metadata`.
+
 ---
 
 ## Tratamientos especiales
@@ -552,8 +589,10 @@ curl -o anonimizado.pdf "http://localhost:8000/jobs/3f2a…/result?output=pdf"
 - **Avisos del informe con código** (`coded_warnings`, con `code`, `pages` y, si procede, `types` o
   `counts`): ver [Red de seguridad y verificación](#red-de-seguridad-y-verificación). Van también en
   el resumen de `GET /jobs/{id}`. `warnings` lleva la frase en inglés.
-- **Errores al encolar**: 415 si el tipo declarado no es PDF ni imagen, 413 si supera
-  `MAX_UPLOAD_MB` o `MAX_IMAGE_MEGAPIXELS`, 400 si por dentro no es un PDF, JPEG, PNG o TIFF válido, 422 si un tipo es inválido o está en las dos listas, 422 si supera `MAX_PDF_PAGES` o está
+- **Errores al encolar**: 415 si el tipo declarado no es de los admitidos (PDF, imagen, Word,
+  Excel, texto: `text/plain`, `text/markdown` o ninguno para un `.md`), 413 si supera
+  `MAX_UPLOAD_MB` o `MAX_IMAGE_MEGAPIXELS`, 400 si por dentro no es un PDF, JPEG, PNG, TIFF, Word,
+  Excel o texto válido (un texto se reconoce por la extensión `.txt`, `.md` o `.markdown`), 422 si un tipo es inválido o está en las dos listas, 422 si supera `MAX_PDF_PAGES` o está
   cifrado o vacío, 503 con `Retry-After` si la cola está llena. **Al descargar**: 409 si no ha
   terminado o falló, 410 si caducó.
 - **Parar y eliminar**: `DELETE` elimina sin entregar; `POST …/stop` para y entrega las páginas
@@ -646,6 +685,20 @@ usan los tests). Mide que el fichero se abre, que ningún dato queda en ninguna 
 incrustada sale tapada (OCR), que el texto legítimo se conserva y que un documento sin datos no
 cambia. Medición del 27-10: 12/12 se abren, 53/53 datos eliminados, 72/72 textos legítimos
 conservados, 2/2 documentos sin datos intactos.
+
+**Corpus de textos** (`evaluation/corpus_texto.py` y `evaluation/lectura_texto.py`): 11 documentos
+inventados, 7 de texto (carta, formulario de «campo: valor», acta en valenciano, correo exportado,
+listado de columnas fijas, informe, horario sin datos) y 4 Markdown (expediente con tablas,
+enlaces, enlace automático y código; acta en valenciano con referencia a una URL con un nombre;
+ficha con HTML e imagen; guía sin datos), en UTF-8 con y sin BOM, UTF-16, Windows-1252 y MS-DOS 850,
+con saltos de Windows y de Unix. Pasa por `formatos.procesar` con las casillas del catálogo. Mide
+que ningún dato queda, que el texto legítimo se conserva, que la salida está en la misma
+codificación y con los mismos saltos, que la estructura del Markdown (la que lee markdown-it) no
+cambia y que un documento sin datos sale idéntico. Medición del 12-11: 51/51 datos eliminados, 0
+fugas, 11/11 en su codificación y con sus saltos, 4/4 Markdown con la misma estructura, 2/2 sin datos
+idénticos; 29/31 textos legítimos conservados: los dos que no son títulos en mayúsculas que el
+analizador ya toma por nombres («SOLICITUD DE AYUDA AL ALQUILER», «…PROGRAMA DE RESPIRO
+FAMILIAR»), lo mismo que haría en un Word.
 
 **Corpus de Excel** (`evaluation/corpus_excel.py` y `evaluation/lectura_excel.py`): 10 libros
 inventados (listado de solicitantes, inscritos en valenciano con título y cabecera en la fila 3,

@@ -2,7 +2,11 @@
 sincrona: con dos, se arregla uno y el otro no.
 
 El formato se decide por el contenido, no por la extension ni por el tipo que
-declara el navegador.  Un Word o Excel antiguo (.doc, .xls: un contenedor OLE)
+declara el navegador.  El texto es la excepcion, porque no lleva marca: un
+fichero que no es ninguno de los otros formatos y se llama .txt, .md o
+.markdown se trata como texto o Markdown si se lee como texto (sin bytes
+nulos, en alguna codificacion); si no, se rechaza.  Del nombre solo se mira
+la extension: no se guarda.  Un Word o Excel antiguo (.doc, .xls: un contenedor OLE)
 se rechaza con su propio codigo, para poder decir que hay que guardarlo en el
 formato nuevo; uno con macros (.docm, .xlsm), tambien: no se procesa codigo.
 """
@@ -20,13 +24,17 @@ FORMATOS = {
     "tiff": ("tif", "image/tiff"),
     "docx": ("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "xlsx": ("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+    "txt": ("txt", "text/plain"),
+    "md": ("md", "text/markdown"),
 }
+_TEXTO = {".txt": "txt", ".md": "md", ".markdown": "md"}
 
 _OLE = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 
 
-def reconocer(ruta: Path) -> str:
-    """pdf, jpeg, png, tiff, docx o xlsx.  Lanza el error que explica el rechazo."""
+def reconocer(ruta: Path, nombre: str | None = None) -> str:
+    """pdf, jpeg, png, tiff, docx, xlsx, txt o md.  Lanza el error que explica el
+    rechazo.  *nombre*, el del fichero subido: solo cuenta su extension."""
     from app.services.image.imagen import formato_de
     from app.services.office.paquete import tipo_office
 
@@ -43,7 +51,14 @@ def reconocer(ruta: Path) -> str:
             return tipo
         if tipo in ("docm", "xlsm"):
             raise OfficeMacrosError("Office document with macros: save it without macros.")
-    raise FileValidationError("Uploaded file is not a PDF, JPEG, PNG, TIFF, Word or Excel document.")
+    texto = _TEXTO.get(Path(nombre or "").suffix.lower())
+    if texto:
+        from app.services.texto.codificacion import leer
+
+        leer(ruta.read_bytes())         # FileValidationError si no es texto
+        return texto
+    raise FileValidationError(
+        "Uploaded file is not a PDF, JPEG, PNG, TIFF, Word, Excel, text or Markdown document.")
 
 
 def comprobar(ruta: Path, formato: str) -> None:
@@ -56,6 +71,8 @@ def comprobar(ruta: Path, formato: str) -> None:
         from app.services.office.paquete import Paquete, comprobar_tamano
 
         comprobar_tamano(Paquete.abrir(ruta))
+    elif formato in ("txt", "md"):
+        return                          # ya se leyo al reconocerlo
     else:
         from app.services.image.imagen import comprobar_imagen
 
@@ -75,6 +92,9 @@ def procesar(formato: str, tratamiento: str, entrada: Path, salida: Path, job_id
         if formato == "xlsx":
             from app.services.office.xlsx import solo_metadatos_xlsx
             return solo_metadatos_xlsx(entrada, salida, job_id)
+        if formato in ("txt", "md"):
+            from app.services.texto.texto import solo_metadatos_texto
+            return solo_metadatos_texto(entrada, salida, job_id, formato)
         from app.services.image.imagen import solo_metadatos_imagen
         return solo_metadatos_imagen(entrada, salida, formato, job_id)
 
@@ -85,7 +105,7 @@ def procesar(formato: str, tratamiento: str, entrada: Path, salida: Path, job_id
 
     if formato == "pdf":
         return _pdf(entrada, salida)
-    if formato in ("docx", "xlsx"):
+    if formato in ("docx", "xlsx", "txt", "md"):
         from app.services.office.docx import anonimizar_docx
         from app.services.office.xlsx import anonimizar_xlsx
 
@@ -93,9 +113,14 @@ def procesar(formato: str, tratamiento: str, entrada: Path, salida: Path, job_id
         analyzer = base.with_disabled_types(disabled) if disabled else base
         from app.services.layout.zone_config import ALL_PII_TYPES
 
-        anonimizar = anonimizar_docx if formato == "docx" else anonimizar_xlsx
-        informe = anonimizar(entrada, salida, analyzer,
-                             lambda e, s, f: anonimizar_imagen(e, s, f, _pdf), job_id, mode)
+        if formato in ("txt", "md"):
+            from app.services.texto.texto import anonimizar_texto
+
+            informe = anonimizar_texto(entrada, salida, analyzer, job_id, mode, formato)
+        else:
+            anonimizar = anonimizar_docx if formato == "docx" else anonimizar_xlsx
+            informe = anonimizar(entrada, salida, analyzer,
+                                 lambda e, s, f: anonimizar_imagen(e, s, f, _pdf), job_id, mode)
         informe.entity_types_applied = sorted(t for t in ALL_PII_TYPES if t not in disabled)
         informe.entity_types_disabled = sorted(disabled)
         return informe

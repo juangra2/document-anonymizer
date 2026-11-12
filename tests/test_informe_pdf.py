@@ -199,3 +199,21 @@ def test_un_excel_lista_las_columnas_sustituidas():
     assert "libro de Excel" in texto and "Columnas sustituidas" in texto
     assert "Solicitantes" in texto and "DNI / NIF" in texto and "Tablas dinámicas" in texto
     assert "En qué páginas" not in texto
+
+
+@pytest.mark.parametrize("tipo,unidad", [("txt", "documento de texto"), ("md", "documento Markdown")])
+def test_un_texto_dice_que_es_y_en_que_codificacion_se_leyo(tipo, unidad):
+    informe = _informe(document_type=tipo, pages=1, entities_by_page={},
+                       pages_redacted_in_full=[], pages_redacted_by_content=[],
+                       text_encoding="cp1252", metadata_removed={})
+    texto = " ".join(_texto(generar_informe_pdf(informe, FECHA)).split())
+    assert unidad in texto and "Windows-1252" in texto and "En qué páginas" not in texto
+
+
+def test_un_texto_solo_metadatos_dice_que_sale_igual():
+    informe = _informe(document_type="txt", pages=1, entities_by_page={}, treatment="metadata_only",
+                       pages_redacted_in_full=[], pages_redacted_by_content=[], metadata_removed={},
+                       coded_warnings=[CodedWarning(code="content_not_reviewed"),
+                                       CodedWarning(code="format_without_metadata")])
+    texto = " ".join(_texto(generar_informe_pdf(informe, FECHA)).split())
+    assert "no tiene metadatos" in texto and "sale igual" in texto

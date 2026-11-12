@@ -13,7 +13,7 @@ def test_rejects_non_pdf_file():
     response = client.post(
         "/anonymize",
         files={
-            "file": ("not_a_pdf.txt", BytesIO(b"hello world"), "text/plain")
+            "file": ("not_a_pdf.gif", BytesIO(b"GIF89a"), "image/gif")
         },
     )
 

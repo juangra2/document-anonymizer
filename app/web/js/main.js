@@ -295,6 +295,10 @@ function añadirFicheros(ficheros) {
   pintarTodo();
 }
 
+// Lo que se admite, por la extension del nombre (el servidor decide despues
+// por el contenido; el texto, que no lleva marca, por la extension).
+const EXTENSIONES = /\.(pdf|jpe?g|png|tiff?|docx|xlsx|txt|md|markdown)$/i;
+
 /** Lo que se puede rechazar sin molestar al servidor: tipo y tamaño. */
 function validarEnLocal(fichero) {
   // Un Word o Excel antiguo se reconoce aqui mismo, para decir que hay que
@@ -306,7 +310,7 @@ function validarEnLocal(fichero) {
     ["application/pdf", "image/jpeg", "image/png", "image/tiff",
      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"].includes(fichero.type) ||
-    /\.(pdf|jpe?g|png|tiff?|docx|xlsx)$/i.test(fichero.name);
+    EXTENSIONES.test(fichero.name);
   if (!admitido) return { codigo: "noEsPdf", datos: {} };
 
   const mb = fichero.size / (1024 * 1024);
@@ -392,7 +396,7 @@ async function recuperarRecordados() {
 // Color de la banda por tipo de fichero; gris si ha fallado.  Todos con el
 // texto blanco por encima de 4,5:1 (contraste AA para texto pequeño): el rojo
 // claro de antes daba 3,7:1.
-const BANDAS = { docx: "#2B579A", xlsx: "#1D6F42" };
+const BANDAS = { docx: "#2B579A", xlsx: "#1D6F42", txt: "#6A4C93", md: "#6A4C93", markdown: "#6A4C93" };
 const BANDA_PDF = "#C0392B";
 const BANDA_FALLIDO = "#5F6B7A";
 
@@ -677,6 +681,10 @@ function filaDocumento(documento) {
         resultado.pages,
         resultado.pages_total_original,
       );
+    } else if (resultado?.treatment === "metadata_only" &&
+               ["txt", "md"].includes(resultado?.document_type)) {
+      linea.classList.add("part");
+      linea.textContent = T.documento.sinMetadatos;
     } else if (resultado?.treatment === "metadata_only") {
       linea.classList.add("part");
       linea.textContent = T.documento.soloMetadatos(resultado.pages ?? 0);
@@ -852,25 +860,25 @@ function acciones(documento, parcial) {
 // El nombre del fichero solo existe en el navegador: el informe por dentro no
 // lo lleva.
 function nombreInformePdf(documento) {
-  const base = documento.nombre ? documento.nombre.replace(/\.(pdf|jpe?g|png|tiff?|docx|xlsx)$/i, "") : "documento";
+  const base = documento.nombre ? documento.nombre.replace(EXTENSIONES, "") : "documento";
   return `${base}_informe.pdf`;
 }
 
 function nombreInforme(documento) {
   const base = documento.nombre
-    ? documento.nombre.replace(/\.(pdf|jpe?g|png|tiff?|docx|xlsx)$/i, "")
+    ? documento.nombre.replace(EXTENSIONES, "")
     : "documento";
   return `${base}_informe.json`;
 }
 
 // Una imagen sale en su formato: la descarga conserva su extension.
 function extensionDe(documento) {
-  const m = documento.nombre.match(/\.(pdf|jpe?g|png|tiff?|docx|xlsx)$/i);
+  const m = documento.nombre.match(EXTENSIONES);
   return m ? m[1].toLowerCase() : "pdf";
 }
 
 function nombreDescarga(documento, parcial) {
-  const base = documento.nombre.replace(/\.(pdf|jpe?g|png|tiff?|docx|xlsx)$/i, "");
+  const base = documento.nombre.replace(EXTENSIONES, "");
   const ext = extensionDe(documento);
   if (documento.trabajo?.result?.treatment === "metadata_only") {
     return `${base}_sin_metadatos.${ext}`;
