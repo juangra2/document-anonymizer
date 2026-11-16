@@ -9,7 +9,8 @@ libre (observaciones) con datos dentro; y lo que un Excel guarda aparte de lo
 que se ve: hojas ocultas, comentarios, formulas que copian un dato, nombres
 definidos con un valor y propiedades del documento.  Importes de personas
 (MONEY) con sus totales, y un presupuesto de obra: con las casillas por defecto
-no se toca nada; con la de presupuesto marcada, sus precios se sustituyen.
+(la de presupuesto viene marcada) sus precios se sustituyen; con ella
+desmarcada, no se toca nada.
 
 Etiqueta de cada libro (etiquetas.json):
   datos      valores que no pueden quedar en NINGUNA parte del fichero

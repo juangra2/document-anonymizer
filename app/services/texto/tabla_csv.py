@@ -14,7 +14,9 @@ de la hoja, la ficha en vertical, la clasificacion de cada columna por su
 cabecera o por su contenido, la cuenta repartida, los importes de personas y
 el presupuesto de obra, y las casillas desmarcadas.  Una columna personal pasa
 entera al marcador de su tipo; una de texto libre, o una celda larga suelta,
-se analiza y solo cambia el dato.  En un CSV no hay formulas: un campo que
+se analiza y solo cambia el dato.  Una fecha o una direccion web en una
+columna que no es personal se sustituye si su casilla esta marcada, como en el
+Excel (xlsx.fechas_y_webs).  En un CSV no hay formulas: un campo que
 empieza por "=" es texto y se escribe tal cual, sin interpretarlo.
 
 Escritura: se sustituye sobre el texto original, campo a campo; lo que no
@@ -171,6 +173,11 @@ def _segunda_opinion(filas: list[list[str]], analyzer, mode: str) -> Counter:
     return cuenta
 
 
+def _desmarcada(desmarcadas: set, f: int, col: int) -> bool:
+    return (NOMBRE_HOJA, "fila", f) in desmarcadas or any(
+        cc == col and cab < f <= fin for _, cc, cab, fin in desmarcadas if cc != "fila")
+
+
 def comprobar_csv(ruta: Path) -> None:
     """Al subirlo: demasiadas celdas para tratarlo de una vez."""
     _, filas = leer_csv(leer(Path(ruta).read_bytes()).texto)
@@ -196,10 +203,13 @@ def anonimizar_csv(entrada: Path, salida: Path, analyzer, job_id: str, mode: str
     columnas_info: list[dict] = []
     info_de: dict = {}
     cabeceras = {0}
+    desmarcadas: set = set()
     vertical = xlsx._ficha_vertical(hoja)
     if vertical:
         for f, (tipo, rotulo) in vertical.items():
-            if tipo not in analyzer.disabled_types:
+            if tipo in analyzer.disabled_types:
+                desmarcadas.add((NOMBRE_HOJA, "fila", f))
+            else:
                 por_filas[f] = tipo
                 if tipo not in info_de:
                     info_de[tipo] = {"sheet": NOMBRE_HOJA, "header": rotulo, "type": tipo, "cells": 0}
@@ -212,7 +222,8 @@ def anonimizar_csv(entrada: Path, salida: Path, analyzer, job_id: str, mode: str
         cabeceras = {cab for cab, _ in tramos}
         for cab, fin in tramos:
             plazo.comprobar()
-            xlsx._clasificar_tabla(hoja, cab, fin, por_columna, analyzer, personales, info_de, columnas_info)
+            xlsx._clasificar_tabla(hoja, cab, fin, por_columna, analyzer, personales, info_de, columnas_info,
+                                   desmarcadas)
 
     # Sustituir: el valor nuevo de cada campo que cambia.
     tipos: Counter = Counter()
@@ -222,14 +233,13 @@ def anonimizar_csv(entrada: Path, salida: Path, analyzer, job_id: str, mode: str
         if n % 2000 == 0:
             plazo.comprobar()
         valor = c.valor
-        if vertical:
-            if col > 1 and f in por_filas:
-                tipo = por_filas[f]
-                if not re.fullmatch(r"\d{1,5}", valor.strip()):
-                    quitados.add(valor)
-                nuevos[(f, col)] = marcador(tipo)
-                tipos[tipo] += 1
-                info_de[tipo]["cells"] += 1
+        if vertical and col > 1 and f in por_filas:
+            tipo = por_filas[f]
+            if not re.fullmatch(r"\d{1,5}", valor.strip()):
+                quitados.add(valor)
+            nuevos[(f, col)] = marcador(tipo)
+            tipos[tipo] += 1
+            info_de[tipo]["cells"] += 1
             continue
         if f in cabeceras or f <= min(cabeceras):
             continue
@@ -242,6 +252,12 @@ def anonimizar_csv(entrada: Path, salida: Path, analyzer, job_id: str, mode: str
             info_de[(NOMBRE_HOJA, col, cab)]["cells"] += 1
         elif hoja.es_texto(c) and (tipo == xlsx.TEXTO_LIBRE or (len(valor) >= 25 and " " in valor)):
             cambiado = xlsx._sustituir_en_texto(valor, analyzer, mode, tipos)
+            if cambiado != valor:
+                quitados.add(valor)
+                nuevos[(f, col)] = cambiado
+        elif not tipo and not _desmarcada(desmarcadas, f, col):
+            # Una fecha o una direccion web en una columna que no es personal.
+            cambiado = xlsx.fechas_y_webs(valor, analyzer, mode, tipos)
             if cambiado != valor:
                 quitados.add(valor)
                 nuevos[(f, col)] = cambiado

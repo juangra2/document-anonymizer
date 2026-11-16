@@ -25,8 +25,13 @@ Por hoja:
      no son el dato de nadie, y se escriben con su valor, porque las celdas
      que sumaban ya llevan el marcador.  A todas se les quita el valor
      guardado (puede llevar el dato) y el libro se recalcula al abrirse.
+  6. Fechas y direcciones web en una columna que no es personal (una "Fecha
+     de entrada", un "Enlace"): se sustituyen si su casilla esta marcada, como
+     en PDF, Word y texto, donde ya se tachan todas.  Una fecha guardada como
+     fecha (numero con formato de fecha) pasa a "[FECHA]"; una escrita como
+     texto o una direccion, se buscan con el analizador.
 Una columna cuyo tipo tiene la casilla desmarcada se queda como esta, con sus
-formulas.
+formulas (tambien sus fechas: no pasan a "[FECHA]" por la puerta de atras).
 Las hojas ocultas se tratan igual que las visibles.
 
 Lo que un Excel guarda aparte: fuera comentarios (tambien los encadenados y
@@ -90,8 +95,10 @@ CABECERAS: list[tuple[str, list[str]]] = [
     ("ES_NSS", ["seguridad social", "seguretat social", "nss", "naf"]),
     ("PASSPORT", ["pasaporte", "passaport"]),
     ("PHONE_NUMBER", ["telefono", "telefon", "tel", "tlf", "movil", "mobil"]),
-    ("EMAIL_ADDRESS", ["correo", "correu", "email", "e mail", "mail"]),
-    ("IBAN_CODE", ["iban", "cuenta bancaria", "compte bancari", "ccc", "cuenta corriente"]),
+    # "Adreça electrònica" es el correo: va antes que la direccion ("adreca").
+    ("EMAIL_ADDRESS", ["correo", "correu", "email", "e mail", "mail", "adreca electronica",
+                       "direccion electronica", "direccio electronica"]),
+    ("IBAN_CODE", ["iban", "cuenta bancaria", "compte bancari", "ccc", "cuenta corriente", "compte corrent"]),
     ("ADDRESS", ["domicilio", "direccion", "domicili", "adreca", "direccio"]),
     ("POSTAL_CODE", ["codigo postal", "codi postal", "cp"]),
     ("LICENSE_PLATE", ["matricula"]),
@@ -99,9 +106,11 @@ CABECERAS: list[tuple[str, list[str]]] = [
                    "descripcion", "descripcio", "motivo", "motiu", "asunto", "assumpte", "detalle",
                    "incidencias", "incidencies"]),
     ("PERSON", ["nombre", "nombres", "apellidos", "apellido", "nom", "cognoms", "cognom", "persona",
-                "interesado", "interesada", "interessat", "solicitante", "sollicitant", "titular",
+                "interesado", "interesada", "interessat", "interessada", "solicitante", "sollicitant",
+                "sol licitant", "titular",
                 "beneficiario", "beneficiaria", "beneficiari", "responsable", "alumno", "alumna", "alumne",
-                "inscrito", "inscrita", "firmante", "socio", "socia", "soci", "representante",
+                "inscrito", "inscrita", "inscrit", "firmante", "signant", "socio", "socia", "soci",
+                "representante",
                 "representant"]),
 ]
 
@@ -605,6 +614,63 @@ def spans_de(texto: str, analyzer, mode: str) -> list[tuple[int, int, str]]:
     return limpios
 
 
+#: Fechas y direcciones web sueltas, en columnas que no son personales.
+_PARECE_FECHA = re.compile(r"\b\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b"
+                           r"|\b\d{1,2} d[e']\s?[^\W\d_]+ (?:de |del )?\d{4}\b", re.I)
+_PARECE_WEB = re.compile(r"https?://|\bwww\.", re.I)
+_SUELTOS = ("DATE_TIME", "DATE_OF_BIRTH", "URL")
+#: Formatos de numero de Excel que son fechas (los de solo hora no).
+_FORMATOS_FECHA = set(range(14, 18)) | {22} | set(range(27, 37)) | set(range(50, 59))
+
+
+def fechas_y_webs(texto: str, analyzer, mode: str, tipos: Counter) -> str:
+    """Las fechas y las direcciones web de una celda que no es de una columna
+    personal, cambiadas por su marcador (si su casilla esta marcada).  Solo se
+    llama al analizador si la celda parece llevar una."""
+    if not texto or not (_PARECE_FECHA.search(texto) or _PARECE_WEB.search(texto)):
+        return texto
+    for a, b, tipo in reversed(spans_de(texto, analyzer, mode)):
+        if tipo in _SUELTOS:
+            if tipo == "URL":
+                b = _borde_de_web(texto, a, b)
+            texto = texto[:a] + marcador(tipo) + texto[b:]
+            tipos[tipo] += 1
+    return texto
+
+
+def _borde_de_web(texto: str, a: int, b: int) -> int:
+    """Donde acaba de verdad una direccion web: con sus parentesis
+    ("...?id=(3)"), pero sin las comillas, el parentesis o el punto que la
+    rodean ('=HYPERLINK("https://...")', "(https://...).")."""
+    while b < len(texto) and texto[b] == "(":
+        cierre = texto.find(")", b)
+        if cierre < 0 or any(ch.isspace() or ch == '"' for ch in texto[b:cierre]):
+            break
+        b = cierre + 1
+    while b > a and (texto[b - 1] in "\"'>,.;:!?]" or
+                     (texto[b - 1] == ")" and texto[a:b].count("(") < texto[a:b].count(")"))):
+        b -= 1
+    return b
+
+
+def estilos_de_fecha(paq: Paquete) -> set[int]:
+    """Indices de estilo de celda (atributo s) cuyo formato de numero es una fecha."""
+    estilos = paq.xml("xl/styles.xml")
+    if estilos is None:
+        return set()
+    propios = {}
+    for nf in estilos.iter(s("numFmt")):
+        codigo = re.sub(r'"[^"]*"|\[[^\]]*\]|\\.', "", nf.get("formatCode") or "")
+        propios[int(nf.get("numFmtId", "-1"))] = bool(re.search(r"[dy]", codigo, re.I))
+    xfs = estilos.find(s("cellXfs"))
+    salida = set()
+    for i, xf in enumerate(xfs.findall(s("xf")) if xfs is not None else []):
+        n = int(xf.get("numFmtId", "0"))
+        if n in _FORMATOS_FECHA or propios.get(n):
+            salida.add(i)
+    return salida
+
+
 def _sustituir_en_texto(texto: str, analyzer, mode: str, tipos: Counter) -> str:
     for a, b, tipo in reversed(spans_de(texto, analyzer, mode)):
         texto = texto[:a] + marcador(tipo) + texto[b:]
@@ -667,9 +733,10 @@ def _compartidas_usadas(paq: Paquete, hojas: list[Hoja]) -> None:
 
 
 def _clasificar_tabla(hoja: Hoja, cab: int, fin: int, por_columna, analyzer, personales, info_de,
-                      columnas_info) -> None:
+                      columnas_info, desmarcadas: set | None = None) -> None:
     """Clasifica las columnas de la tabla de *hoja* con la cabecera en la fila
-    *cab* y la ultima fila en *fin* (ver _tablas)."""
+    *cab* y la ultima fila en *fin* (ver _tablas).  En *desmarcadas* deja las
+    (hoja, columna, cabecera, ultima fila) de un tipo con la casilla desmarcada."""
     clasificadas, importes = {}, []
     for col in sorted(por_columna):
         celda_cab = hoja.celdas.get((cab, col)) if cab else None
@@ -703,6 +770,8 @@ def _clasificar_tabla(hoja: Hoja, cab: int, fin: int, por_columna, analyzer, per
     for col, (tipo, cabecera) in sorted(clasificadas.items()):
         if tipo in analyzer.disabled_types:
             # Casilla desmarcada: la columna se queda, y sus formulas tambien.
+            if desmarcadas is not None:
+                desmarcadas.add((hoja.nombre, col, cab, fin))
             continue
         personales.setdefault((hoja.nombre, col), []).append((tipo, cab, fin))
         if tipo != TEXTO_LIBRE:
@@ -757,6 +826,7 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
     personales: dict[tuple[str, int], list[tuple[str, int, int]]] = {}
     cabeceras: dict[str, set[int]] = {}                            # filas de cabecera de cada hoja
     por_filas: dict[tuple[str, int], str] = {}                     # (hoja, fila) -> tipo (ficha vertical)
+    desmarcadas: set = set()               # columnas (y filas de ficha) de un tipo desmarcado
     columnas_info = []
     info_de: dict[tuple, dict] = {}            # (hoja, col) o (hoja, tipo de fila) -> su entrada
     for hoja in hojas:
@@ -764,6 +834,8 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
         vertical = _ficha_vertical(hoja)
         if vertical:
             for f, (tipo, rotulo) in vertical.items():
+                if tipo in analyzer.disabled_types:
+                    desmarcadas.add((hoja.nombre, "fila", f))
                 if tipo not in analyzer.disabled_types:
                     por_filas[(hoja.nombre, f)] = tipo
                     if (hoja.nombre, tipo) not in info_de:
@@ -779,10 +851,18 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
         tramos = _tablas(hoja, _fila_cabecera(hoja))
         cabeceras[hoja.nombre] = {cab for cab, _ in tramos}
         for cab, fin in tramos:
-            _clasificar_tabla(hoja, cab, fin, por_columna, analyzer, personales, info_de, columnas_info)
+            _clasificar_tabla(hoja, cab, fin, por_columna, analyzer, personales, info_de, columnas_info,
+                              desmarcadas)
 
     # Sustituir.
     valores_quitados: set[str] = set()
+    de_fecha = estilos_de_fecha(paq)
+    fechas = "DATE_TIME" not in analyzer.disabled_types
+
+    def desmarcada(hoja: Hoja, f: int, col: int) -> bool:
+        return (hoja.nombre, "fila", f) in desmarcadas or any(
+            n == hoja.nombre and cc == col and cab < f <= fin for n, cc, cab, fin in desmarcadas
+            if cc != "fila")
     for hoja in hojas:
         for n, ((f, col), c) in enumerate(hoja.celdas.items()):
             if n % 2000 == 0:
@@ -814,6 +894,16 @@ def anonimizar_xlsx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
                 if nuevo != texto:
                     valores_quitados.add(texto)
                     _poner_texto(c, nuevo)
+            elif not tipo and texto and c.find(s("f")) is None and not desmarcada(hoja, f, col):
+                # Una fecha o una direccion web en una columna que no es personal.
+                if hoja.es_texto(c):
+                    nuevo = fechas_y_webs(texto, analyzer, mode, tipos)
+                    if nuevo != texto:
+                        valores_quitados.add(texto)
+                        _poner_texto(c, nuevo)
+                elif fechas and c.get("s") and int(c.get("s")) in de_fecha:
+                    _poner_texto(c, marcador("DATE_TIME"))
+                    tipos["DATE_TIME"] += 1
 
     # Formulas: las que traen un dato personal pasan a ser el marcador; a todas
     # se les quita el valor guardado.

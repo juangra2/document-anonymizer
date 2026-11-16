@@ -259,9 +259,20 @@ marcador del tipo, como en Word; no se borran columnas.
   tiene alguna columna personal, y `BUDGET_AMOUNT` si la hoja es un presupuesto de obra (las palabras
   de `analyzer._BUDGET_VETO_RE` o una columna «Partida»). Sin personas ni presupuesto (una
   estadística por distritos), no se toca.
+- **Fechas y direcciones web en columnas no personales** (decisión del 16-11, igual en CSV): una
+  «Fecha de entrada» o un «Enlace» se sustituyen si su casilla está marcada, como en PDF, Word y
+  texto. Una fecha guardada como fecha (número con un formato de fecha: `xlsx.estilos_de_fecha` lee
+  `xl/styles.xml`) pasa a `[FECHA]`; una escrita como texto, o una dirección, se buscan con el
+  analizador solo si la celda lo parece (`xlsx.fechas_y_webs`). La dirección no se lleva las
+  comillas ni el paréntesis que la rodean (`=HYPERLINK("[WEB]")`). Una columna de un tipo
+  desmarcado («Fecha de nacimiento» desmarcada) no pasa a `[FECHA]` por la puerta de atrás.
+- **Cabeceras en valenciano** (16-11): «Adreça electrònica» y «Direcció/Dirección electrónica» son
+  correo (antes, por «adreça», dirección); «Sol·licitant» (el punto volat partía la palabra),
+  «Interessada», «Inscrit», «Signant» son personas; «Compte corrent», cuenta.
 - **Casillas**: una columna cuyo tipo viene desmarcado no se sustituye, ni las fórmulas que la
   copian; el texto libre usa el analizador con las mismas casillas. Con las del catálogo, un
-  presupuesto queda intacto.
+  presupuesto se sustituye (la casilla de presupuesto viene marcada, decisión del 03-11); con
+  ella desmarcada, queda intacto.
 - **Fórmulas**: la que trae un dato de una columna personal (`=A2`, `=LEFT(A2,1)`, `=MAX(C2:C9)`…)
   pasa a ser el marcador; las que solo cuentan (`COUNTA`, `ROWS`…) se quedan. `SUM` y `AVERAGE` de dos
   o más importes `MONEY` se quedan escritas con su valor (`=2748.3`), calculado con los importes de
@@ -800,13 +811,13 @@ ayudas con importes, presupuesto de obra con la casilla marcada y desmarcada, es
 personas, exportación con tabuladores, comas con todo entre comillas, campos que empiezan por «=»).
 Mide que ningún dato queda, que cada columna personal lleva su marcador y las demás no cambian, que
 el texto legítimo se conserva, que la forma es la misma (codificación, BOM, saltos, separador,
-registros y campos) y que un fichero sin datos sale idéntico. Medición del 16-11: 194/194 datos
-eliminados, 0 fugas, 85/85 textos legítimos, 13/13 con la misma forma, 2/2 sin datos idénticos, 48/49
-columnas: «Adreça electrònica» se clasifica como dirección (la lista de cabeceras del Excel ve
-«adreça»), así que el correo sale como `[DIRECCIÓN]`, sin fuga. 3 ficheros piden revisión manual:
-la segunda opinión lee fechas y direcciones web en columnas que no son personales («Fecha de
-entrada», «Fecha de alta», «Enlace»); en un Excel esas fechas suelen ir como número de fecha y no
-saltan.
+registros y campos) y que un fichero sin datos sale idéntico. Medición del 16-11, ya con las fechas
+y direcciones de columnas no personales sustituidas y las cabeceras en valenciano: 194/194 datos
+eliminados, 0 fugas, 85/85 textos legítimos, 13/13 con la misma forma, 2/2 sin datos idénticos,
+49/49 columnas, ninguno a revisión manual. (Antes de esos dos cambios: 48/49 columnas, por
+«Adreça electrònica», y 3 a revisión manual por fechas y direcciones en columnas no personales.)
+El Excel, medido con los mismos cambios: corpus normal y difícil sin cambios (0 fugas, 32/32
+columnas personales, 18/18 no personales intactas, 88/88 textos; difícil 29/29).
 
 **Corpus de Excel** (`evaluation/corpus_excel.py` y `evaluation/lectura_excel.py`): 10 libros
 inventados (listado de solicitantes, inscritos en valenciano con título y cabecera en la fila 3,

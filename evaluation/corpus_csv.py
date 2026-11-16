@@ -112,7 +112,8 @@ def con_observaciones() -> dict:
     return {"nombre": "con_observaciones", "texto": _csv(filas), "codificacion": "cp1252",
             "datos": [_d(ps[0]["completo"], "PERSON"), _d(ps[0]["telefono"], "PHONE_NUMBER"),
                       _d(ps[1]["completo"], "PERSON"), _d(ps[1]["dni"], "ES_DNI")],
-            "columnas": {"Fecha de entrada": None},
+            # Fechas en una columna no personal: se sustituyen (casilla de FECHA marcada).
+            "columnas": {"Fecha de entrada": "DATE_TIME"},
             "legitimos": cab + ["Sin incidencias en la tramitación del expediente de vado.",
                                 "Pendiente de recibir el informe de la policía local.",
                                 'dice ""urgente""', "Documentación completa.\nRevisado por el técnico el día 3."]}
@@ -194,7 +195,7 @@ def exportacion_tabuladores() -> dict:
             "datos": [_d(f"{p['apellidos']}, {p['nombre']}", "PERSON") for p in ps]
             + [_d(p[c], t) for p in ps for c, t in (("dni", "ES_DNI"), ("direccion", "ADDRESS"))],
             "columnas": {"Apellidos y nombre": "PERSON", "NIF": "ES_DNI", "Domicilio": "ADDRESS",
-                         "Fecha de alta": None},
+                         "Fecha de alta": "DATE_TIME"},
             "legitimos": cab}
 
 
@@ -219,7 +220,8 @@ def campos_con_igual() -> dict:
     return {"nombre": "campos_con_igual", "texto": _csv(filas), "codificacion": "utf-8",
             "datos": [_d(p[c], t) for p in ps for c, t in (("completo", "PERSON"), ("dni", "ES_DNI"))],
             "columnas": {"Nombre": "PERSON", "DNI": "ES_DNI", "Cálculo": None},
-            "legitimos": ["=1+1", '"=HYPERLINK(""https://sede.example.es/exp/0"")"']}
+            # La direccion web se sustituye (casilla de WEB marcada); la formula, como texto, se queda.
+            "legitimos": ["=1+1", '"=HYPERLINK(""[WEB]"")"']}
 
 
 def corpus() -> list[dict]:
