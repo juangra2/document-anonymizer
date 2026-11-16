@@ -43,6 +43,16 @@ SUPPORTED_LANGUAGES = ["es"]
 RedactionMode = Literal["strict"]
 
 
+#: Donde acaba un nombre que sigue a un rotulo ("Solicitante: Teresa Navarro Gil,
+#: con DNI ..."): en una coma seguida de minuscula (", con DNI", ", mayor de
+#: edad"), antes de "con DNI/NIF/NIE/domicilio", o en el punto final (no en el
+#: de una abreviatura: "S.A.", "C.B.").  "Navarro Gil, Teresa" no se corta: tras
+#: la coma va mayuscula.
+_FIN_DE_NOMBRE = re.compile(
+    r",[^\S\r\n]+(?=[a-zà-ÿ])"
+    r"|[^\S\r\n]+(?:[Cc]on|[Aa]mb|[Pp]rovist[oa])[^\S\r\n]+(?:DNI|NIF|NIE|D\.N\.I\.|N\.I\.F\.|[Dd]omicili[o]?)\b"
+    r"|(?<=[^\W\d_]{2})[.;][^\S\r\n]*$")
+
 LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
     (
         "PERSON",
@@ -56,8 +66,11 @@ LABELED_FIELD_PATTERNS: list[tuple[str, str]] = [
         # prose ("el beneficiario podrá…").  The value is the following
         # uppercase run, stopping before the next known financial label.
         # Always redacted (company names included) — party identity is PII here.
+        # "BENEFICIARIOS" suelto (un titulo: "LISTADO DE BENEFICIARIOS - ...") no
+        # es el rotulo: la S del plural no es la inicial de un nombre pegado
+        # (que si lo es en "BENEFICIARIOSANCHEZ...").
         "PERSON",
-        r"(?:ORDENANTE|BENEFICIARIO)[^\S\r\n]*"
+        r"(?:ORDENANTE|BENEFICIARIO)(?!S(?![A-ZÁÉÍÓÚÑÜ]))[^\S\r\n]*"
         r"(?P<value>[A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ .,\-&/]{3,60}?)"
         r"[^\S\r\n]*(?=ORDENANTE|BENEFICIARIO|ENTIDAD|BANCO|IMPORTE|TIPO|MONEDA|"
         r"REFERENCIA|CONCEPTO|FECHA|CUENTA|IBAN|SWIFT|TOTAL|\r|\n|$)",
@@ -1966,6 +1979,15 @@ class PiiAnalyzer:
                         elif _NIE_FULL_RE.fullmatch(v):
                             emit_type = "ES_NIE"
 
+                    if emit_type == "PERSON":
+                        corte = _FIN_DE_NOMBRE.search(value)
+                        if corte:
+                            trimmed = value[:corte.start()].rstrip()
+                            if not trimmed:
+                                continue
+                            value = trimmed
+                            span = (span[0], span[0] + len(trimmed))
+
                     # Trim compact identifiers at the first comma/semicolon: their
                     # formats never contain one, so anything after it is run-on
                     # prose absorbed when reflow merged a wrapped line.
@@ -2195,6 +2217,21 @@ class PiiAnalyzer:
                     # Palabra minúscula inmediatamente anterior al candidato.
                     prefix = text[:sub[0].start()].rstrip()
                     prev_word = prefix.rsplit(None, 1)[-1].lower() if prefix else ""
+                    fin = sub[-1].end()
+                    if span_text.upper() == span_text:
+                        # En mayusculas no hay inicial que delate un nombre:
+                        # "AYUDA AL ALQUILER" tiene un apellido (AYUDA) y un
+                        # nombre (AL).  Hace falta un nombre de pila de 3 letras
+                        # o mas, o, si son solo apellidos, el nombre tras una
+                        # coma ("NAVARRO GIL, TERESA").
+                        pila = any(len(t) >= 3 and t in gazetteer.given_names()
+                                   and t not in PiiAnalyzer._COMMON_WORD_NAMES for t in subn)
+                        if not pila:
+                            detras = re.match(r",[^\S\r\n]*([A-ZÁÉÍÓÚÑÜÀÈÒÏÇ]{3,})\b", text[fin:])
+                            if detras and gazetteer.normalize(detras.group(1)) in gazetteer.given_names():
+                                fin += detras.end()
+                            else:
+                                strong_hit = False
                     if (
                         ine_hits >= 2
                         and has_surname
@@ -2209,7 +2246,7 @@ class PiiAnalyzer:
                         entities.append(PiiEntity(
                             entity_type="PERSON",
                             start=sub[0].start(),
-                            end=sub[-1].end(),
+                            end=fin,
                             score=0.85,
                             source="gazetteer_person",
                         ))
