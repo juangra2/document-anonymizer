@@ -53,8 +53,19 @@ def _seudonimizar(nombre: str = "carta.txt", datos: bytes = ORIGINAL, clave: str
                        data={"password": clave} if clave is not None else {})
 
 
-def test_viene_desactivada():
-    assert settings.pseudonymization_enabled is False
+@pytest.fixture
+def desactivada(monkeypatch):
+    monkeypatch.setattr(settings, "pseudonymization_enabled", False)
+
+
+def test_viene_desactivada_por_defecto():
+    """Lo que dice el codigo, no el .env de este equipo (en local se prueba activada)."""
+    from app.core.config import Settings
+
+    assert Settings.model_fields["pseudonymization_enabled"].default is False
+
+
+def test_desactivada_no_se_puede_usar(desactivada):
     assert client.get("/health").json()["pseudonymization"]["enabled"] is False
     r = _seudonimizar()
     assert r.status_code == 403 and r.json()["detail"]["code"] == "pseudonymization_disabled"

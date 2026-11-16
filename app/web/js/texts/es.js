@@ -85,9 +85,9 @@ export const TEXTOS = {
       "recibes una tabla cifrada para devolver los datos a su sitio en «Recuperar datos».",
     avisoSeudonimizar:
       "Seudonimizar NO es anonimizar. Con la tabla se recuperan los datos, así que el documento " +
-      "con etiquetas sigue conteniendo datos personales: no lo publiques, y trata la tabla y su " +
-      "contraseña como los propios datos. Lo que no se detecte seguirá a la vista: revisa el " +
-      "documento antes de enviarlo a ningún sitio.",
+      "con etiquetas sigue conteniendo datos personales: trata la tabla y su contraseña como " +
+      "los propios datos. Lo que no se detecte seguirá a la vista: revisa el documento antes de " +
+      "enviarlo a ningún sitio.",
     avisoSinHttps:
       "Esta página no usa HTTPS: la contraseña viajará sin cifrar por la red. Avisa a quien " +
       "administra el servicio antes de seudonimizar documentos reales.",
@@ -95,8 +95,11 @@ export const TEXTOS = {
     clave2: "Repite la contraseña",
     claveNota:
       "No se guarda en ningún sitio: si la pierdes, no podrás recuperar los datos.",
-    claveCorta: "La contraseña tiene que tener 12 caracteres o más.",
-    claveDistinta: "Las dos contraseñas no coinciden.",
+    // Se dicen con texto (y un signo), no solo con el color, y los lee el lector de pantalla.
+    claveFaltan: (n) => (n === 1 ? "Falta 1 carácter" : `Faltan ${n} caracteres`),
+    claveLista: "✓ Longitud suficiente",
+    claveCoincide: "✓ Coinciden",
+    claveDistinta: "✗ No coincide con la contraseña",
     noSeudonimizable:
       "No se puede seudonimizar (solo Word, Markdown y texto). Anonimízalo o quita solo sus metadatos.",
     avisoMetadatos:
@@ -193,9 +196,6 @@ export const TEXTOS = {
     descargarParcial: "Descargar parcial",
     documentoConEtiquetas: "Documento con etiquetas",
     tabla: "Tabla para recuperar los datos (cifrada)",
-    copiarInstrucciones: "Copiar instrucciones para el modelo",
-    instruccionesCopiadas: "Copiadas",
-    recuperarDeUnTexto: "Recuperar datos de un texto…",
     informePdf: "Informe en PDF",
     informe: "Informe técnico (JSON)",
     parar: "Parar",
@@ -213,12 +213,6 @@ export const TEXTOS = {
     recuperar: "Recuperar datos",
   },
 
-  // Lo que se copia para pegarlo en la petición al modelo de lenguaje.
-  instruccionesModelo:
-    "El texto lleva etiquetas entre corchetes, como [PERSONA_1] o [DNI_2], en lugar de los " +
-    "datos personales. Mantén cada etiqueta exactamente como está: no las traduzcas, no las " +
-    "cambies, no les quites los corchetes y no inventes etiquetas nuevas.",
-
   recuperar: {
     paso1: "Texto con etiquetas",
     ayuda1:
@@ -230,6 +224,8 @@ export const TEXTOS = {
     paso2: "Tabla",
     ayuda2: "El archivo .tabla que descargaste al seudonimizar el documento.",
     elegirTabla: "Elegir la tabla (.tabla)",
+    quitarTabla: "Quitar la tabla",
+    quitarFichero: "Quitar el archivo",
     tablaElegida: (nombre) => `Tabla: ${nombre}`,
     sinTabla: "Ninguna tabla elegida",
     paso3: "Contraseña",
@@ -276,9 +272,8 @@ export const TEXTOS = {
     content_not_reviewed: () =>
       "Solo se han quitado los metadatos: los datos personales que se ven en el " +
       "documento siguen ahí.",
-    pseudonymized_not_anonymous: () =>
-      "Seudonimizado, no anonimizado: con la tabla se recuperan los datos, así que siguen " +
-      "siendo datos personales. No lo publiques como anonimizado.",
+    // Va en el informe; en la pantalla no se repite: ya lo dice el aviso al elegir seudonimizar.
+    pseudonymized_not_anonymous: () => null,
     password_without_https: () =>
       "La contraseña ha viajado sin cifrar (el servicio no usa HTTPS). Avisa a quien lo administra.",
     format_without_metadata: () =>

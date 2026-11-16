@@ -431,15 +431,33 @@ def flujo_seudonimizar(p, pagina, tmp: Path) -> None:
     pagina.set_input_files("#ficheros", [str(tmp / "nota_s.txt"), str(pdf_simple(tmp / "no_seudo.pdf"))])
     p.comprobar("No se puede seudonimizar" in pagina.locator(".ficha:has-text('no_seudo.pdf') .motivo").inner_text(),
                 "el PDF se marca antes de subir: no se puede seudonimizar")
-    pagina.fill("#clave", "corta")
-    pagina.fill("#clave2", "corta")
-    pagina.click("#anonimizar")
-    p.comprobar("12 caracteres" in pagina.locator("#claveError").inner_text(), "una contrasena corta no pasa")
+    p.comprobar(pagina.locator("#anonimizar").is_disabled()
+                and "Faltan 12 caracteres" in pagina.locator("#claveProgresoTexto").inner_text(),
+                "sin contrasena, el boton esta desactivado y dice que faltan 12 caracteres")
+    pagina.locator("#clave").press_sequentially("corta")
+    barra = pagina.locator("#claveBarra")
+    p.comprobar("Faltan 7 caracteres" in pagina.locator("#claveProgresoTexto").inner_text()
+                and barra.get_attribute("aria-valuenow") == "5" and "lista" not in (barra.get_attribute("class") or "")
+                and "Faltan 7" in (barra.get_attribute("aria-valuetext") or ""),
+                "mientras se escribe, la barra avanza y dice cuantos faltan (tambien para el lector de pantalla)")
+    p.comprobar(pagina.locator("#claveProgresoTexto").get_attribute("aria-live") == "polite"
+                and pagina.locator("#clave2Estado").get_attribute("aria-live") == "polite"
+                and "claveProgresoTexto" in (pagina.locator("#clave").get_attribute("aria-describedby") or ""),
+                "los mensajes de la contrasena se anuncian y van ligados a su campo")
     pagina.fill("#clave", "clave-larga-de-prueba")
-    pagina.fill("#clave2", "clave-larga-de-otra")
-    pagina.click("#anonimizar")
-    p.comprobar("no coinciden" in pagina.locator("#claveError").inner_text(), "dos contrasenas distintas no pasan")
+    p.comprobar("Longitud suficiente" in pagina.locator("#claveProgresoTexto").inner_text()
+                and "lista" in (barra.get_attribute("class") or "") and pagina.locator("#anonimizar").is_disabled(),
+                "al llegar a 12 cambia de aspecto y lo dice; sin repetirla, el boton sigue desactivado")
+    pagina.locator("#clave2").press_sequentially("clave-larga-de-o")
+    p.comprobar("No coincide" in pagina.locator("#clave2Estado").inner_text()
+                and pagina.locator("#clave2").get_attribute("aria-invalid") == "true"
+                and pagina.locator("#anonimizar").is_disabled(),
+                "la repeticion avisa en cuanto no coincide, y el boton sigue desactivado")
     pagina.fill("#clave2", "clave-larga-de-prueba")
+    p.comprobar("Coinciden" in pagina.locator("#clave2Estado").inner_text()
+                and pagina.locator("#clave2").get_attribute("aria-invalid") == "false"
+                and pagina.locator("#anonimizar").is_enabled(),
+                "cuando coinciden lo confirma y el boton se activa")
     with pagina.expect_request("**/jobs*") as peticion:
         pagina.click("#anonimizar")
     p.comprobar("treatment=pseudonymize" in peticion.value.url and "clave-larga" not in peticion.value.url,
@@ -450,11 +468,14 @@ def flujo_seudonimizar(p, pagina, tmp: Path) -> None:
     p.comprobar(pagina.locator(".doc").count() == 1
                 and pagina.locator(".ficha.err:has-text('no_seudo.pdf')").count() == 1,
                 "el PDF se queda rechazado en su ficha y el resto de la tanda sigue")
-    p.comprobar(pagina.locator("#clave").input_value() == "", "la pagina suelta la contrasena al subir")
-    p.comprobar("no anonimizado" in pagina.locator(".doc .note[data-codigo='pseudonymized_not_anonymous']").inner_text(),
-                "el resultado repite que no esta anonimizado")
-    p.captura(pagina, "17-seudonimizado")
+    p.comprobar(pagina.locator("#clave").input_value() == "" and pagina.locator("#anonimizar").is_disabled(),
+                "la pagina suelta la contrasena al subir y el boton vuelve a desactivarse")
     fila = pagina.locator(".doc:has-text('nota_s.txt')")
+    p.comprobar(fila.locator(".note[data-codigo='pseudonymized_not_anonymous']").count() == 0
+                and fila.locator("button:has-text('Copiar instrucciones')").count() == 0
+                and fila.locator("button:has-text('Recuperar datos de un texto')").count() == 0,
+                "el resultado no repite el aviso ni lleva copiar instrucciones ni el atajo a recuperar")
+    p.captura(pagina, "17-seudonimizado")
     with pagina.expect_download(timeout=30000) as descarga:
         fila.locator("a.btn.primary").click()
     p.comprobar(descarga.value.suggested_filename == "nota_s_seudonimizado.txt", "el documento se llama _seudonimizado")
@@ -471,11 +492,30 @@ def flujo_seudonimizar(p, pagina, tmp: Path) -> None:
                 and persona["nombre"].split()[0].encode() not in tabla.read_bytes(),
                 "la tabla se descarga aparte y no lleva ningun dato en claro")
 
-    fila.locator("button:has-text('Recuperar datos de un texto')").click()
-    pagina.wait_for_selector("#vistaRecuperar:not(.hidden)", timeout=30000)
+    pagina.click("#tabRecuperar")
     p.comprobar(pagina.locator("#vistaRecuperar").is_visible() and pagina.locator("#vistaAnonimizar").is_hidden()
-                and "nota_s.tabla" in pagina.locator("#recTablaNombre").inner_text(),
-                "el atajo abre «Recuperar datos» con la tabla ya puesta")
+                and pagina.locator("#recQuitarTabla").is_hidden(),
+                "la pestana «Recuperar datos» se abre sin tabla, y sin X que pulsar")
+    alto = pagina.locator("#recTexto").evaluate("e => { e.style.height = '20px'; return e.getBoundingClientRect().height; }")
+    p.comprobar(alto >= 150, f"el cuadro del texto no encoge por debajo de su altura minima ({alto:.0f} px)")
+    pagina.locator("#recTexto").evaluate("e => { e.style.height = ''; }")
+    pagina.set_input_files("#recTabla", str(tabla))
+    quitar = pagina.locator("#recQuitarTabla")
+    p.comprobar("nota_s.tabla" in pagina.locator("#recTablaNombre").inner_text() and quitar.is_visible()
+                and quitar.get_attribute("aria-label") == "Quitar la tabla",
+                "elegida la tabla, aparece su X con un nombre para el lector de pantalla")
+    quitar.click()
+    p.comprobar("Ninguna tabla" in pagina.locator("#recTablaNombre").inner_text() and quitar.is_hidden(),
+                "la X quita la tabla elegida")
+    pagina.set_input_files("#recTabla", str(tabla))
+    pagina.set_input_files("#recFichero", str(tabla))
+    quitar_fichero = pagina.locator("#recQuitarFichero")
+    p.comprobar(quitar_fichero.is_visible() and pagina.locator("#recTexto").is_hidden()
+                and quitar_fichero.get_attribute("aria-label") == "Quitar el archivo",
+                "elegido un archivo en el paso del texto, tiene tambien su X")
+    quitar_fichero.click()
+    p.comprobar(pagina.locator("#recTexto").is_visible() and pagina.locator("#recFicheroElegido").is_hidden(),
+                "la X quita el archivo y vuelve el cuadro para pegar")
     pagina.fill("#recTexto", "Resumen: [Persona 1] (DNI_1) pide la licencia. Consta también [PERSONA_9].")
     pagina.fill("#recClave", "otra-clave-bien-larga")
     pagina.click("#recLanzar")

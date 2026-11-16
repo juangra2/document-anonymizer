@@ -70,11 +70,18 @@
       <div class="banner down hidden" id="avisoSinHttps"><span class="mark">!</span><span id="avisoSinHttpsTexto"></span></div>
       <div class="claves">
         <label for="clave" id="claveEtiqueta"></label>
-        <input type="password" id="clave" autocomplete="new-password" minlength="12">
+        <input type="password" id="clave" autocomplete="new-password" minlength="12"
+               aria-describedby="claveProgresoTexto claveNota">
+        <div class="clave-medidor">
+          <div class="clave-barra" id="claveBarra" role="progressbar" aria-labelledby="claveEtiqueta"
+               aria-valuemin="0" aria-valuemax="12" aria-valuenow="0"><i id="claveRelleno"></i></div>
+          <span class="clave-estado" id="claveProgresoTexto" aria-live="polite"></span>
+        </div>
         <label for="clave2" id="clave2Etiqueta"></label>
-        <input type="password" id="clave2" autocomplete="new-password" minlength="12">
+        <input type="password" id="clave2" autocomplete="new-password" minlength="12"
+               aria-describedby="clave2Estado">
+        <span class="clave-estado clave2-estado" id="clave2Estado" aria-live="polite"></span>
         <p class="clave-nota" id="claveNota"></p>
-        <p class="clave-error hidden" id="claveError" role="alert"></p>
       </div>
     </div>
     <div class="banner warn hidden" id="avisoMetadatos">
@@ -125,7 +132,7 @@
       <textarea id="recTexto" rows="8"></textarea>
       <div class="rec-fila hidden" id="recFicheroElegido">
         <span id="recFicheroNombre"></span>
-        <button class="btn" id="recQuitarFichero" type="button">&times;</button>
+        <button class="btn quitar" id="recQuitarFichero" type="button">&times;</button>
       </div>
       <div class="rec-fila">
         <button class="btn" id="recElegirFichero" type="button"></button>
@@ -138,6 +145,7 @@
       <div class="rec-fila">
         <button class="btn" id="recElegirTabla" type="button"></button>
         <span id="recTablaNombre"></span>
+        <button class="btn quitar hidden" id="recQuitarTabla" type="button">&times;</button>
         <input type="file" id="recTabla" accept=".tabla" hidden>
       </div>
     </section>

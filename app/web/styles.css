@@ -175,10 +175,19 @@ h2{font-size:15px;font-weight:600;margin:0;letter-spacing:-0.01em}
 .claves input{font:inherit;padding:7px 10px;border:1px solid #C7CDD4;border-radius:6px;min-width:0}
 .claves input:focus-visible,#recTexto:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .clave-nota{grid-column:1/-1;margin:0;font-size:13px;color:var(--muted)}
-.clave-error{grid-column:1/-1;margin:0;font-size:13px;color:var(--danger);font-weight:600}
-@media (max-width:560px){.claves{grid-template-columns:1fr}}
+.clave-medidor,.clave2-estado{grid-column:2;display:flex;align-items:center;gap:10px;margin-top:-2px}
+.clave-barra{flex:none;width:120px;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.clave-barra i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
+.clave-barra.lista i{background:var(--ok)}
+.clave-estado{font-size:13px;color:var(--muted)}
+.clave-estado.ok{color:var(--ok);font-weight:600}
+.clave-estado.mal{color:var(--danger);font-weight:600}
+@media (max-width:560px){.claves{grid-template-columns:1fr}.clave-medidor,.clave2-estado{grid-column:auto}}
+@media (prefers-reduced-motion:reduce){.clave-barra i{transition:none}}
 /* Recuperar datos */
-#recTexto{width:100%;font:inherit;font-size:14px;padding:10px;border:1px solid #C7CDD4;border-radius:var(--radius);resize:vertical}
+/* Se puede agrandar arrastrando la esquina, pero no encoger por debajo de unas ocho líneas. */
+#recTexto{width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:10px;border:1px solid #C7CDD4;border-radius:var(--radius);resize:vertical;min-height:12rem}
+.btn.quitar{padding:2px 10px;font-size:16px;line-height:1.4}
 .rec-fila{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:10px;font-size:14px;color:var(--muted)}
 .rec-resumen{margin:8px 0 0;font-weight:600;color:var(--ok)}
 .rec-resumen.warn{color:var(--warn)}

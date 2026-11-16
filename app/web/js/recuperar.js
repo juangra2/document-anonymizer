@@ -3,9 +3,8 @@
  *
  * Tres pasos, como la pestaña de anonimizar: el texto (pegado o un fichero),
  * la tabla cifrada que se descargó al seudonimizar y la contraseña.  Nada se
- * guarda: ni aquí ni en el servidor.  La tabla puede llegar ya puesta desde el
- * resultado de una seudonimización («Recuperar datos de un texto…»): vive solo
- * en la memoria de esta página.
+ * guarda: ni aquí ni en el servidor.  Lo elegido (archivo, tabla) se puede
+ * quitar con su botón ×.
  */
 import * as api from "./api.js";
 import { frase } from "./errores.js";
@@ -39,9 +38,22 @@ export function iniciar() {
     estado.fichero = e.target.files[0] || null;
     pintar();
   };
+  $("recQuitarFichero").setAttribute("aria-label", R.quitarFichero);
+  $("recQuitarFichero").title = R.quitarFichero;
   $("recQuitarFichero").onclick = () => {
     estado.fichero = null;
+    $("recFichero").value = "";
     pintar();
+    $("recElegirFichero").focus();
+  };
+  $("recQuitarTabla").setAttribute("aria-label", R.quitarTabla);
+  $("recQuitarTabla").title = R.quitarTabla;
+  $("recQuitarTabla").onclick = () => {
+    estado.tabla = null;
+    estado.nombreTabla = "";
+    $("recTabla").value = "";
+    pintar();
+    $("recElegirTabla").focus();
   };
   $("recElegirTabla").onclick = () => {
     $("recTabla").value = "";
@@ -67,8 +79,7 @@ export function iniciar() {
   pintar();
 }
 
-/** La tabla, elegida aquí o traída del resultado de una seudonimización. */
-export function ponerTabla(contenido, nombre) {
+function ponerTabla(contenido, nombre) {
   estado.tabla = contenido;
   estado.nombreTabla = nombre;
   pintar();
@@ -80,6 +91,7 @@ function pintar() {
   $("recFicheroElegido").classList.toggle("hidden", !hayFichero);
   $("recFicheroNombre").textContent = hayFichero ? R.ficheroElegido(estado.fichero.name) : "";
   $("recTablaNombre").textContent = estado.tabla ? R.tablaElegida(estado.nombreTabla) : R.sinTabla;
+  $("recQuitarTabla").classList.toggle("hidden", !estado.tabla);
   const listo =
     (hayFichero || $("recTexto").value.trim()) && estado.tabla && $("recClave").value.length > 0;
   $("recLanzar").disabled = !listo;

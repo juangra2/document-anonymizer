@@ -82,8 +82,8 @@ function conectarEventos() {
   $("tratAnonimizar").onchange = pintarTratamiento;
   $("tratMetadatos").onchange = pintarTratamiento;
   $("tratSeudonimizar").onchange = pintarTratamiento;
-  $("clave").oninput = () => $("claveError").classList.add("hidden");
-  $("clave2").oninput = () => $("claveError").classList.add("hidden");
+  $("clave").oninput = pintarClave;
+  $("clave2").oninput = pintarClave;
   $("tabAnonimizar").onclick = () => verPestana("anonimizar");
   $("tabRecuperar").onclick = () => verPestana("recuperar");
   $("avisoCerrar").onclick = () => $("aviso").classList.add("hidden");
@@ -168,7 +168,8 @@ function pintarServicio() {
 
   const bloqueado = estado.servicio === "caido" || estado.servicio === "sinConexion";
   $("zona").classList.toggle("disabled", bloqueado);
-  $("anonimizar").disabled = bloqueado;
+  estado.bloqueado = bloqueado;
+  pintarBoton();
   $("zonaLimites").textContent = T.paso1.limites(
     MAX_TANDA,
     estado.limites.max_pdf_pages,
@@ -409,26 +410,57 @@ function pintarTratamiento() {
     : seudonimizar() ? T.paso3.seudonimizar : T.paso3.anonimizar;
   // Las fichas dicen ya cuáles no se pueden seudonimizar.
   if (seguimiento.documentos.length) pintarFichas();
+  pintarClave();
 }
 
-/** La contraseña de la tabla, o null (y el motivo en pantalla) si no vale. */
+/** El botón de lanzar: sin servicio no; al seudonimizar, solo con la contraseña bien. */
+function pintarBoton() {
+  $("anonimizar").disabled = Boolean(estado.bloqueado) || (seudonimizar() && contrasenaValida() === null);
+}
+
+/**
+ * La contraseña, comprobada mientras se escribe: una barra que se llena hasta
+ * el mínimo, cuántos caracteres faltan, y si la repetición coincide.  Todo con
+ * texto (y un signo), no solo con color, y en zonas que el lector de pantalla lee.
+ */
+function pintarClave() {
+  const minimo = estado.seudonimizacion.min_password_length || 12;
+  const clave = $("clave").value;
+  const repetida = $("clave2").value;
+  const larga = clave.length >= minimo;
+
+  const barra = $("claveBarra");
+  barra.setAttribute("aria-valuemax", String(minimo));
+  barra.setAttribute("aria-valuenow", String(Math.min(clave.length, minimo)));
+  barra.classList.toggle("lista", larga);
+  $("claveRelleno").style.width = `${Math.min(100, (100 * clave.length) / minimo)}%`;
+  const progreso = $("claveProgresoTexto");
+  progreso.textContent = larga ? T.paso2.claveLista : T.paso2.claveFaltan(minimo - clave.length);
+  progreso.classList.toggle("ok", larga);
+  barra.setAttribute("aria-valuetext", progreso.textContent);
+
+  const estadoRepetida = $("clave2Estado");
+  const coincide = repetida.length > 0 && repetida === clave;
+  const distinta = repetida.length > 0 && repetida !== clave;
+  estadoRepetida.textContent = coincide ? T.paso2.claveCoincide : distinta ? T.paso2.claveDistinta : "";
+  estadoRepetida.classList.toggle("ok", coincide);
+  estadoRepetida.classList.toggle("mal", distinta);
+  $("clave2").setAttribute("aria-invalid", String(distinta));
+  pintarBoton();
+}
+
+/** La contraseña de la tabla, o null si aún no vale (corta o sin repetir igual). */
 function contrasenaValida() {
   const clave = $("clave").value;
-  const error = $("claveError");
   const minimo = estado.seudonimizacion.min_password_length || 12;
-  const motivo =
-    clave.length < minimo ? T.paso2.claveCorta : clave !== $("clave2").value ? T.paso2.claveDistinta : null;
-  error.textContent = motivo || "";
-  error.classList.toggle("hidden", !motivo);
-  if (motivo) $("clave").focus();
-  return motivo ? null : clave;
+  return clave.length >= minimo && clave === $("clave2").value ? clave : null;
 }
 
 async function lanzarTanda() {
   $("anonimizar").disabled = true;
   if (soloMetadatos()) {
     await seguimiento.subirPendientes({ tratamiento: "metadata_only", desactivar: [], activar: [] });
-    $("anonimizar").disabled = false;
+    pintarBoton();
     pintarTodo();
     return;
   }
@@ -436,7 +468,7 @@ async function lanzarTanda() {
   if (seudonimizar()) {
     const contrasena = contrasenaValida();
     if (contrasena === null) {
-      $("anonimizar").disabled = false;
+      pintarBoton();
       return;
     }
     // Los que no se pueden seudonimizar se quedan en su ficha con el motivo;
@@ -465,8 +497,9 @@ async function lanzarTanda() {
     // Ya está en el servidor como clave: la página no la retiene.
     $("clave").value = "";
     $("clave2").value = "";
+    pintarClave();
   }
-  $("anonimizar").disabled = false;
+  pintarBoton();
   pintarTodo();
 }
 
@@ -919,24 +952,6 @@ function acciones(documento, parcial) {
       boton(T.acciones.tabla, "primary", async () => {
         try {
           api.guardar(await api.tablaDelTrabajo(documento.id), `${base}.tabla`);
-        } catch (error) {
-          mostrarAviso(frase(error.codigo, { idTrabajo: documento.id }));
-        }
-      });
-      const copiar = boton(T.acciones.copiarInstrucciones, "", async () => {
-        try {
-          await navigator.clipboard.writeText(T.instruccionesModelo);
-          copiar.textContent = T.acciones.instruccionesCopiadas;
-          setTimeout(() => (copiar.textContent = T.acciones.copiarInstrucciones), 2000);
-        } catch {
-          mostrarAviso({ titulo: T.acciones.copiarInstrucciones, texto: T.instruccionesModelo });
-        }
-      });
-      boton(T.acciones.recuperarDeUnTexto, "", async () => {
-        try {
-          // La tabla pasa a la otra pestaña en memoria: no se guarda en ningún sitio.
-          recuperar.ponerTabla(await api.tablaDelTrabajo(documento.id), `${base}.tabla`);
-          verPestana("recuperar");
         } catch (error) {
           mostrarAviso(frase(error.codigo, { idTrabajo: documento.id }));
         }
