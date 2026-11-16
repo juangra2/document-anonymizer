@@ -318,7 +318,7 @@ function añadirFicheros(ficheros) {
 
 // Lo que se admite, por la extension del nombre (el servidor decide despues
 // por el contenido; el texto, que no lleva marca, por la extension).
-const EXTENSIONES = /\.(pdf|jpe?g|png|tiff?|docx|xlsx|txt|md|markdown)$/i;
+const EXTENSIONES = /\.(pdf|jpe?g|png|tiff?|docx|xlsx|csv|txt|md|markdown)$/i;
 
 /** Lo que se puede rechazar sin molestar al servidor: tipo y tamaño. */
 function validarEnLocal(fichero) {
@@ -526,7 +526,7 @@ async function recuperarRecordados() {
 // Color de la banda por tipo de fichero; gris si ha fallado.  Todos con el
 // texto blanco por encima de 4,5:1 (contraste AA para texto pequeño): el rojo
 // claro de antes daba 3,7:1.
-const BANDAS = { docx: "#2B579A", xlsx: "#1D6F42", txt: "#6A4C93", md: "#6A4C93", markdown: "#6A4C93" };
+const BANDAS = { docx: "#2B579A", xlsx: "#1D6F42", csv: "#1D6F42", txt: "#6A4C93", md: "#6A4C93", markdown: "#6A4C93" };
 const BANDA_PDF = "#C0392B";
 const BANDA_FALLIDO = "#5F6B7A";
 
@@ -824,7 +824,7 @@ function filaDocumento(documento) {
         resultado.entities_redacted ?? 0,
       );
     } else if (resultado?.treatment === "metadata_only" &&
-               ["txt", "md"].includes(resultado?.document_type)) {
+               ["txt", "md", "csv"].includes(resultado?.document_type)) {
       linea.classList.add("part");
       linea.textContent = T.documento.sinMetadatos;
     } else if (resultado?.treatment === "metadata_only") {

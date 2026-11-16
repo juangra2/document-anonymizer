@@ -104,3 +104,6 @@ capturas/
 
 # Salidas de la medicion de seudonimizacion (evaluation/lectura_seudonimo.py)
 evaluation/seudonimo/
+
+# Corpus de CSV y sus salidas: se generan con evaluation/corpus_csv.py
+evaluation/csv/

@@ -31,8 +31,9 @@ FORMATOS = {
     "xlsx": ("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
     "txt": ("txt", "text/plain"),
     "md": ("md", "text/markdown"),
+    "csv": ("csv", "text/csv"),
 }
-_TEXTO = {".txt": "txt", ".md": "md", ".markdown": "md"}
+_TEXTO = {".txt": "txt", ".md": "md", ".markdown": "md", ".csv": "csv"}
 #: Lo que se puede seudonimizar: donde el dato se sustituye por texto.
 SEUDONIMIZABLES = ("docx", "md", "txt")
 
@@ -86,6 +87,10 @@ def comprobar(ruta: Path, formato: str) -> None:
         comprobar_tamano(Paquete.abrir(ruta))
     elif formato in ("txt", "md"):
         return                          # ya se leyo al reconocerlo
+    elif formato == "csv":
+        from app.services.texto.tabla_csv import comprobar_csv
+
+        comprobar_csv(ruta)
     else:
         from app.services.image.imagen import comprobar_imagen
 
@@ -118,7 +123,7 @@ def procesar(formato: str, tratamiento: str, entrada: Path, salida: Path, job_id
         if formato == "xlsx":
             from app.services.office.xlsx import solo_metadatos_xlsx
             return solo_metadatos_xlsx(entrada, salida, job_id)
-        if formato in ("txt", "md"):
+        if formato in ("txt", "md", "csv"):
             from app.services.texto.texto import solo_metadatos_texto
             return solo_metadatos_texto(entrada, salida, job_id, formato)
         from app.services.image.imagen import solo_metadatos_imagen
@@ -131,7 +136,7 @@ def procesar(formato: str, tratamiento: str, entrada: Path, salida: Path, job_id
 
     if formato == "pdf":
         return _pdf(entrada, salida)
-    if formato in ("docx", "xlsx", "txt", "md"):
+    if formato in ("docx", "xlsx", "txt", "md", "csv"):
         from app.services.office.docx import anonimizar_docx
         from app.services.office.xlsx import anonimizar_xlsx
 
@@ -143,6 +148,10 @@ def procesar(formato: str, tratamiento: str, entrada: Path, salida: Path, job_id
             from app.services.texto.texto import anonimizar_texto
 
             informe = anonimizar_texto(entrada, salida, analyzer, job_id, mode, formato, asignador)
+        elif formato == "csv":
+            from app.services.texto.tabla_csv import anonimizar_csv
+
+            informe = anonimizar_csv(entrada, salida, analyzer, job_id, mode)
         elif formato == "docx":
             informe = anonimizar_docx(entrada, salida, analyzer,
                                       lambda e, s, f: anonimizar_imagen(e, s, f, _pdf), job_id, mode,

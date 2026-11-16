@@ -175,6 +175,12 @@ enlaces, imágenes, código) y se revisa también dentro de los enlaces: un «ma
 con un nombre o un DNI. Un texto no tiene metadatos: «solo quitar metadatos» lo devuelve igual y lo
 dice.
 
+Los **CSV** se tratan como una hoja de Excel, con la misma lógica de columnas (por la cabecera o
+por lo que contienen, observaciones analizadas celda a celda, importes de personas y de
+presupuestos de obra, casillas desmarcadas), y salen como el mismo CSV: mismo separador (punto y
+coma, coma o tabulador), mismas comillas, misma codificación y mismos saltos de línea; solo cambian
+los campos con datos.
+
 Las **hojas de Excel** (.xlsx) se tratan por columnas: la columna con datos personales (por el nombre
 de su cabecera o, si no dice nada, por lo que contiene) conserva su cabecera y cada celda pasa a
 llevar el tipo de dato entre corchetes; las columnas de texto libre se analizan celda a celda. Se

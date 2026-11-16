@@ -205,6 +205,9 @@ async def anonymize(
         "text/plain",
         "text/markdown",
         "text/x-markdown",
+        "text/csv",
+        "application/csv",
+        "text/comma-separated-values",
         "",
         None,
     }

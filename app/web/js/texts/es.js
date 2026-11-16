@@ -48,8 +48,8 @@ export const TEXTOS = {
   paso1: {
     titulo: "Documentos",
     soltar:
-      "Arrastra uno o varios PDF, imágenes (JPEG, PNG, TIFF), Word (.docx), Excel (.xlsx) " +
-      "o textos (.txt, .md) aquí, o selecciónalos",
+      "Arrastra uno o varios PDF, imágenes (JPEG, PNG, TIFF), Word (.docx), Excel (.xlsx), " +
+      "CSV o textos (.txt, .md) aquí, o selecciónalos",
     limites: (docs, paginas, mb) =>
       `Hasta ${docs} documentos por tanda · máximo ${paginas} páginas y ${mb} MB cada uno`,
     elegir: "Seleccionar archivos",
@@ -106,7 +106,7 @@ export const TEXTOS = {
       "El contenido del documento NO se revisa ni se anonimiza: los datos " +
       "personales que se vean en él siguen ahí. Solo se quitan los metadatos, " +
       "los comentarios y el texto oculto, y los campos de formulario dejan de " +
-      "ser rellenables. Los textos (.txt, .md) no tienen metadatos: salen igual.",
+      "ser rellenables. Los textos (.txt, .md) y los CSV no tienen metadatos: salen igual.",
     nuncaSeOculta: "¿Qué no se oculta nunca?",
     nuncaSeOcultaDetalle: [
       "Nombres, teléfonos y direcciones de organismos públicos.",
@@ -277,7 +277,7 @@ export const TEXTOS = {
     password_without_https: () =>
       "La contraseña ha viajado sin cifrar (el servicio no usa HTTPS). Avisa a quien lo administra.",
     format_without_metadata: () =>
-      "Los archivos de texto y Markdown no tienen metadatos: el archivo sale igual que entró.",
+      "Los archivos de texto, Markdown y CSV no tienen metadatos: el archivo sale igual que entró.",
     text_encoding_uncertain: () =>
       "No estaba claro cómo estaba guardado el texto (su codificación). Comprueba que " +
       "las tildes y las eñes se leen bien.",
@@ -309,7 +309,7 @@ export const TEXTOS = {
       titulo: "Este archivo no se puede anonimizar",
       texto:
         "Se pueden anonimizar documentos PDF, imágenes JPEG, PNG o TIFF, " +
-        "documentos de Word (.docx), hojas de Excel (.xlsx) y textos (.txt, .md).",
+        "documentos de Word (.docx), hojas de Excel (.xlsx), CSV y textos (.txt, .md).",
     },
     legacy_office: {
       titulo: "Este documento es del formato antiguo de Office",

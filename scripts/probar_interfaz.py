@@ -404,6 +404,30 @@ def flujo_texto(p, pagina, tmp: Path) -> None:
     pagina.check("#tratAnonimizar")
 
 
+def flujo_csv(p, pagina, tmp: Path) -> None:
+    print("\n1i) Un CSV sale CSV: la columna conserva su cabecera y lleva el marcador")
+    from evaluation.corpus_word import PERSONAS
+
+    abrir(pagina)
+    filas = ["Nombre;DNI;Distrito"] + [f"{q['nombre']};{q['dni']};Russafa" for q in PERSONAS]
+    original = ("\r\n".join(filas) + "\r\n").encode("cp1252")
+    (tmp / "padron.csv").write_bytes(original)
+    pagina.set_input_files("#ficheros", str(tmp / "padron.csv"))
+    icono = pagina.locator(".ficha:has-text('padron.csv') svg")
+    p.comprobar("CSV" in (icono.text_content() or ""), "el icono dice CSV")
+    pagina.click("#anonimizar")
+    ok = esperar_texto(pagina, ".doc .st", "Terminado", ms=120000)
+    p.comprobar(ok, "el CSV termina")
+    with pagina.expect_download(timeout=30000) as descarga:
+        pagina.click(".doc a.btn.primary")
+    p.comprobar(descarga.value.suggested_filename == "padron_anonimizado.csv", "se descarga como CSV con su nombre")
+    salida = tmp / "padron_salida.csv"
+    descarga.value.save_as(salida)
+    lineas = salida.read_bytes().decode("cp1252").split("\r\n")
+    p.comprobar(lineas[0] == "Nombre;DNI;Distrito" and lineas[1] == "[NOMBRE];[DNI];Russafa",
+                "en su codificacion y con sus saltos: la cabecera se queda y cada celda lleva su marcador")
+
+
 def flujo_seudonimizar(p, pagina, tmp: Path) -> None:
     print("\n1h) Seudonimizar: etiquetas, tabla cifrada y recuperar los datos")
     from evaluation.corpus_word import PERSONAS
@@ -758,6 +782,7 @@ def main() -> int:
         "word": flujo_word,
         "excel": flujo_excel,
         "texto": flujo_texto,
+        "csv": flujo_csv,
         "seudonimizar": flujo_seudonimizar,
         "expediente": flujo_expediente,
         "tanda": flujo_tanda,

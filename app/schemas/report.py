@@ -182,6 +182,7 @@ class ProcessingReport(BaseModel):
         "xlsx",
         "txt",
         "md",
+        "csv",
         "pdf_empty",
         "unsupported",
     ] = "pdf_digital"

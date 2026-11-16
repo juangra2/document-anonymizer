@@ -59,7 +59,9 @@ _CONTENT_TYPES = {"application/pdf", "application/octet-stream",
                   "application/msword", "application/vnd.ms-excel", "application/zip", "application/x-zip-compressed",
                   # Texto y Markdown: los navegadores declaran cualquiera de estos,
                   # o nada, para un .md.
-                  "text/plain", "text/markdown", "text/x-markdown", "", None}
+                  "text/plain", "text/markdown", "text/x-markdown", "", None,
+                  # CSV: Windows lo declara como application/vnd.ms-excel (ya esta arriba).
+                  "text/csv", "application/csv", "text/comma-separated-values"}
 
 
 # Desde el propio equipo la contrasena no sale a la red ("testclient" es el
@@ -223,7 +225,7 @@ async def create_job(
     if file.content_type not in _CONTENT_TYPES:
         raise HTTPException(status_code=415,
                             detail="Solo se admiten ficheros PDF, JPEG, PNG, TIFF, Word (.docx), Excel (.xlsx), "
-                                   "texto (.txt) o Markdown (.md).")
+                                   "texto (.txt), Markdown (.md) o CSV (.csv).")
 
     disabled = _parse_disabled_types(disabled_types, enabled_types)
 

@@ -1,7 +1,7 @@
 # Anonimizador de documentos
 
 Servicio que anonimiza de forma **irreversible** documentos PDF, imágenes (JPEG, PNG, TIFF),
-documentos de Word (.docx), hojas de Excel (.xlsx) y textos (.txt, Markdown .md) de la
+documentos de Word (.docx), hojas de Excel (.xlsx), CSV y textos (.txt, Markdown .md) de la
 administración pública (Ajuntament de
 València), en castellano y valenciano. Detecta los datos personales —nombres, DNI y NIE,
 direcciones, teléfonos, cuentas bancarias, fechas de nacimiento y una treintena de tipos más—,

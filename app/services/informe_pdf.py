@@ -167,7 +167,7 @@ def _mapa(r: ProcessingReport, revisar: set[int], enteras: set[int]) -> str:
 
 
 #: Formatos sin paginas: no se cuentan ni llevan mapa.
-_SIN_PAGINAS = ("docx", "xlsx", "txt", "md")
+_SIN_PAGINAS = ("docx", "xlsx", "txt", "md", "csv")
 
 
 def _unidad(r: ProcessingReport) -> str:
@@ -175,10 +175,10 @@ def _unidad(r: ProcessingReport) -> str:
         return "documento de Word"
     if r.document_type == "xlsx":
         return "libro de Excel"
-    if r.document_type in ("txt", "md"):
+    if r.document_type in ("txt", "md", "csv"):
         from app.services.texto.codificacion import NOMBRES
 
-        unidad = "documento de texto" if r.document_type == "txt" else "documento Markdown"
+        unidad = {"txt": "documento de texto", "md": "documento Markdown", "csv": "archivo CSV"}[r.document_type]
         return unidad + (f" ({NOMBRES.get(r.text_encoding, r.text_encoding)})" if r.text_encoding else "")
     if r.document_type == "image":
         return "imagen" if r.pages == 1 else "imágenes"
@@ -257,13 +257,15 @@ def _html(r: ProcessingReport, fecha: datetime) -> str:
         p + 1 for p in r.ocr.low_confidence_pages}
     if r.replaced_columns and not solo_metadatos:
         partes.append("<h2>Columnas sustituidas</h2>")
+        con_hoja = r.document_type != "csv"          # en un CSV no hay hojas
         filas = "".join(
-            f"<tr><td>{_e(c.get('sheet', ''))}</td><td>{_e(c.get('header') or '(sin cabecera)')}</td>"
+            "<tr>" + (f"<td>{_e(c.get('sheet', ''))}</td>" if con_hoja else "")
+            + f"<td>{_e(c.get('header') or '(sin cabecera)')}</td>"
             f"<td>{_e(etiquetas.get(c.get('type'), c.get('type')))}</td><td class='n'>{c.get('cells', 0)}</td></tr>"
             for c in r.replaced_columns)
         partes.append("<p>La cabecera se conserva; cada celda lleva el tipo de dato entre corchetes.</p>"
-                      f"<table><tr><th>Hoja</th><th>Columna</th><th>Tipo de dato</th><th>Celdas</th></tr>"
-                      f"{filas}</table>")
+                      "<table><tr>" + ("<th>Hoja</th>" if con_hoja else "")
+                      + f"<th>Columna</th><th>Tipo de dato</th><th>Celdas</th></tr>{filas}</table>")
     if r.pages and not solo_metadatos and r.document_type not in _SIN_PAGINAS:
         partes.append("<h2>En qué páginas</h2>")
         partes.append(_mapa(r, revisar, set(enteras)))

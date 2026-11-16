@@ -14,6 +14,7 @@ El detalle para quien mantenga el código. La idea de cada parte —qué hace y 
 4. [Documentos de Word y Excel](#documentos-de-word-y-excel)
    - [Texto y Markdown](#texto-y-markdown)
    - [Seudonimización reversible](#seudonimización-reversible)
+   - [CSV](#csv)
 5. [Tratamientos especiales](#tratamientos-especiales)
 6. [OCR](#ocr)
 7. [Red de seguridad y verificación](#red-de-seguridad-y-verificación)
@@ -374,6 +375,31 @@ rutas responden 403 `pseudonymization_disabled`, y la página no enseña ni la o
   texto reconstruido.
 - **Pendiente** (decidido el 12-11): unir «Sra. López» con «María López Pérez» cuando no haya
   duda, seudonimizar Excel y CSV, y «PDF a texto seudonimizado».
+
+### CSV
+
+`app/services/texto/tabla_csv.py`. Se reconoce como el texto (extensión `.csv` y contenido que se
+lee como texto); `comprobar` cuenta los campos al subirlo, con el tope de Excel
+(`MAX_OFFICE_CELLS`, `office_too_large`), y el tratamiento tiene el plazo de Office
+(`OFFICE_TIMEOUT_S`).
+
+- **Lectura**: la codificación como en un texto; el separador (`;`, `,`, tabulador o `|`), el que da
+  el mismo número de campos (más de uno) en más registros de los 50 primeros. Las comillas siguen
+  la norma: un campo entre comillas puede llevar el separador, saltos de línea y comillas dobladas.
+  Cada campo guarda su posición en el texto original.
+- **Clasificación**: la del Excel, sin copiarla. El CSV se presenta como una hoja (`HojaCsv`, con la
+  interfaz de `xlsx.Hoja`: celdas por (fila, columna), `texto`, `es_texto`, sin fórmulas) y pasa por
+  `_fila_cabecera`, `_tablas`, `_ficha_vertical`, `_clasificar_tabla` y `_tipo_en`: cabecera o
+  contenido, texto libre, cuenta repartida, importes de personas (MONEY) y presupuesto de obra
+  (BUDGET_AMOUNT), casillas desmarcadas. El código del Excel no cambia.
+- **Escritura**: sobre el texto original, campo a campo; lo demás se queda byte a byte. Un campo que
+  iba entre comillas sigue entre comillas (con las comillas de dentro dobladas). Un campo que empieza
+  por «=» es texto: se escribe tal cual, sin interpretarlo.
+- **Comprobación**: los valores quitados no pueden seguir en la salida, y la segunda opinión relee
+  el CSV fila a fila (celdas con tabuladores), como la del Excel. El informe lleva
+  `replaced_columns` (sin hoja), `text_encoding` y `document_type: csv`.
+- **Solo quitar metadatos**: como un texto, sale igual y lo dice. **Seudonimizar**: no (415
+  `pseudonymize_unsupported`).
 
 ---
 
@@ -766,6 +792,21 @@ datos sin fugas, 0 datos en claro en las tablas, 23/23 vueltas exactas, 105 etiq
 alteraciones, 105/105 cada una; las dos inventadas, 105/105 avisadas. Un nombre aparece además
 dentro de una dirección web, que lleva su propia etiqueta (`[WEB_1]`). Límite conocido: una
 etiqueta sin corchetes pegada a otra palabra («BENEFICIARIOPERSONA_1») no se reconoce.
+
+**Corpus de CSV** (`evaluation/corpus_csv.py` y `evaluation/lectura_csv.py`): 13 ficheros inventados
+(listado con punto y coma en Windows-1252, inscritos en valenciano con título y BOM, columnas «Col1…»,
+observaciones con comillas dobladas y saltos dentro de un campo, ficha en vertical, cuenta repartida,
+ayudas con importes, presupuesto de obra con la casilla marcada y desmarcada, estadística sin
+personas, exportación con tabuladores, comas con todo entre comillas, campos que empiezan por «=»).
+Mide que ningún dato queda, que cada columna personal lleva su marcador y las demás no cambian, que
+el texto legítimo se conserva, que la forma es la misma (codificación, BOM, saltos, separador,
+registros y campos) y que un fichero sin datos sale idéntico. Medición del 16-11: 194/194 datos
+eliminados, 0 fugas, 85/85 textos legítimos, 13/13 con la misma forma, 2/2 sin datos idénticos, 48/49
+columnas: «Adreça electrònica» se clasifica como dirección (la lista de cabeceras del Excel ve
+«adreça»), así que el correo sale como `[DIRECCIÓN]`, sin fuga. 3 ficheros piden revisión manual:
+la segunda opinión lee fechas y direcciones web en columnas que no son personales («Fecha de
+entrada», «Fecha de alta», «Enlace»); en un Excel esas fechas suelen ir como número de fecha y no
+saltan.
 
 **Corpus de Excel** (`evaluation/corpus_excel.py` y `evaluation/lectura_excel.py`): 10 libros
 inventados (listado de solicitantes, inscritos en valenciano con título y cabecera en la fila 3,
