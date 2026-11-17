@@ -274,6 +274,10 @@ export const TEXTOS = {
       "documento siguen ahí.",
     // Va en el informe; en la pantalla no se repite: ya lo dice el aviso al elegir seudonimizar.
     pseudonymized_not_anonymous: () => null,
+    pseudonym_unrecoverable: ({ tipos, cuantos }) =>
+      `${cuantos} ${cuantos === 1 ? "dato lleva" : "datos llevan"} el marcador de su tipo y no una ` +
+      `etiqueta (${tipos.join(", ").toLowerCase() || "sin tipo"}): estaban en controles, formas o ` +
+      `imágenes del documento y no se podrán recuperar con la tabla.`,
     password_without_https: () =>
       "La contraseña ha viajado sin cifrar (el servicio no usa HTTPS). Avisa a quien lo administra.",
     format_without_metadata: () =>

@@ -914,6 +914,7 @@ function fraseDeAviso(aviso) {
   return plantilla({
     paginas: aviso.pages || [],
     tipos: (aviso.types || []).map((tipo) => nombres.get(tipo) || tipo),
+    cuantos: Object.values(aviso.counts || {}).reduce((a, b) => a + b, 0),
   });
 }
 

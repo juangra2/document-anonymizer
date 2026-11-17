@@ -480,11 +480,14 @@ def anonimizar_docx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
             _sustituir(bloque, a, b, marcas.get((n, a, b)) or marcador(tipo))
             tipos[tipo] += 1
     # Lo que no es un parrafo: nombre y etiqueta de los controles de contenido,
-    # texto de formas y de marcas de agua...
+    # texto de formas y de marcas de agua...  Al seudonimizar, eso y lo tapado
+    # en las imagenes no lleva etiqueta: no se podra recuperar.
+    con_etiqueta = Counter(tipos)
     barrer(paq, analyzer, mode, tipos, lambda parte, e: e.tag.startswith(f"{{{W}}}"), plazo)
     for r in informes_imagen:
         for tipo, n in (getattr(r, "entities_by_type", None) or {}).items():
             tipos[tipo] += n
+    sin_etiqueta = tipos - con_etiqueta if asignador is not None else Counter()
 
     paq.guardar(Path(salida))
     _comprobar_que_se_abre(Path(salida))
@@ -510,6 +513,7 @@ def anonimizar_docx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
         warnings=avisos,
         metadata_removed=quitado,
         treatment="pseudonymize" if asignador is not None else "anonymize",
+        pseudonym_unrecoverable=dict(sin_etiqueta),
         redaction_strategy="docx_text_replacement",
         processing_ms=int((perf_counter() - empezado) * 1000),
         ocr={"enabled": bool(informes_imagen), "images_processed": len(informes_imagen)},

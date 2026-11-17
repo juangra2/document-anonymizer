@@ -162,6 +162,7 @@ def procesar(formato: str, tratamiento: str, entrada: Path, salida: Path, job_id
         if asignador is not None:
             from app.schemas.report import (
                 PASSWORD_WITHOUT_HTTPS,
+                PSEUDONYM_UNRECOVERABLE,
                 PSEUDONYMIZED_NOT_ANONYMOUS,
                 CodedWarning,
             )
@@ -171,6 +172,13 @@ def procesar(formato: str, tratamiento: str, entrada: Path, salida: Path, job_id
             informe.warnings.append("Pseudonymized, NOT anonymized: with the table the data can be "
                                     "restored, so the document still contains personal data.")
             informe.coded_warnings.append(CodedWarning(code=PSEUDONYMIZED_NOT_ANONYMOUS))
+            perdidos = informe.pseudonym_unrecoverable
+            if perdidos:
+                informe.warnings.append(
+                    f"{sum(perdidos.values())} personal data items carry their type marker instead of a "
+                    "label (content controls, shapes, images): they cannot be restored with the table.")
+                informe.coded_warnings.append(CodedWarning(code=PSEUDONYM_UNRECOVERABLE,
+                                                           types=sorted(perdidos), counts=dict(perdidos)))
             if sin_https:
                 informe.warnings.append("The table password was sent without HTTPS.")
                 informe.coded_warnings.append(CodedWarning(code=PASSWORD_WITHOUT_HTTPS))

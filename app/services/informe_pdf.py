@@ -124,6 +124,11 @@ def _avisos(r: ProcessingReport, etiquetas: dict[str, str]) -> list[str]:
                           "conviene echarles un vistazo.")
         elif a.code == "plan_titleblock_only_verified":
             lineas.append(f"En {donde}, que son planos, solo se ha comprobado el cajetín.")
+        elif a.code == "pseudonym_unrecoverable":
+            n = sum(a.counts.values())
+            lineas.append(f"{n} {'dato lleva' if n == 1 else 'datos llevan'} el marcador de su tipo y no una "
+                          f"etiqueta ({tipos or 'sin tipo'}): estaban en controles, formas o imágenes del "
+                          "documento y no se podrán recuperar con la tabla.")
         elif a.code == "password_without_https":
             lineas.append("La contraseña de la tabla llegó al servicio sin HTTPS: pudo leerse en la "
                           "red. Avise a quien administra el servicio.")

@@ -247,3 +247,48 @@ def test_la_segunda_opinion_no_toma_las_etiquetas_por_datos(tmp_path, analyzer):
     texto = "Destinataria: Teresa Navarro Gil\nDomicilio: Calle de Ruzafa 18, 2º A, 46004 Valencia\n"
     _, _, informe = _seudonimizar(tmp_path, analyzer, texto.encode("utf-8"), "txt")
     assert informe.residual_entities == 0 and not informe.manual_review_required
+
+
+def test_el_informe_dice_cuantos_datos_no_llevan_etiqueta(tmp_path, analyzer):
+    """Un Word con datos en sitios que no son parrafos (controles, formas) y una
+    copia de DNI en una imagen: esos datos llevan el marcador de su tipo o se
+    tapan, no una etiqueta, y no se podran recuperar.  El informe lo cuenta."""
+    from types import SimpleNamespace
+
+    from app.services.formatos import procesar
+    from app.services.seudonimo.tabla import Cifrador
+    from evaluation.corpus_word import documento_cargado
+
+    entrada, salida = tmp_path / "cargado.docx", tmp_path / "s.docx"
+    documento_cargado(entrada)
+
+    def imagen(e, s, f):                       # la copia del DNI, tapada
+        s.write_bytes(e.read_bytes())
+        return SimpleNamespace(entities_by_type={"ES_DNI": 1})
+
+    import app.services.image.imagen as modulo_imagen
+    original = modulo_imagen.anonimizar_imagen
+    modulo_imagen.anonimizar_imagen = lambda e, s, f, _pdf: imagen(e, s, f)
+    try:
+        pipeline = type("P", (), {"_analyzer": analyzer})
+        informe = procesar("docx", "pseudonymize", entrada, salida, "t", pipeline, "strict", frozenset(),
+                           cifrador=Cifrador(CLAVE), tabla=tmp_path / "t.tabla")
+    finally:
+        modulo_imagen.anonimizar_imagen = original
+    perdidos = informe.pseudonym_unrecoverable
+    assert perdidos.get("ES_DNI", 0) >= 1 and sum(perdidos.values()) < informe.entities_redacted
+    aviso = next(a for a in informe.coded_warnings if a.code == "pseudonym_unrecoverable")
+    assert aviso.counts == perdidos and aviso.types == sorted(perdidos)
+
+
+def test_un_texto_seudonimizado_no_tiene_datos_sin_etiqueta(tmp_path, analyzer):
+    from app.services.formatos import procesar
+    from app.services.seudonimo.tabla import Cifrador
+
+    entrada, salida = tmp_path / "e.txt", tmp_path / "s.txt"
+    entrada.write_bytes(CARTA.encode("utf-8"))
+    pipeline = type("P", (), {"_analyzer": analyzer})
+    informe = procesar("txt", "pseudonymize", entrada, salida, "t", pipeline, "strict", frozenset(),
+                       cifrador=Cifrador(CLAVE), tabla=tmp_path / "t.tabla")
+    assert informe.pseudonym_unrecoverable == {}
+    assert "pseudonym_unrecoverable" not in {a.code for a in informe.coded_warnings}

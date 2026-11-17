@@ -28,6 +28,9 @@ TEXT_ENCODING_UNCERTAIN = "text_encoding_uncertain"
 PSEUDONYMIZED_NOT_ANONYMOUS = "pseudonymized_not_anonymous"
 # La contrasena de la tabla llego sin HTTPS desde otro equipo.
 PASSWORD_WITHOUT_HTTPS = "password_without_https"
+# Seudonimizar: datos que llevan el marcador de su tipo y no una etiqueta
+# (controles, formas, imagenes de un Word): no se podran recuperar.
+PSEUDONYM_UNRECOVERABLE = "pseudonym_unrecoverable"
 # Motivos de revision manual (`ProcessingReport.manual_review_reasons`).  Los
 # que coinciden con un codigo de aviso (pages_not_verified,
 # safety_net_still_readable) los explica ese aviso; el resto, la nota generica.
@@ -44,7 +47,7 @@ CODED_WARNING_CODES = (PLAN_TITLEBLOCK_ONLY_VERIFIED, PAGES_NOT_VERIFIED,
                        SAFETY_NET_ACTED, SAFETY_NET_STILL_READABLE,
                        CONTENT_NOT_REVIEWED, DIGITAL_SIGNATURE_INVALIDATED,
                        FORMAT_WITHOUT_METADATA, TEXT_ENCODING_UNCERTAIN,
-                       PSEUDONYMIZED_NOT_ANONYMOUS, PASSWORD_WITHOUT_HTTPS)
+                       PSEUDONYMIZED_NOT_ANONYMOUS, PASSWORD_WITHOUT_HTTPS, PSEUDONYM_UNRECOVERABLE)
 
 
 class CodedWarning(BaseModel):
@@ -269,6 +272,12 @@ class ProcessingReport(BaseModel):
     pseudonym_labels: int = Field(
         default=0,
         description="Seudonimizar: cuantas etiquetas distintas lleva el documento (y la tabla).",
+    )
+    pseudonym_unrecoverable: dict[str, int] = Field(
+        default_factory=dict,
+        description="Seudonimizar: datos, por tipo, que no llevan etiqueta sino el marcador de su "
+                    "tipo (texto de controles y formas de un Word) o se taparon en una imagen: "
+                    "no se pueden recuperar con la tabla.",
     )
     text_encoding: str | None = Field(
         default=None,

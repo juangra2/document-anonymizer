@@ -348,7 +348,9 @@ rutas responden 403 `pseudonymization_disabled`, y la página no enseña ni la o
   de Word, misma segunda opinión), pero cada dato de párrafos y tablas pasa a su etiqueta numerada
   en vez de al marcador de su tipo: `anonimizar_docx` y `anonimizar_texto` reciben un `Asignador`.
   Las imágenes de un Word se tapan igual y el texto de fuera de los párrafos (controles, formas)
-  lleva el marcador de tipo, sin etiqueta: eso no se recupera.
+  lleva el marcador de tipo, sin etiqueta: eso no se recupera. El informe lo cuenta por tipo
+  (`pseudonym_unrecoverable`) y lo avisa (aviso `pseudonym_unrecoverable`, con `types` y `counts`),
+  en la pantalla y en el informe en PDF.
 - **Etiquetas** (`etiquetas.py`): `[PERSONA_1]`, `[DNI_1]`, `[TELEFONO_2]`… entre corchetes, en
   mayúsculas, sin tildes y numeradas por tipo en el orden del documento. Dos apariciones comparten
   etiqueta solo si coincide su forma normalizada: identificadores sin puntuación y en mayúsculas,
