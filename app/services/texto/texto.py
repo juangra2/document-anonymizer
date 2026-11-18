@@ -40,6 +40,7 @@ from app.schemas.report import (
     ProcessingReport,
 )
 from app.services.office.docx import _barrido, _spans, marcador
+from app.services.office.paquete import apariciones, se_barre
 from app.services.office.paquete import Plazo
 from app.services.texto.codificacion import Lectura, leer
 from app.services.texto.markdown import _AUTOENLACE, lineas, para_analizar, sin_marcado, zonas
@@ -155,7 +156,9 @@ def _revisar(texto: str, formato: str, analyzer, mode: str, valores: list[str]):
 
     analizado, _ = para_analizar(texto, _zonas(texto, formato))
     plano = _normal(analizado)
-    quedan = [v for v in valores if len(_normal(v)) >= 4 and _normal(v) in plano]
+    # Como el barrido: palabras enteras y sin las palabras comunes que no se barren.
+    quedan = [v for v in valores
+              if len(_normal(v)) >= 4 and se_barre(v) and next(apariciones(_normal(v), plano), None)]
     sospechas: Counter = Counter()
     for a, b in _trozos(analizado):
         _tipos_en(analizado[a:b], analyzer, mode, sospechas)

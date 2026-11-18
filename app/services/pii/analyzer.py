@@ -1475,6 +1475,82 @@ def _name_tokens(value: str) -> list[str]:
     return [gazetteer.normalize(m.group()) for m in _NAME_TOKEN_RE.finditer(value)]
 
 
+# Palabras comunes que el padron del INE tambien lista como nombre o apellido
+# y que no estan entre las palabras vacias de spaCy: numeros, unidades de
+# tiempo y vocabulario de tablas y formularios.  Sin meses ni nombres de
+# verdad (Amparo, Montserrat, Mayo, Julio, Sol...).
+_PALABRAS_COMUNES_EXTRA = frozenset({
+    "DIA", "DIAS", "HORA", "HORAS", "LLOC", "ARA", "FINS", "TRES", "CUATRO", "CINCO",
+    "SEIS", "SIETE", "OCHO", "NUEVE", "DIEZ", "QUINCE", "PERSONA", "TRABAJO", "PAGO",
+    "CASO", "DATO", "FILA", "COLUMNA", "CAMPO", "CAMPOS", "TABLA", "TABLAS", "CELDA",
+    "LISTA", "ORDEN", "MODELO", "OBRA", "CITA", "LIBRE", "LEGAL", "FISCAL", "SEGURO",
+    "DERECHO", "TIEMPO", "AYUDA", "SALA", "PARTE", "USO", "INTERNO", "SIRVE",
+})
+
+
+@functools.lru_cache(maxsize=1)
+def _palabras_comunes() -> frozenset[str]:
+    """Palabras comunes del castellano y del valenciano, normalizadas como el
+    padron: las palabras vacias de spaCy (preposiciones, articulos,
+    conjunciones, pronombres...; el catalan vale para el valenciano), el
+    vocabulario administrativo de `_COMMON_WORD_NAMES` y unas cuantas mas."""
+    from spacy.lang.ca.stop_words import STOP_WORDS as CA
+    from spacy.lang.es.stop_words import STOP_WORDS as ES
+
+    vacias = {gazetteer.normalize(w) for w in ES | CA}
+    return frozenset(v for v in vacias if v and " " not in v) | PiiAnalyzer._COMMON_WORD_NAMES \
+        | _PALABRAS_COMUNES_EXTRA
+
+
+def es_palabra_comun(palabra: str) -> bool:
+    """Si una palabra suelta es una palabra comun ("para", "Sola", "Días")."""
+    n = gazetteer.normalize(palabra)
+    return bool(n) and " " not in n and n in _palabras_comunes()
+
+
+# Tratamiento justo delante de un nombre: "Sr. ", "Dña. ", "Sr. D. ", "D.ª ",
+# "Don ", "Senyora ".  Con el, un apellido que es palabra comun ("Sr. Mas")
+# sigue siendo un nombre.
+_TRATAMIENTO_DELANTE_RE = re.compile(
+    r"(?<![\wÀ-ÿ])(?:(?i:sr|sra|srta|sres|sras|dña|dª|excmo|excma|ilmo|ilma)\.|D\.ª?|Dª"
+    r"|(?i:don|doña|señor|señora|senyor|senyora))[^\S\r\n]*$")
+
+
+def presentado_como_persona(texto: str, inicio: int) -> bool:
+    """Si lo que empieza en `inicio` va tras un tratamiento ("Sr. Mas") o tras
+    un rotulo en la misma linea ("Nombre: Sola", "Solicitante:⇥Mas Sola")."""
+    linea = texto[:inicio].rsplit("\n", 1)[-1]
+    return bool(_TRATAMIENTO_DELANTE_RE.search(linea) or re.search(r":[^\S\r\n]*$", linea))
+
+
+# Un identificador con guiones bajos (NER_USE_GPU, HOST_PORT): nunca una persona.
+_IDENTIFICADOR_RE = re.compile(r"[^\W_]_[^\W_]")
+# Un nombre de fichero con extension (referencia_tecnica.md): nunca un expediente.
+_FICHERO_CON_EXTENSION_RE = re.compile(
+    r"\.(?:md|markdown|txt|pdf|docx?|dotx|xlsx?|xlsm|csv|odt|ods|odp|rtf|pptx?|jpe?g|png|gif|"
+    r"tiff?|bmp|html?|xml|json|zip|7z|rar)$", re.IGNORECASE)
+# Detectores que ya leen el rotulo de la persona: lo suyo no se descarta por ser
+# una palabra comun ("Nombre: Sola").
+_FUENTES_CON_ROTULO = {"labeled_field", "no_colon_labeled_field", "form_label", "role_table_row",
+                       "case_table_row"}
+
+
+def _no_es_lo_que_parece(e: PiiEntity, text: str) -> bool:
+    """Detecciones que nunca son lo que dicen, sea cual sea el detector:
+    una persona que es un identificador con guiones bajos o una sola palabra
+    comun sin tratamiento ni rotulo delante, y un expediente que es un nombre
+    de fichero."""
+    valor = text[e.start:e.end].strip()
+    if e.entity_type == "PERSON":
+        if e.source != "person_filename" and _IDENTIFICADOR_RE.search(valor):
+            return True
+        return (len(valor.split()) == 1 and es_palabra_comun(valor)
+                and e.source not in _FUENTES_CON_ROTULO and not presentado_como_persona(text, e.start))
+    if e.entity_type == "CASE_NUMBER":
+        return bool(_FICHERO_CON_EXTENSION_RE.search(valor))
+    return False
+
+
 class PiiAnalyzer:
     # Label → Presidio entity mapping shared by both NER backends.  Covers spaCy
     # labels (PER/LOC/GPE/ORG) and CAPITEL transformer labels (PER/LOC/ORG/OTH).
@@ -1656,6 +1732,11 @@ class PiiAnalyzer:
             e for e in entities
             if not (e.entity_type == "PHONE_NUMBER" and _numero_de_expediente(text, e.start))
         ]
+        # Ni un identificador con guiones bajos ni una palabra comun suelta son
+        # personas, ni un nombre de fichero es un expediente (el README del
+        # proyecto: "NER_USE_GPU", "Para", "referencia_tecnica.md").  Ver
+        # tests/test_palabras_comunes.py.
+        entities = [e for e in entities if not _no_es_lo_que_parece(e, text)]
 
         # Los tipos desactivados se quitan ANTES de resolver solapes.  La fusión
         # se queda con un único span por solape y descarta el resto; si un tipo
@@ -2171,7 +2252,9 @@ class PiiAnalyzer:
                 between = text[run[-1].end():matches[j].start()]
                 stripped = between.strip()
                 joined = stripped.split()
-                if "\n" in between or "\r" in between:
+                # Un tabulador separa celdas de una tabla: "Qué⇥Para qué" son
+                # dos celdas, no un nombre.
+                if "\n" in between or "\r" in between or "\t" in between:
                     break
                 if joined and not all(
                     w in PiiAnalyzer._NAME_PARTICLES for w in joined
@@ -2208,9 +2291,17 @@ class PiiAnalyzer:
                 if 2 <= len(sub) <= 4:
                     ine_hits = sum(1 for t in subn if gazetteer.is_person_token(t))
                     has_surname = any(t in gazetteer.surnames() for t in subn)
+                    # Hace falta una palabra del padron que no sea comun: "Qué
+                    # Para", "Ante Todo" o "Fins Ara" son todas del padron y
+                    # todas comunes.  Con un tratamiento delante ("Sr. D. Mas
+                    # Ferrer", "Dña. Mas Sola") basta, como antes, con una que
+                    # no sea vocabulario administrativo: en Valencia Mas, Sola
+                    # o Ferrer son apellidos corrientes.
+                    tras_tratamiento = bool(_TRATAMIENTO_DELANTE_RE.search(text[:sub[0].start()]))
                     strong_hit = any(
                         gazetteer.is_person_token(t)
                         and t not in PiiAnalyzer._COMMON_WORD_NAMES
+                        and (tras_tratamiento or t not in _palabras_comunes())
                         for t in subn
                     )
                     span_text = text[sub[0].start():sub[-1].end()]

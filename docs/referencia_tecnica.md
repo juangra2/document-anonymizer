@@ -106,6 +106,17 @@ resolver solapes, para que un tipo apagado no oculte ni sustituya a otro activo.
   (código postal ↔ provincia ↔ municipio), refuerzan nombres dudosos y alimentan un detector de
   nombres en prosa. **Regla del padrón**: un nombre detectado sin dos puntos («NOMBRE / PEDRO»)
   tiene que llevar un nombre o un apellido del padrón; se midió que no descarta ningún nombre real.
+- **Palabras comunes**: muchas palabras corrientes están en el padrón como apellido o nombre
+  («para», «que», «con», «sola», «mas», «días»…). El detector de nombres en prosa pide al menos
+  una palabra del padrón que no sea común (las palabras vacías de castellano y catalán de spaCy y
+  una lista corta propia, `_palabras_comunes`) y no junta palabras separadas por un tabulador, que
+  son celdas de una tabla. Una persona que se queda en una sola palabra común se descarta, sea
+  cual sea el detector. Con un tratamiento delante («Sr. Mas», «Dña. Mas Sola») o tras el rótulo
+  de una persona («Solicitante: Mas Sola», «Nombre: Sola») sigue siendo un nombre: en Valencia
+  Mas, Sola o Ferrer son apellidos corrientes.
+- **Identificadores y ficheros**: una palabra con guiones bajos (`NER_USE_GPU`) nunca es una
+  persona, salvo el nombre de un fichero adjunto con el del interesado (`TFM_Nombre_Apellido.pdf`),
+  y un nombre de fichero con extensión (`referencia_tecnica.md`) nunca es un número de expediente.
 - **Filtro institucional** (`pii/institution_filter.py`): el nombre de una institución pública no
   se tacha, ni el teléfono, la dirección o el correo que la acompañan en el membrete o el pie. El
   membrete y el pie se reconocen por posición, con cuidado de no tomar el pie por membrete en
@@ -191,7 +202,10 @@ la barra del valor tampoco muerde el rótulo de encima.
   tabuladores (así se leen rótulo y valor). Un dato no cruza de una celda a otra ni incluye la
   etiqueta que lo precede (el analizador devuelve a veces «de contacto: 611…»; se corta tras los
   últimos dos puntos seguidos de espacio). Después, cada valor detectado se sustituye en todo el
-  documento donde aparezca.
+  documento donde aparezca como palabra entera, sin distinguir mayúsculas («para» no se toca
+  dentro de «prepara», ni «28013» dentro de «2028013»; de letra a cifra sí se corta: el DNI en
+  «DNI12345678Z»). Un dato de una sola palabra común no se busca en el resto del documento; un
+  nombre de una palabra («María»), sí. La comprobación final de la salida busca igual.
 - **Fuera de los párrafos** (`barrido.py`, común con Excel): el resto del texto de todas las partes
   pasa también por el analizador. En Word: nombre y etiqueta de los controles de contenido, texto de
   formas y marcas de agua, textos alternativos que queden. Los nombres de marcador los pone quien

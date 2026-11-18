@@ -293,14 +293,52 @@ def texto_de_todas_las_partes(ruta: Path) -> str:
         return "\n".join(t for n in z.namelist() for t in _textos_de_parte(n, z.read(n)))
 
 
-def verificar(ruta: Path, valores: list[str]) -> list[tuple[str, str]]:
-    """(parte, valor) de cada valor que sigue en alguna parte del fichero."""
+def _corta(texto: str, inicio: int, fin: int) -> bool:
+    """Si texto[inicio:fin] es solo un trozo de una palabra o de un numero:
+    "para" en "prepara", "Teresa" en "Teresalandia", "28013" en "2028013".
+    De letra a cifra no se corta nada: "12345678Z" en "DNI12345678Z" cuenta."""
+    def misma_clase(a: str, b: str) -> bool:
+        return (a.isalpha() and b.isalpha()) or (a.isdigit() and b.isdigit())
+    return ((inicio > 0 and misma_clase(texto[inicio - 1], texto[inicio]))
+            or (fin < len(texto) and misma_clase(texto[fin - 1], texto[fin])))
+
+
+def apariciones(valor: str, texto: str):
+    """Cada aparicion de `valor` en `texto` como palabra o numero entero, sin
+    distinguir mayusculas (el barrido del PDF tambien busca palabras enteras)."""
+    for m in re.finditer(re.escape(valor), texto, re.IGNORECASE):
+        if not _corta(texto, m.start(), m.end()):
+            yield m
+
+
+def se_barre(valor: str) -> bool:
+    """Si un dato detectado se busca en todo el documento.  No, si es una sola
+    palabra comun: "para" tomado por un nombre se quedaria en cada frase.  Un
+    nombre de una palabra ("María") si se barre."""
+    from app.services.pii.analyzer import es_palabra_comun
+
+    palabras = valor.split()
+    return not (len(palabras) == 1 and es_palabra_comun(palabras[0]))
+
+
+def verificar(ruta: Path, valores: list[str], enteras: bool = False) -> list[tuple[str, str]]:
+    """(parte, valor) de cada valor que sigue en alguna parte del fichero.  Con
+    `enteras` (Word), como el barrido: solo palabras enteras y sin las palabras
+    comunes que no se barren."""
+    if enteras:
+        valores = [v for v in valores if se_barre(v)]
     encontrados = []
     with zipfile.ZipFile(ruta) as z:
         for nombre in z.namelist():
             textos = [_normal(t) for t in _textos_de_parte(nombre, z.read(nombre))]
             for v in valores:
                 aguja = _normal(v.strip())
-                if len(aguja) >= 4 and any(aguja in t for t in textos):
+                if len(aguja) < 4:
+                    continue
+                if enteras:
+                    sigue = any(next(apariciones(aguja, t), None) for t in textos)
+                else:
+                    sigue = any(aguja in t for t in textos)
+                if sigue:
                     encontrados.append((nombre, v))
     return encontrados

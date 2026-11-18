@@ -420,6 +420,10 @@ Medición final (**c4**), 19 de octubre de 2026:
 La media es **aritmética**: cada tipo de documento pesa lo mismo, por la razón de la sección
 anterior.
 
+Medición de control del 18 de noviembre de 2026 (c8, tras dejar de tomar palabras comunes por
+nombres): los digitales suben a **0,952** (precisión 0,921: 33 nombres tachados de más menos, sin
+perder ninguno); escaneados e híbridos, iguales. La media sigue en 0,944.
+
 Evolución de la media del F1 por valor, desde la primera medición, antes de las mejoras:
 
 | Línea base | c1 | c2 | c3 | c4 |

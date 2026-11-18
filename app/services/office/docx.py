@@ -43,7 +43,15 @@ from lxml import etree
 from app.core.errors import OfficeMacrosError, ProcessingError, UnsupportedDocumentError
 from app.schemas.report import CONTENT_NOT_REVIEWED, CodedWarning, ProcessingReport
 from app.services.office.barrido import barrer
-from app.services.office.paquete import Paquete, Plazo, limpiar_propiedades, tipo_office, verificar
+from app.services.office.paquete import (
+    Paquete,
+    Plazo,
+    apariciones,
+    limpiar_propiedades,
+    se_barre,
+    tipo_office,
+    verificar,
+)
 from app.services.office.verificador import revisar
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -406,11 +414,18 @@ def _sin_etiqueta(texto: str, inicio: int, fin: int, tipo: str) -> tuple[int, in
 
 def _spans(bloque: Bloque, analyzer, mode: str) -> list[tuple[int, int, str]]:
     from app.services.layout.zone_config import ALL_PII_TYPES
+    from app.services.pii.analyzer import es_palabra_comun, presentado_como_persona
 
     tipos = set(ALL_PII_TYPES)
     entidades = analyzer.analyze(bloque.texto, mode=mode, zone_type=None, context_text=bloque.texto)
     spans = sorted(_sin_etiqueta(bloque.texto, e.start, e.end, e.entity_type)
                    for e in entidades if e.entity_type in tipos)
+    # Una persona que, recortada a su celda, se queda en una palabra comun
+    # ("Qué⇥Para" -> "Para") no es nadie, salvo tras un tratamiento o un rotulo.
+    spans = [(a, b, t) for a, b, t in spans
+             if not (t == "PERSON" and len(bloque.texto[a:b].split()) == 1
+                     and es_palabra_comun(bloque.texto[a:b])
+                     and not presentado_como_persona(bloque.texto, a))]
     # Sin solapes: gana el mas largo.
     salida: list[tuple[int, int, str]] = []
     for s in sorted(spans, key=lambda x: (x[0], -(x[1] - x[0]))):
@@ -424,11 +439,14 @@ def _spans(bloque: Bloque, analyzer, mode: str) -> list[tuple[int, int, str]]:
 
 def _barrido(bloque: Bloque, valores: dict[str, str], spans: list[tuple[int, int, str]]
              ) -> list[tuple[int, int, str]]:
-    """Cada valor detectado en el documento, donde mas aparezca."""
+    """Cada valor detectado en el documento, donde mas aparezca: como palabra
+    entera, y sin propagar una palabra comun suelta ("para")."""
     ocupado = [(a, b) for a, b, _ in spans]
     nuevos = []
     for valor, tipo in valores.items():
-        for m in re.finditer(re.escape(valor), bloque.texto, re.IGNORECASE):
+        if not se_barre(valor):
+            continue
+        for m in apariciones(valor, bloque.texto):
             if any(m.start() < b and m.end() > a for a, b in ocupado):
                 continue
             nuevos.append((m.start(), m.end(), tipo))
@@ -491,7 +509,7 @@ def anonimizar_docx(entrada: Path, salida: Path, analyzer, procesar_imagen, job_
 
     paq.guardar(Path(salida))
     _comprobar_que_se_abre(Path(salida))
-    quedan = verificar(Path(salida), list(valores))
+    quedan = verificar(Path(salida), list(valores), enteras=True)
     residuales, avisos, motivos = revisar(Path(salida), analyzer, mode, quedan)
     if cuenta["images_removed"]:
         avisos.append(f"{cuenta['images_removed']} images in formats that cannot be reviewed were removed.")
