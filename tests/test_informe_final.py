@@ -7,7 +7,7 @@ from evaluation.informe_final import RAIZ, generar
 
 def test_el_informe_se_genera_completo_y_sin_nada_de_internet(tmp_path):
     salida = tmp_path / "informe.html"
-    generar(RAIZ / "evaluation/reference/c4", salida)
+    generar(RAIZ / "evaluation/reference/c8", salida)
     html = salida.read_text(encoding="utf-8")
     for seccion in ("Cómo leer las cifras", "Resultados por tipo de documento", "Media de los tres",
                     "Evolución", "F1 por tipo de dato", "Lectura de barras",

@@ -854,19 +854,22 @@ concluyente (no se encuentra ni en la entrada, o está bajo una página en negro
 
 | Herramienta | Uso |
 |---|---|
-| `python -m evaluation.agregado` | Las métricas de los tres corpus juntas (por defecto, las de c4) |
+| `python -m evaluation.agregado` | Las métricas de los tres corpus juntas (por defecto, las de c8) |
 | `python -m evaluation.comparar_eval REF NUEVA` | Métricas globales y por tipo entre dos corridas |
 | `python -m evaluation.comparar_documentos REF NUEVA` | Qué FN/FP aparecen o desaparecen, por documento |
 | `python -m evaluation.guardar_ref` / `identidad_contra` | Guardar la salida antes de un refactor y comprobar que no cambia |
 | `python -m evaluation.compuerta_tipos REF PRUEBA --desmarcados T1,T2` | Desmarcar un tipo no puede hacer desaparecer otro |
 | `python -m evaluation.rebuild_report RESULTADOS.json INFORME.html` | Regenera el HTML de una corrida |
-| `python -m evaluation.informe_final` | Regenera `evaluation/informe_final.html` desde `evaluation/reference/c4/` |
+| `python -m evaluation.informe_final` | Regenera `evaluation/informe_final.html` desde `evaluation/reference/c8/` |
 | `python -m evaluation.comprobar_metadatos SALIDA.pdf` | Comprobación de metadatos con ExifTool y qpdf |
 
 **Referencias bajo seguimiento**:
 
-- `evaluation/reference/c4/`: la medición final (resultados de los tres corpus, lectura de barras
-  con las fugas clasificadas, banco de teléfonos y direcciones, comprobaciones).
+- `evaluation/reference/c8/`: la medición de referencia, del 18-11-2026 (resultados de los tres
+  corpus, lectura de barras con las fugas clasificadas, banco de teléfonos y direcciones,
+  comprobaciones). Las comparaciones de una medición nueva se hacen contra ella.
+- `evaluation/reference/c4/`: la referencia anterior (19-10-2026), con los mismos ficheros; se
+  conserva como referencia histórica.
 - `evaluation/linea_base/`: la línea base, la tabla de todas las mediciones
   (`transicion_contabilidad.json`) y cómo leerla (`LEEME.md`). Sus resultados y
   `scripts/recontar_resultados.py` permiten volver a contarla si cambia el evaluador.

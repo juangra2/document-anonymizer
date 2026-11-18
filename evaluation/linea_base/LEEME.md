@@ -78,6 +78,11 @@ con `scripts/recontar_resultados.py`):
 | escaneado | 0.9149 | 0.9474 | 15 (78) |
 | hibrido | 0.9028 | 0.9345 | 20 (197) |
 | media | 0.9216 | 0.9439 | |
+| **c8** (18-11-2026, nueva referencia: c4 y ademas titulos en mayusculas, nombre tras un rotulo, palabras comunes que no son nombres, identificadores con guiones bajos y ficheros con extension) | | | |
+| digital | 0.9490 | 0.9521 | 381 (2897) |
+| escaneado ** | 0.9122 | 0.9474 | 14 (73) |
+| hibrido | 0.9033 | 0.9345 | 20 (197) |
+| media | 0.9215 | 0.9447 | |
 
 Todas las filas recontadas el 07-10-2026 con el evaluador actual (incluidas las
 exclusiones domicilio_institucional y lugar_infraccion_sin_etiquetar), asi que
@@ -85,6 +90,10 @@ son comparables entre si.
 
 \* 2 escaneados de c1 agotaron el tiempo por pagina con la maquina cargada; la
 fila lleva su repeticion con la maquina libre.
+
+\*\* El F1 por aparicion del escaneado baja de 0.9149 a 0.9122 desde c6
+(03-11-2026, entre c4 y c8): un dato pasa de acierto exacto a parcial; el F1
+por valor no cambia.  c8 no se recuenta: ya se midio con el evaluador actual.
 
 Como leerlo: la mejora del pipeline es la diferencia entre filas de la misma
 columna; la de la contabilidad, la diferencia entre columnas de la misma fila.

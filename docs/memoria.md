@@ -408,44 +408,49 @@ Detalle de cómo se cuenta y cómo se mide: [referencia técnica](referencia_tec
 
 ## 9. Métricas
 
-Medición final (**c4**), 19 de octubre de 2026:
+Medición de referencia (**c8**), 18 de noviembre de 2026:
 
 | Documentos | F1 por valor | Precisión | Recall | F1 por aparición |
 |---|---|---|---|---|
-| Digitales (400) | **0,950** | 0,917 | 0,986 | 0,947 |
-| Escaneados (28) | **0,947** | 0,945 | 0,950 | 0,915 |
+| Digitales (400) | **0,952** | 0,921 | 0,986 | 0,949 |
+| Escaneados (28) | **0,947** | 0,945 | 0,950 | 0,912 |
 | Híbridos (24) | **0,934** | 0,942 | 0,927 | 0,903 |
-| **Media** | **0,944** | | | 0,922 |
+| **Media** | **0,945** | | | 0,922 |
 
 La media es **aritmética**: cada tipo de documento pesa lo mismo, por la razón de la sección
 anterior.
 
-Medición de control del 18 de noviembre de 2026 (c8, tras dejar de tomar palabras comunes por
-nombres): los digitales suben a **0,952** (precisión 0,921: 33 nombres tachados de más menos, sin
-perder ninguno); escaneados e híbridos, iguales. La media sigue en 0,944.
+Frente a c4 (19 de octubre, la referencia anterior), los digitales suben de 0,950 a 0,952: tachan
+33 nombres de más menos (palabras comunes y títulos en mayúsculas que se tomaban por nombres), sin
+perder ninguno. Escaneados e híbridos tienen el mismo F1 por valor. El F1 por aparición de los
+escaneados baja de 0,915 a 0,912 desde el 3 de noviembre: una aparición de un dato pasa de tapada
+entera a tapada en parte.
 
 Evolución de la media del F1 por valor, desde la primera medición, antes de las mejoras:
 
-| Línea base | c1 | c2 | c3 | c4 |
-|---|---|---|---|---|
-| 0,839 | 0,913 | 0,937 | 0,944 | **0,944** |
+| Línea base | c1 | c2 | c3 | c4 | c8 |
+|---|---|---|---|---|---|
+| 0,839 | 0,913 | 0,937 | 0,944 | 0,944 | **0,945** |
 
 El mayor salto fue el de los documentos híbridos, que al principio se trataban como digitales y
 no se leían sus páginas escaneadas. c4 no buscaba subir la media sino cubrir casos que el corpus no
-tenía (imágenes pegadas, formularios, páginas giradas, dos columnas), sin perder nada.
+tenía (imágenes pegadas, formularios, páginas giradas, dos columnas), sin perder nada. Entre c4 y
+c8 el trabajo fue sobre todo Word, Excel, texto y CSV; en los PDF solo cambió lo que se toma por
+nombre de persona. c4 se conserva como referencia histórica.
 
 **Lectura de barras** (porcentaje de datos tapados en el PDF entregado):
 
 | Documentos | Tapado | Fugas |
 |---|---|---|
 | Digitales (muestra de 100) | 99,1 % | 14 |
-| Escaneados (28) | 99,0 % | 3 |
+| Escaneados (28) | 99,7 % | 1 |
 | Híbridos (24) | 98,7 % | 6 |
 
-De las 23 fugas, **8 son datos personales de verdad**: domicilios de particulares escritos dentro
+De las 21 fugas, **8 son datos personales de verdad**: domicilios de particulares escritos dentro
 de una frase. Las demás son el domicilio social de la empresa o universidad empleadora (un contacto
 institucional que los documentos de prueba marcan como personal), el nombre de un secretario que
-firma un certificado y dos fechas de un certificado escaneado.
+firma un certificado y un domicilio de un contrato escaneado que la lectura no puede clasificar.
+Las dos fechas de un certificado escaneado que se leían en c4 ya quedan tapadas.
 
 Además de los corpus, se comprueba que no queda ningún dato a la vista en una batería de 107
 formatos reales de teléfonos y direcciones, sin tomar por dato ninguna de 23 trampas (importes,
@@ -474,7 +479,7 @@ las decisiones técnicas del despliegue, en la [referencia técnica](referencia_
 
 - **Domicilios dentro de una frase.** Un domicilio escrito en mitad de un párrafo («domiciliado en
   Ctra. de España, 60, Entresuelo Centro, 08002 Barcelona») puede quedar sin detectar, con su
-  código postal. Son las únicas fugas de datos personales de verdad en la medición final (8 de 23).
+  código postal. Son las únicas fugas de datos personales de verdad en la medición de referencia (8 de 21).
 - **Documentos de prueba sintéticos.** Las cifras se han medido sobre documentos generados; con
   expedientes reales, sobre todo escaneados de mala calidad, pueden ser peores.
 - **Tipos sin medir.** Algunos tipos se detectan pero no aparecen en los documentos de prueba, así

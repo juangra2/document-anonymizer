@@ -214,5 +214,60 @@
         "nombres_reales": 0
       }
     }
+  },
+  "c8_2026_11_18": {
+    "fuente": "evaluation/reference/c8/resultados_{c}.json (exacto), codigo 3dcfe81. Todo lo de c4 y ademas Word, Excel, texto, Markdown y CSV (no cambian los PDF); un titulo en mayusculas no es un nombre; el nombre tras un rotulo acaba en la coma; una palabra comun (\"para\", \"Sola\") no es un nombre salvo con tratamiento o rotulo; un identificador con guiones bajos no es una persona; un fichero con extension no es un expediente.  El F1 por aparicion del escaneado baja de 0.9149 a 0.9122 desde c6 (03-11-2026): un dato pasa de acierto exacto a parcial (por aparicion 514 frente a 516); el F1 por valor no cambia.",
+    "digital": {
+      "documentos": 400,
+      "f1_por_valor": 0.9521,
+      "precision": 0.921,
+      "recall": 0.9855,
+      "tp_pagina_negra": 0,
+      "sobre_redaccion": 381,
+      "sobre_redaccion_caracteres": 2897,
+      "f1_por_aparicion": 0.949
+    },
+    "escaneado": {
+      "documentos": 28,
+      "f1_por_valor": 0.9474,
+      "precision": 0.945,
+      "recall": 0.9497,
+      "tp_pagina_negra": 4,
+      "sobre_redaccion": 14,
+      "sobre_redaccion_caracteres": 73,
+      "f1_por_aparicion": 0.9122
+    },
+    "hibrido": {
+      "documentos": 24,
+      "f1_por_valor": 0.9345,
+      "precision": 0.9418,
+      "recall": 0.9272,
+      "tp_pagina_negra": 10,
+      "sobre_redaccion": 20,
+      "sobre_redaccion_caracteres": 197,
+      "f1_por_aparicion": 0.9033
+    },
+    "media_f1_por_valor": 0.9447,
+    "media_f1_por_aparicion": 0.9215,
+    "lectura_de_barras": {
+      "digital": {
+        "tapados": 1525,
+        "fugas": 14,
+        "tapado_pct": 99.1,
+        "fugas_nuevas_frente_a_c4": 0
+      },
+      "escaneado": {
+        "tapados": 310,
+        "fugas": 1,
+        "tapado_pct": 99.7,
+        "fugas_nuevas_frente_a_c4": 0
+      },
+      "hibrido": {
+        "tapados": 467,
+        "fugas": 6,
+        "tapado_pct": 98.7,
+        "fugas_nuevas_frente_a_c4": 0
+      }
+    }
   }
 }

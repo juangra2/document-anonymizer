@@ -2,17 +2,20 @@
 
 Todo sale de ficheros bajo seguimiento, asi que se regenera tras cada medicion:
 
-  evaluation/reference/c4/resultados_{digital,escaneado,hibrido}.json   metricas por corpus y tipo
-  evaluation/reference/c4/lectura_barras.json                          lectura de barras y fugas
-  evaluation/reference/c4/banco_contacto.json                          banco de telefonos y direcciones
-  evaluation/reference/c4/comprobaciones.json                          casos dificiles y metadatos
-  evaluation/linea_base/transicion_contabilidad.json                   evolucion (linea base a c4)
+  evaluation/reference/c8/resultados_{digital,escaneado,hibrido}.json   metricas por corpus y tipo
+  evaluation/reference/c8/lectura_barras.json                          lectura de barras y fugas
+  evaluation/reference/c8/banco_contacto.json                          banco de telefonos y direcciones
+  evaluation/reference/c8/comprobaciones.json                          casos dificiles y metadatos
+  evaluation/linea_base/transicion_contabilidad.json                   evolucion (linea base a c8)
+
+La medicion de referencia es la ultima de MEDICIONES (c8); c4, la anterior,
+sigue en evaluation/reference/c4/ y en la evolucion como referencia historica.
   docs/memoria.md, seccion "Limitaciones conocidas"
 
 El HTML es autocontenido: sin librerias ni fuentes de internet.
 
 Uso:
-    python -m evaluation.informe_final [--ref evaluation/reference/c4] [--salida evaluation/informe_final.html]
+    python -m evaluation.informe_final [--ref evaluation/reference/c8] [--salida evaluation/informe_final.html]
 """
 from __future__ import annotations
 
@@ -37,7 +40,19 @@ MEDICIONES = [
     ("c2_2026_10_07", "c2", "07-10-2026", "Arreglo del camino híbrido página a página y del tachado escaneado."),
     ("c3_2026_10_14", "c3", "14-10-2026", "Barrido de todas las apariciones de un dato, filtro de contacto institucional, nombres en el pie."),
     ("c4_2026_10_19", "c4", "19-10-2026", "Imágenes pegadas leídas por separado, formularios, páginas giradas, dos columnas, firmas en fila."),
+    ("c8_2026_11_18", "c8", "18-11-2026", "Word, Excel, texto y CSV; una palabra común ya no se toma por un nombre (títulos en mayúsculas, cabeceras de tabla)."),
 ]
+# La medicion de referencia: la ultima.
+FINAL_CLAVE, FINAL_NOMBRE, FINAL_FECHA, _ = MEDICIONES[-1]
+_MESES = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre",
+          "octubre", "noviembre", "diciembre")
+
+
+def _fecha_larga(fecha: str) -> str:
+    dia, mes, anio = fecha.split("-")
+    return f"{int(dia)} de {_MESES[int(mes) - 1]} de {anio}"
+
+
 TIPOS = {
     "PERSON": "Nombre de persona", "ES_DNI": "DNI / NIF", "ES_NIE": "NIE", "ES_CIF": "CIF de entidad",
     "ES_NSS": "Nº de la Seguridad Social", "PASSPORT": "Pasaporte", "ADDRESS": "Dirección postal",
@@ -172,8 +187,8 @@ def generar(ref: Path, salida: Path) -> None:
     barras = _json(ref / "lectura_barras.json")
     comp = _json(ref / "comprobaciones.json")
     trans = _json(RAIZ / "evaluation/linea_base/transicion_contabilidad.json")
-    c4 = trans["c4_2026_10_19"]
-    codigo = re.search(r"codigo (\w+)", c4.get("fuente", ""))
+    final = trans[FINAL_CLAVE]
+    codigo = re.search(r"codigo (\w+)", final.get("fuente", ""))
     codigo = codigo.group(1) if codigo else "?"
 
     # --- cifras principales por corpus -------------------------------------------------
@@ -208,7 +223,7 @@ def generar(ref: Path, salida: Path) -> None:
         if not m:
             continue
         celdas = "".join(f"<td class=n>{_num(m[c]['f1_por_valor'])}</td>" for c in CORPUS)
-        filas_ev.append(f"<tr{' class=final' if clave.startswith('c4') else ''}><th>{nombre}</th><td>{fecha}</td>"
+        filas_ev.append(f"<tr{' class=final' if clave == FINAL_CLAVE else ''}><th>{nombre}</th><td>{fecha}</td>"
                         f"{celdas}<td class=n><strong>{_num(m['media_f1_por_valor'])}</strong></td><td>{_e(que)}</td></tr>")
 
     # --- F1 por tipo ---------------------------------------------------------------------
@@ -309,7 +324,7 @@ footer {{ margin-top: 48px; color: var(--suave); font-size: .85rem; }}
 <main>
 <header>
   <h1>Anonimizador de documentos: informe final de calidad</h1>
-  <p class=meta>Medición <strong>c4</strong> del <strong>19 de octubre de 2026</strong>, con el código del commit
+  <p class=meta>Medición <strong>{FINAL_NOMBRE}</strong> del <strong>{_fecha_larga(FINAL_FECHA)}</strong>, con el código del commit
   <strong><code>{_e(codigo)}</code></strong> del repositorio <code>document-anonymizer</code>.
   Informe generado por <code>evaluation/informe_final.py</code>.</p>
 </header>
@@ -349,7 +364,7 @@ que más abundan en los expedientes reales.</p>
 
 <h2>Evolución</h2>
 <p>F1 por valor en cada medición, con la misma forma de contar en todas (la línea base se ha vuelto a contar con
-ella).</p>
+ella). La fila marcada es la medición de este informe; c4 fue la referencia hasta el 18 de noviembre de 2026.</p>
 <div class=tabla><table>
 <thead><tr><th>Medición</th><th>Fecha</th><th>Digital</th><th>Escaneado</th><th>Híbrido</th><th>Media</th><th>Qué cambió</th></tr></thead>
 <tbody>{''.join(filas_ev)}</tbody></table></div>
@@ -400,7 +415,7 @@ Para regenerarlo: <code>python -m evaluation.informe_final</code>.</footer>
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--ref", type=Path, default=RAIZ / "evaluation/reference/c4")
+    ap.add_argument("--ref", type=Path, default=RAIZ / "evaluation/reference/c8")
     ap.add_argument("--salida", type=Path, default=RAIZ / "evaluation/informe_final.html")
     args = ap.parse_args()
     generar(args.ref.resolve(), args.salida)
